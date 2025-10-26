@@ -60,8 +60,10 @@ const setCachedData = <T>(key: string, data: T) => {
 
 
 // --- TYPE DEFINITIONS ---
-interface GroupedClubCompetitions {
-  [continent: string]: ManagedCompetitionType[];
+interface NestedGroupedCompetitions {
+    [continent: string]: {
+        [country: string]: ManagedCompetitionType[];
+    };
 }
 interface TeamsByContinent {
     [continent: string]: Team[]
@@ -222,31 +224,40 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         const processedCompetitions = managedCompetitions.map(comp => ({
             ...comp,
             name: getName('league', comp.leagueId, comp.name),
+            countryName: getName('country', comp.countryName, comp.countryName)
         }));
 
-        const grouped: GroupedClubCompetitions = {};
+        const grouped: NestedGroupedCompetitions = {};
         
         processedCompetitions.forEach(comp => {
-            const countryName = comp.countryName;
-            const continent = countryToContinent[countryName] || "Other";
+            let continent = countryToContinent[comp.countryName] || "Other";
             const isWorldLeague = WORLD_LEAGUES_KEYWORDS.some(keyword => comp.name.toLowerCase().includes(keyword)) || continent === 'World';
             const targetContinent = isWorldLeague ? "World" : continent;
 
-            if (!grouped[targetContinent]) {
-                grouped[targetContinent] = [];
-            }
-            grouped[targetContinent].push(comp);
+            if (!grouped[targetContinent]) grouped[targetContinent] = {};
+            if (!grouped[targetContinent][comp.countryName]) grouped[targetContinent][comp.countryName] = [];
+            
+            grouped[targetContinent][comp.countryName].push(comp);
         });
 
-        // Sort competitions within each continent group by name
+        // Sort leagues within each country alphabetically
         for (const continent in grouped) {
-            grouped[continent].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            for (const country in grouped[continent]) {
+                grouped[continent][country].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            }
         }
         
-        const sortedGrouped: GroupedClubCompetitions = {};
+        const sortedGrouped: NestedGroupedCompetitions = {};
         continentOrder.forEach(continent => {
             if (grouped[continent]) {
-                sortedGrouped[continent] = grouped[continent];
+                 // Sort countries within each continent alphabetically by their (translated) name
+                const sortedCountries = Object.keys(grouped[continent]).sort((a, b) => getName('country', a, a).localeCompare(getName('country', b, b), 'ar'));
+                
+                const continentData: { [country: string]: ManagedCompetitionType[] } = {};
+                for (const country of sortedCountries) {
+                    continentData[country] = grouped[continent][country];
+                }
+                sortedGrouped[continent] = continentData;
             }
         });
 
@@ -469,35 +480,48 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const renderClubCompetitions = () => {
         if (!sortedGroupedCompetitions) return null;
-        
-        return Object.entries(sortedGroupedCompetitions).map(([continent, leagues]) => (
+    
+        return Object.entries(sortedGroupedCompetitions).map(([continent, countries]) => (
             <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
-               <div className="flex items-center px-4 py-3 h-12">
-                   <AccordionTrigger className="hover:no-underline flex-1">
-                       <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
-                   </AccordionTrigger>
-                   {isAdmin && (<Button variant="ghost" size="icon" className="h-9 w-9 mr-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent), continent); }}>
-                           <Pencil className="h-4 w-4 text-muted-foreground/80" />
-                   </Button>)}
-               </div>
-               <AccordionContent className="p-2">
-                   <div className="p-1 space-y-2">
-                       {leagues.map(comp => (
-                           <LeagueHeaderItem 
-                               key={comp.leagueId}
-                               league={comp}
-                               isFavorited={!!favorites.leagues?.[comp.leagueId]}
-                               onFavoriteToggle={() => handleFavoriteToggle(comp)}
-                               onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions?.find(c => c.leagueId === comp.leagueId)?.name)}
-                               onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
-                               isAdmin={isAdmin}
-                           />
-                       ))}
-                   </div>
-               </AccordionContent>
-           </AccordionItem>
-       ));
-    }
+                <div className="flex items-center px-4 py-3 h-12">
+                    <AccordionTrigger className="hover:no-underline flex-1">
+                        <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                    </AccordionTrigger>
+                    {isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-9 w-9 mr-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent), continent); }}>
+                            <Pencil className="h-4 w-4 text-muted-foreground/80" />
+                        </Button>
+                    )}
+                </div>
+                <AccordionContent className="p-2">
+                    <Accordion type="multiple" className="w-full space-y-2">
+                        {Object.entries(countries).map(([countryName, leagues]) => (
+                            <AccordionItem value={`country-${countryName}`} key={`country-${countryName}`} className="rounded-lg border bg-card/50">
+                                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                                    <h4 className="text-md font-semibold">{countryName}</h4>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-1">
+                                    <div className="space-y-2">
+                                        {leagues.map(comp => (
+                                            <LeagueHeaderItem
+                                                key={comp.leagueId}
+                                                league={comp}
+                                                isFavorited={!!favorites.leagues?.[comp.leagueId]}
+                                                onFavoriteToggle={() => handleFavoriteToggle(comp)}
+                                                onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions?.find(c => c.leagueId === comp.leagueId)?.name)}
+                                                onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
+                                                isAdmin={isAdmin}
+                                            />
+                                        ))}
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                </AccordionContent>
+            </AccordionItem>
+        ));
+    };
 
 
     if (loadingClubData) {
@@ -586,15 +610,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-    
-
-      
-
-    
-
-    
-
-
 
     
