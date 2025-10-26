@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
 import { GoogleIcon } from '@/components/icons/GoogleIcon';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithRedirect, signInAnonymously, getRedirectResult } from "firebase/auth";
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -15,34 +15,40 @@ export function WelcomeScreen() {
   const { db } = useFirestore();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+
+  const auth = getAuth();
+
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result && result.user && db) {
+          await handleNewUser(result.user, db);
+          // onAuthStateChanged will handle the rest
+        }
+      })
+      .catch((error) => {
+        console.error("Google redirect result error:", error);
+        toast({
+          variant: 'destructive',
+          title: 'خطأ في تسجيل الدخول',
+          description: 'حدث خطأ أثناء محاولة تسجيل الدخول باستخدام جوجل.',
+        });
+      })
+      .finally(() => {
+        setIsProcessingRedirect(false);
+      });
+  }, [auth, db, toast]);
   
   const handleGoogleLogin = async () => {
     if (!db) return;
-    const auth = getAuth();
     setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      if (result.user) {
-        await handleNewUser(result.user, db);
-      }
-      // onAuthStateChanged will handle navigation to the main app
-    } catch (error: any) {
-      console.error("Google login error:", error);
-      toast({
-        variant: 'destructive',
-        title: 'خطأ في تسجيل الدخول',
-        description: error.code === 'auth/popup-closed-by-user' 
-          ? 'تم إغلاق نافذة تسجيل الدخول.'
-          : 'حدث خطأ أثناء محاولة تسجيل الدخول باستخدام جوجل.',
-      });
-    } finally {
-      setIsGoogleLoading(false);
-    }
+    // We don't need a try-catch here because errors will be handled by getRedirectResult
+    await signInWithRedirect(auth, provider);
   };
 
   const handleGuestLogin = async () => {
-    const auth = getAuth();
     setIsGuestLoading(true);
     try {
         await signInAnonymously(auth);
@@ -58,7 +64,16 @@ export function WelcomeScreen() {
     }
   }
 
-  const isLoading = isGoogleLoading || isGuestLoading;
+  const isLoading = isGoogleLoading || isGuestLoading || isProcessingRedirect;
+
+  if (isProcessingRedirect) {
+    return (
+        <div className="flex h-full flex-col items-center justify-center bg-background">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">جاري استكمال تسجيل الدخول...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">
