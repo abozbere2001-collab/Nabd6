@@ -92,7 +92,7 @@ const PredictionCard = ({
 
   // 🎨 تحديد ألوان البطاقة حسب دقة التوقع
   const getPredictionStatusColors = useCallback(() => {
-    if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
+    if (!isMatchFinished || !userPrediction) return 'bg-card text-foreground';
 
     const actualHome = liveFixture.goals.home;
     const actualAway = liveFixture.goals.away;
@@ -101,19 +101,22 @@ const PredictionCard = ({
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
     
-    // The comparison logic here is intentionally reversed to match the reversed data source
-    // This makes the color logic correct, while the display logic is handled separately.
-    if (actualHome === predAway && actualAway === predHome) return 'bg-green-500/80 text-white';
+    // Exact score
+    if (actualHome === predHome && actualAway === predAway) {
+        return 'bg-green-500/80 text-white';
+    }
 
+    // Correct outcome
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
+
+    if (actualWinner === predWinner) {
+        return 'bg-yellow-500/80 text-white';
+    }
     
-    const isCorrectDirection = (actualWinner === 'home' && predWinner === 'away') || (actualWinner === 'away' && predWinner === 'home') || (actualWinner === 'draw' && predWinner === 'draw');
-
-    if (isCorrectDirection) return 'bg-yellow-500/80 text-white';
-
     return 'bg-destructive/80 text-white';
-  }, [isMatchLiveOrFinished, userPrediction, liveFixture.goals]);
+  }, [isMatchFinished, userPrediction, liveFixture.goals]);
+
 
   const getPointsColor = useCallback(() => {
     if (!isMatchFinished || userPrediction?.points === undefined) return 'text-primary';
@@ -141,8 +144,13 @@ const PredictionCard = ({
   const cardColors = getPredictionStatusColors();
   const isColoredCard = cardColors !== 'bg-card text-foreground';
   
+  // Create a version of the fixture for display that respects the RTL layout
   const fixtureForDisplay = {
       ...liveFixture,
+      teams: {
+          home: liveFixture.teams.away,
+          away: liveFixture.teams.home,
+      },
       goals: {
           home: liveFixture.goals.away,
           away: liveFixture.goals.home
@@ -176,14 +184,14 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={homeValue}
-                onChange={(e) => setHomeValue(e.target.value)}
-                id={`home-${liveFixture.fixture.id}`}
+                value={awayValue} // Note: Using awayValue for the right side input to match visual layout
+                onChange={(e) => setAwayValue(e.target.value)}
+                id={`away-${liveFixture.fixture.id}`} // Logical ID
                 disabled={isPredictionDisabled}
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
                 {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                <LiveMatchStatus fixture={fixtureForDisplay} />
+                <LiveMatchStatus fixture={liveFixture} />
               </div>
               <Input
                 type="number"
@@ -192,9 +200,9 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={awayValue}
-                onChange={(e) => setAwayValue(e.target.value)}
-                id={`away-${liveFixture.fixture.id}`}
+                value={homeValue} // Note: Using homeValue for the left side input
+                onChange={(e) => setHomeValue(e.target.value)}
+                id={`home-${liveFixture.fixture.id}`} // Logical ID
                 disabled={isPredictionDisabled}
               />
             </div>
