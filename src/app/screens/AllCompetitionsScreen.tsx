@@ -232,52 +232,15 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
     }, [user, db, fetchAllData]);
-
-    const groupedClubCompetitions = useMemo(() => {
-        if (!managedCompetitions || managedCompetitions.length === 0) return {};
     
-        const grouped: { [continent: string]: ManagedCompetitionType[] } = {};
-    
-        managedCompetitions.forEach(comp => {
-            let continent = "Other";
-            const lowerCaseName = comp.name.toLowerCase();
-            const lowerCaseCountry = (comp.countryName || '').toLowerCase();
-    
-            const isWorldLeague = WORLD_LEAGUES_KEYWORDS.some(keyword => lowerCaseName.includes(keyword) || lowerCaseCountry.includes(keyword));
-    
-            if (isWorldLeague) {
-                continent = "World";
-            } else if (comp.countryName && countryToContinent[comp.countryName]) {
-                continent = countryToContinent[comp.countryName];
-            }
-    
-            if (!grouped[continent]) {
-                grouped[continent] = [];
-            }
-            grouped[continent].push({
+    const sortedClubCompetitions = useMemo(() => {
+        return managedCompetitions
+            .map(comp => ({
                 ...comp,
                 name: getName('league', comp.leagueId, comp.name),
-            });
-        });
-
-        // Sort leagues within each continent alphabetically
-        for (const continent in grouped) {
-            grouped[continent].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-        }
-    
-        return grouped;
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
     }, [managedCompetitions, getName]);
-    
-    const sortedContinents = useMemo(() => {
-        return Object.keys(groupedClubCompetitions).sort((a, b) => {
-            const indexA = continentOrder.indexOf(a);
-            const indexB = continentOrder.indexOf(b);
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
-        });
-    }, [groupedClubCompetitions]);
-
     
     const groupedNationalTeams = useMemo(() => {
         if (!nationalTeams) return null;
@@ -495,28 +458,23 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const renderClubCompetitions = () => {
         if (loadingClubData) return null;
-        if (sortedContinents.length === 0) return <p className="p-4 text-center text-muted-foreground">لا توجد بطولات أندية متاحة.</p>;
+        if (sortedClubCompetitions.length === 0) return <p className="p-4 text-center text-muted-foreground">لا توجد بطولات أندية متاحة.</p>;
         
-        return sortedContinents.map(continent => (
-            <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                    <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
-                </AccordionTrigger>
-                <AccordionContent className="p-2 space-y-2">
-                    {groupedClubCompetitions[continent].map(comp => (
-                        <LeagueHeaderItem
-                            key={comp.leagueId}
-                            league={comp}
-                            isFavorited={!!favorites.leagues?.[comp.leagueId]}
-                            onFavoriteToggle={() => handleFavoriteToggle(comp)}
-                            onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions.find(c => c.leagueId === comp.leagueId)?.name)}
-                            onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
-                            isAdmin={isAdmin}
-                        />
-                    ))}
-                </AccordionContent>
-            </AccordionItem>
-        ));
+        return (
+            <div className="space-y-2">
+                {sortedClubCompetitions.map(comp => (
+                    <LeagueHeaderItem
+                        key={comp.leagueId}
+                        league={comp}
+                        isFavorited={!!favorites.leagues?.[comp.leagueId]}
+                        onFavoriteToggle={() => handleFavoriteToggle(comp)}
+                        onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions.find(c => c.leagueId === comp.leagueId)?.name)}
+                        onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
+                        isAdmin={isAdmin}
+                    />
+                ))}
+            </div>
+        );
     };
 
 
@@ -581,9 +539,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                             </div>
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                             <Accordion type="multiple" className="w-full space-y-2">
-                                {renderClubCompetitions()}
-                            </Accordion>
+                           {renderClubCompetitions()}
                         </AccordionContent>
                     </AccordionItem>
                  </Accordion>
@@ -604,3 +560,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
