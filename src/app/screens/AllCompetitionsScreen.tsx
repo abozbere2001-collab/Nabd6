@@ -674,3 +674,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
 
       
+
+    
