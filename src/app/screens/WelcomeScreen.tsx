@@ -80,14 +80,14 @@ export function WelcomeScreen() {
                 </>
               )}
             </Button>
-            <Button
+            {/* <Button
                 variant="ghost"
                 onClick={handleGuestLogin}
                 className="w-full"
                 disabled={isLoading}
             >
                {isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : 'تصفح كزائر'}
-            </Button>
+            </Button> */}
         </div>
 
         <p className="mt-8 text-xs text-muted-foreground/80 px-4">
