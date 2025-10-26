@@ -465,14 +465,28 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         return continentOrder.filter(c => sortedGroupedCompetitions[c]).map(continent => (
              <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                     <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                     <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                        {isAdmin && (
+                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
+                                <Pencil className="h-4 w-4"/>
+                            </Button>
+                        )}
+                    </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-2 space-y-2">
                     {Object.keys(sortedGroupedCompetitions[continent]).sort((a,b) => getName('country', a, a).localeCompare(getName('country', b, b), 'ar')).map(country => (
                          <Accordion type="multiple" key={country} className="w-full">
                             <AccordionItem value={`country-${country}`} className="rounded-lg border bg-background/50">
                                 <AccordionTrigger className="px-3 py-2.5 hover:no-underline text-base">
-                                    {getName('country', country, country)}
+                                     <div className="flex items-center gap-2">
+                                        <span>{getName('country', country, country)}</span>
+                                        {isAdmin && (
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country)); }}>
+                                                <Pencil className="h-4 w-4"/>
+                                            </Button>
+                                        )}
+                                    </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="p-1">
                                     {sortedGroupedCompetitions[continent][country].map(({ league }) => (
@@ -498,7 +512,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     return (
         <div className="flex h-full flex-col bg-background">
             <ScreenHeader 
-                title={"كل البطولات"} 
+                title={"البطولات"} 
                 onBack={goBack} 
                 canGoBack={canGoBack} 
                 actions={
@@ -568,7 +582,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-    
-
-    

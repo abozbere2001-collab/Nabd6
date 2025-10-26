@@ -186,7 +186,7 @@ const TeamPlayersTab = ({ teamId, navigate }: { teamId: number, navigate: Screen
     
     return (
         <div className="space-y-2">
-            {renameItem && <RenameDialog isOpen={!!renameItem} onOpenChange={(isOpen) => !isOpen && setRenameItem(null)} item={{...renameItem, type: 'player', purpose: 'rename'}} onSave={(type, id, name) => handleSaveRename(type, Number(id), name, renameItem.originalName)} />}
+            {renameItem && <RenameDialog isOpen={!!renameItem} onOpenChange={(isOpen) => !isOpen && setRenameItem(null)} item={{...renameItem, type: 'player', purpose: 'rename'}} onSave={(type, id, name) => handleSaveRename(type as 'player', Number(id), name, renameItem.originalName)} />}
             {players.map(player => {
                 if (!player?.id) return null;
                 return (
@@ -498,6 +498,27 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
 
         const getTeamInfo = async () => {
             setLoading(true);
+            const cacheKey = `team_data_${teamId}`;
+            const cached = getCachedData(cacheKey);
+
+            if(cached) {
+                setTeamData(cached);
+                const name = cached.team.name;
+                let finalName = hardcodedTranslations.teams[teamId as any] || name;
+                 if (db) {
+                    const customNameDocRef = doc(db, "teamCustomizations", String(teamId));
+                    try {
+                        const customNameDocSnap = await getDoc(customNameDocRef);
+                        if (customNameDocSnap.exists()) {
+                            finalName = customNameDocSnap.data().customName;
+                        }
+                    } catch {}
+                }
+                setDisplayTitle(finalName);
+                setLoading(false);
+                return;
+            }
+
             try {
                 const teamRes = await fetch(`/api/football/teams?id=${teamId}`);
                 if (!teamRes.ok) throw new Error("Team API fetch failed");
@@ -506,8 +527,9 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
                 if (data.response?.[0]) {
                     const teamInfo = data.response[0];
                     setTeamData(teamInfo);
+                    setCachedData(cacheKey, teamInfo);
+
                     const name = teamInfo.team.name;
-                    
                     let finalName = hardcodedTranslations.teams[teamId as any] || name;
 
                     if (db) {
@@ -641,7 +663,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
             };
             const updateData = { [fieldPath]: crownedTeamData };
 
-            updateDoc(favRef, updateData).then(() => {
+            setDoc(favRef, updateData, { merge: true }).then(() => {
                 toast({ title: 'نجاح', description: `تم تتويج فريق ${team.name}.` });
             }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
@@ -690,7 +712,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
     return (
         <div className="flex flex-col bg-background h-full">
             <ScreenHeader 
-                title={displayTitle}
+                title={""}
                 onBack={goBack} 
                 canGoBack={canGoBack} 
             />

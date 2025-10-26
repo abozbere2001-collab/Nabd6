@@ -326,7 +326,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                 updateData = { [fieldPath]: { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
             }
             
-            updateDoc(favRef, updateData).catch(serverError => {
+            setDoc(favRef, updateData, { merge: true }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
             });
         } else {
@@ -409,7 +409,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
         };
         const updateData = { [fieldPath]: crownedTeamData };
 
-        updateDoc(favRef, updateData).then(() => {
+        setDoc(favRef, updateData, { merge: true }).then(() => {
             toast({ title: 'نجاح', description: `تم تتويج فريق ${originalData.name}.` });
         }).catch(serverError => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
@@ -668,5 +668,3 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     </div>
   );
 }
-
-    
