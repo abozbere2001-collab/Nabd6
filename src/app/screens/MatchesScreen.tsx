@@ -7,7 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import type { ScreenProps } from '@/app/page';
 import { format, addDays, isToday, isYesterday, isTomorrow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useAdmin, useAuth, useFirestore } from '@/firebase';
+import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -269,7 +269,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
 
   useEffect(() => {
     if (!db || !isAdmin) return;
-    const unsub = onSnapshot(collection(db, 'predictions'), (snapshot) => {
+    const q = collection(db, "predictionFixtures");
+    const unsub = onSnapshot(q, (snapshot) => {
         const newPinnedSet = new Set<number>();
         snapshot.forEach(doc => newPinnedSet.add(Number(doc.id)));
         setPinnedPredictionMatches(newPinnedSet);
@@ -284,7 +285,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     if (!db) return;
     const fixtureId = fixture.fixture.id;
     const isPinned = pinnedPredictionMatches.has(fixtureId);
-    const docRef = doc(db, 'predictions', String(fixtureId));
+    const docRef = doc(db, 'predictionFixtures', String(fixtureId));
 
     if (isPinned) {
         deleteDoc(docRef).then(() => {
@@ -527,4 +528,3 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     </div>
   );
 }
-

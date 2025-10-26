@@ -7,7 +7,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { Star, Pencil, Plus, Search, Users, Trophy, Loader2, RefreshCw } from 'lucide-react';
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
-import { useAdmin, useAuth, useFirestore } from '@/firebase';
+import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
 import { doc, setDoc, collection, onSnapshot, getDocs, writeBatch, getDoc, deleteDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { AddCompetitionDialog } from '@/components/AddCompetitionDialog';
@@ -141,29 +141,31 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 return;
             };
             
-            const [leaguesSnapshot, countriesSnapshot, continentsSnapshot, teamsSnapshot] = await Promise.all([
-                getDocs(collection(db, 'leagueCustomizations')),
-                getDocs(collection(db, 'countryCustomizations')),
-                getDocs(collection(db, 'continentCustomizations')),
-                getDocs(collection(db, 'teamCustomizations')),
-            ]).catch(() => {
-                toast({ variant: 'destructive', title: "خطأ", description: "فشل في تحميل بيانات التخصيص." });
-                return [null, null, null, null];
-            });
+            try {
+                const [leaguesSnapshot, countriesSnapshot, continentsSnapshot, teamsSnapshot] = await Promise.all([
+                    getDocs(collection(db, 'leagueCustomizations')),
+                    getDocs(collection(db, 'countryCustomizations')),
+                    getDocs(collection(db, 'continentCustomizations')),
+                    getDocs(collection(db, 'teamCustomizations')),
+                ]);
 
-            const fetchedCustomNames = {
-                leagues: new Map<number, string>(),
-                countries: new Map<string, string>(),
-                continents: new Map<string, string>(),
-                teams: new Map<number, string>()
-            };
+                const fetchedCustomNames = {
+                    leagues: new Map<number, string>(),
+                    countries: new Map<string, string>(),
+                    continents: new Map<string, string>(),
+                    teams: new Map<number, string>()
+                };
 
-            leaguesSnapshot?.forEach(d => fetchedCustomNames.leagues.set(Number(d.id), d.data().customName));
-            countriesSnapshot?.forEach(d => fetchedCustomNames.countries.set(d.id, d.data().customName));
-            continentsSnapshot?.forEach(d => fetchedCustomNames.continents.set(d.id, d.data().customName));
-            teamsSnapshot?.forEach(d => fetchedCustomNames.teams.set(Number(d.id), d.data().customName));
-            
-            setCustomNames(fetchedCustomNames);
+                leaguesSnapshot?.forEach(d => fetchedCustomNames.leagues.set(Number(d.id), d.data().customName));
+                countriesSnapshot?.forEach(d => fetchedCustomNames.countries.set(d.id, d.data().customName));
+                continentsSnapshot?.forEach(d => fetchedCustomNames.continents.set(d.id, d.data().customName));
+                teamsSnapshot?.forEach(d => fetchedCustomNames.teams.set(Number(d.id), d.data().customName));
+                
+                setCustomNames(fetchedCustomNames);
+            } catch (error) {
+                console.warn("Could not fetch custom names, likely due to permissions.");
+                setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
+            }
         };
 
         const fetchClubData = async () => {

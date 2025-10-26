@@ -460,7 +460,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
 
   useEffect(() => {
     if (!db) return;
-    const unsub = onSnapshot(collection(db, 'predictions'), (snapshot) => {
+    const q = collection(db, "predictionFixtures");
+    const unsub = onSnapshot(q, (snapshot) => {
         const newPinnedSet = new Set<number>();
         snapshot.forEach(doc => newPinnedSet.add(Number(doc.id)));
         setPinnedPredictionMatches(newPinnedSet);
@@ -472,7 +473,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
     if (!db) return;
     const fixtureId = fixture.fixture.id;
     const isPinned = pinnedPredictionMatches.has(fixtureId);
-    const docRef = doc(db, 'predictions', String(fixtureId));
+    const docRef = doc(db, 'predictionFixtures', String(fixtureId));
 
     if (isPinned) {
         deleteDoc(docRef).then(() => {
@@ -718,5 +719,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
     </div>
   );
 }
-
-    
