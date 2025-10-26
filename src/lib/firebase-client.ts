@@ -18,58 +18,66 @@ import { GUEST_MODE_KEY } from "@/app/screens/WelcomeScreen";
 
 export const handleNewUser = async (user: User, firestore: Firestore) => {
     const userRef = doc(firestore, 'users', user.uid);
+    const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
+    const localFavorites = getLocalFavorites();
+    const hasLocalFavorites = Object.keys(localFavorites.teams || {}).length > 0 || Object.keys(localFavorites.leagues || {}).length > 0;
 
     try {
         const userDoc = await getDoc(userRef);
-        
-        const localFavorites = getLocalFavorites();
-        const hasLocalFavorites = Object.keys(localFavorites.teams || {}).length > 0 || Object.keys(localFavorites.leagues || {}).length > 0;
 
+        // If user document already exists, just merge local favorites if any
         if (userDoc.exists()) {
             if (hasLocalFavorites) {
-                 const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
-                 await setDoc(favoritesRef, localFavorites, { merge: true });
-                 clearLocalFavorites();
+                await setDoc(favoritesRef, localFavorites, { merge: true });
+                clearLocalFavorites();
             }
-            return;
+            return; // Existing user flow ends here
         }
 
-        // --- New User Logic ---
+        // --- New User Creation Logic ---
         const batch = writeBatch(firestore);
 
+        // 1. Create User Profile
         const displayName = user.displayName || `مستخدم_${user.uid.substring(0, 5)}`;
         const photoURL = user.photoURL || '';
-
         const userProfileData: UserProfile = {
             displayName: displayName,
-            email: user.email!,
+            email: user.email || 'N/A', // Ensure email is not null
             photoURL: photoURL,
             isProUser: false,
-            onboardingComplete: false,
+            onboardingComplete: hasLocalFavorites, // Consider onboarding complete if they have favs
         };
         batch.set(userRef, userProfileData);
-        
-        // Handle favorites for new user
-        const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
+
+        // 2. Create Favorites Subcollection Document
+        const favoritesData: Partial<Favorites> = { userId: user.uid };
         if (hasLocalFavorites) {
-            batch.set(favoritesRef, { userId: user.uid, ...localFavorites }, { merge: true });
-            clearLocalFavorites();
-        } else {
-            batch.set(favoritesRef, { userId: user.uid });
+            Object.assign(favoritesData, localFavorites);
         }
-        
+        batch.set(favoritesRef, favoritesData);
+
+        // 3. Commit all changes at once
         await batch.commit();
 
+        // 4. Clear local data after successful migration
+        if (hasLocalFavorites) {
+            clearLocalFavorites();
+        }
+
     } catch (error: any) {
+        // Broad catch for any failure during the new user setup
         const permissionError = new FirestorePermissionError({
             path: `users/${user.uid}`,
             operation: 'write',
-            requestResourceData: { displayName: user.displayName, email: user.email }
+            requestResourceData: {
+                profile: { displayName: user.displayName, email: user.email },
+                favorites: localFavorites
+            }
         });
         errorEmitter.emit('permission-error', permissionError);
         console.error("Failed to create new user documents:", error);
     }
-}
+};
 
 
 export const signOut = (): Promise<void> => {
