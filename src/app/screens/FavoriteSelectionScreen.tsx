@@ -119,7 +119,7 @@ export function FavoriteSelectionScreen({ onOnboardingComplete }: FavoriteSelect
         // Registered user: save to Firestore, merging with any existing data.
         const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
         try {
-            await setDoc(favRef, { ...favoritesToSave }, { merge: true });
+            await setDoc(favRef, { ...favoritesToSave, userId: user.uid }, { merge: true });
             // Now that favorites are saved to the cloud, clear the local ones.
             clearLocalFavorites();
         } catch (error) {

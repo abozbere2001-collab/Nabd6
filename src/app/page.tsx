@@ -70,7 +70,14 @@ const OnboardingFlow = ({ user }: { user: User }) => {
     }, [user, db]);
 
     const handleOnboardingComplete = async () => {
-        if (!db) return;
+        if (!user || !db) {
+            // Handle case for guest users when db might not be ready
+             if (user?.isAnonymous) {
+                localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');
+                setOnboardingComplete(true);
+            }
+            return;
+        }
         
         if (user.isAnonymous) {
             localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');

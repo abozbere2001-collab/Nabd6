@@ -7,7 +7,7 @@ import {
   type User, 
   getAuth,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, Firestore, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, Firestore, writeBatch, serverTimestamp } from 'firebase/firestore';
 import type { UserProfile, UserScore, Favorites } from './types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -20,19 +20,23 @@ export const handleNewUser = async (user: User, firestore: Firestore) => {
 
     try {
         const userDoc = await getDoc(userRef);
-        // If user document already exists, no need to do anything.
+        
+        const localFavorites = getLocalFavorites();
+        const hasLocalFavorites = Object.keys(localFavorites.teams || {}).length > 0 || Object.keys(localFavorites.leagues || {}).length > 0;
+
         if (userDoc.exists()) {
-            // But if they were anonymous and had local favorites, merge them.
-            if (!user.isAnonymous) {
-                const localFavorites = getLocalFavorites();
-                 if (Object.keys(localFavorites.teams || {}).length > 0 || Object.keys(localFavorites.leagues || {}).length > 0) {
-                     const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
-                     await setDoc(favoritesRef, localFavorites, { merge: true });
-                     clearLocalFavorites();
-                 }
+            // If user exists and is not anonymous, merge local favorites and clear them.
+            if (!user.isAnonymous && hasLocalFavorites) {
+                 const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
+                 // Important: merge only if there are local favs to prevent overwriting cloud with empty object
+                 await setDoc(favoritesRef, localFavorites, { merge: true });
+                 clearLocalFavorites();
             }
             return;
         }
+
+        // --- New User Logic ---
+        const batch = writeBatch(firestore);
 
         const displayName = user.displayName || `مستخدم_${user.uid.substring(0, 5)}`;
         const photoURL = user.photoURL || '';
@@ -45,23 +49,19 @@ export const handleNewUser = async (user: User, firestore: Firestore) => {
             isAnonymous: user.isAnonymous,
             onboardingComplete: false,
         };
-        
-        const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
-        const localFavorites = getLocalFavorites();
-        const initialFavorites: Partial<Favorites> = {
-            userId: user.uid,
-            teams: localFavorites.teams || {},
-            leagues: localFavorites.leagues || {},
-        };
-        
-        if (Object.keys(localFavorites).length > 0) {
-            clearLocalFavorites();
-        }
-
-        const batch = writeBatch(firestore);
         batch.set(userRef, userProfileData);
-        batch.set(favoritesRef, initialFavorites);
-
+        
+        // Handle favorites for new user
+        const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
+        if (hasLocalFavorites && !user.isAnonymous) {
+            // New registered user who had guest favorites: merge them.
+            batch.set(favoritesRef, { userId: user.uid, ...localFavorites }, { merge: true });
+            clearLocalFavorites();
+        } else {
+            // Brand new user (or anonymous user) with no local data.
+            batch.set(favoritesRef, { userId: user.uid });
+        }
+        
         await batch.commit();
 
     } catch (error: any) {
@@ -78,7 +78,7 @@ export const handleNewUser = async (user: User, firestore: Firestore) => {
 
 export const signOut = (): Promise<void> => {
     const auth = getAuth();
-    clearLocalFavorites();
+    // Do NOT clear local favorites on sign out, so they can be merged if the user signs back in.
     return firebaseSignOut(auth);
 };
 

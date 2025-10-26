@@ -13,11 +13,11 @@ import { handleNewUser } from '@/lib/firebase-client';
 export function WelcomeScreen() {
   const { toast } = useToast();
   const { db } = useFirestore();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<false | 'google' | 'guest'>(false);
   
   const handleGoogleLogin = async () => {
     if (!db) return;
-    setIsLoading(true);
+    setIsLoading('google');
     const auth = getAuth();
     const provider = new GoogleAuthProvider();
     try {
@@ -40,17 +40,19 @@ export function WelcomeScreen() {
   };
 
   const handleGuestLogin = async () => {
-    setIsLoading(true);
+    setIsLoading('guest');
     const auth = getAuth();
     try {
         await signInAnonymously(auth);
         // onAuthStateChanged will handle the rest.
-    } catch(e) {
+    } catch(e: any) {
         console.error("Anonymous login error:", e);
         toast({
             variant: 'destructive',
             title: 'خطأ',
-            description: 'فشل تسجيل الدخول كزائر. يرجى المحاولة مرة أخرى.',
+            description: e.code === 'auth/admin-restricted-operation' 
+                ? 'تسجيل الدخول المجهول غير مفعّل. يرجى التواصل مع الدعم.'
+                : 'فشل تسجيل الدخول كزائر. يرجى المحاولة مرة أخرى.',
         });
     } finally {
         setIsLoading(false);
@@ -69,9 +71,9 @@ export function WelcomeScreen() {
               onClick={handleGoogleLogin} 
               className="w-full" 
               size="lg"
-              disabled={isLoading}
+              disabled={!!isLoading}
             >
-              {isLoading ? (
+              {isLoading === 'google' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
@@ -80,14 +82,14 @@ export function WelcomeScreen() {
                 </>
               )}
             </Button>
-            {/* <Button
+            <Button
                 variant="ghost"
                 onClick={handleGuestLogin}
                 className="w-full"
-                disabled={isLoading}
+                disabled={!!isLoading}
             >
-               {isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : 'تصفح كزائر'}
-            </Button> */}
+               {isLoading === 'guest' ? <Loader2 className="h-5 w-5 animate-spin"/> : 'تصفح كزائر'}
+            </Button>
         </div>
 
         <p className="mt-8 text-xs text-muted-foreground/80 px-4">
