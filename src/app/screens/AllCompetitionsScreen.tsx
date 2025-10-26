@@ -81,7 +81,7 @@ interface RenameState {
 // --- CONSTANTS ---
 const countryToContinent: { [key: string]: string } = {
     "World": "World", "England": "Europe", "Spain": "Europe", "Germany": "Europe", "Italy": "Europe", "France": "Europe", "Netherlands": "Europe", "Portugal": "Europe", "Belgium": "Europe", "Russia": "Europe", "Turkey": "Europe", "Greece": "Europe", "Switzerland": "Europe", "Austria": "Europe", "Denmark": "Europe", "Scotland": "Europe", "Sweden": "Europe", "Norway": "Europe", "Poland": "Europe", "Ukraine": "Europe", "Czech-Republic": "Europe", "Croatia": "Europe", "Romania": "Europe", "Serbia": "Europe", "Hungary": "Europe", "Finland": "Europe", "Ireland": "Europe", "Northern-Ireland": "Europe", "Wales": "Europe", "Iceland": "Europe", "Albania": "Europe", "Georgia": "Europe", "Latvia": "Europe", "Estonia": "Europe", "Lithuania": "Europe", "Luxembourg": "Europe", "Faroe-Islands": "Europe", "Malta": "Europe", "Andorra": "Europe", "San-Marino": "Europe", "Gibraltar": "Europe", "Kosovo": "Europe", "Bosnia-and-Herzegovina": "Europe", "Slovakia": "Europe", "Slovenia": "Europe", "Bulgaria": "Europe", "Cyprus": "Europe", "Azerbaijan": "Europe", "Armenia": "Europe", "Belarus": "Europe", "Moldova": "Europe", "North-Macedonia": "Europe", "Montenegro": "Europe",
-    "Saudi Arabia": "Asia", "Japan": "Asia", "South Korea": "Asia", "China": "Asia", "Qatar": "Asia", "United Arab Emirates": "Asia", "Iran": "Asia", "Iraq": "Asia", "Uzbekistan": "Asia", "Australia": "Asia", "Jordan": "Asia", "Syria": "Asia", "Lebanon": "Asia", "Oman": "Asia", "Kuwait": "Asia", "Bahrain": "Asia", "India": "Asia", "Thailand": "Asia", "Vietnam": "Asia", "Malaysia": "Asia", "Indonesia": "Asia", "Singapore": "Asia", "Philippines": "Asia", "Hong Kong": "Asia", "Palestine": "Asia", "Tajikistan": "Asia", "Turkmenistan": "Asia", "Kyrgyzstan": "Asia", "Bangladesh": "Asia", "Maldives": "Asia", "Cambodia": "Asia", "Myanmar": "Asia",
+    "Saudi Arabia": "Asia", "Japan": "Asia", "South Korea": "Asia", "China": "Asia", "Qatar": "Asia", "United Arab Emirates": "Asia", "Iran": "Asia", "Iraq": "Asia", "Uzbekistan": "Asia", "Australia": "Asia", "Jordan": "Asia", "Syria": "Asia", "Lebanon": "Asia", "Oman": "Asia", "Kuwait": "Asia", "Bahrain": "Asia", "India": "Asia", "Thailand": "Asia", "Vietnam": "Asia", "Malaysia": "Asia", "Indonesia": "Asia", "Singapore": "Asia", "Philippines": "Asia", "Hong Kong": "Asia", "Palestine": "Asia", "Tajikistan": "Asia", "Turkmenistan": "Asia", "Kyrgyzstan": "Asia", "Bangladesh": "Asia", "Maldives": "Asia", "Cambodia": "Asia", "Myanmar": "Asia", "Yemen": "Asia",
     "Egypt": "Africa", "Morocco": "Africa", "Tunisia": "Africa", "Algeria": "Africa", "Nigeria": "Africa", "Senegal": "Africa", "Ghana": "Africa", "Ivory Coast": "Africa", "Cameroon": "Africa", "South Africa": "Africa", "DR Congo": "Africa", "Mali": "Africa", "Burkina Faso": "Africa", "Guinea": "Africa", "Zambia": "Africa", "Cape Verde": "Africa", "Uganda": "Africa", "Kenya": "Africa", "Tanzania": "Africa", "Sudan": "Africa", "Libya": "Africa", "Angola": "Africa", "Zimbabwe": "Africa", "Ethiopia": "Africa",
     "USA": "North America", "Mexico": "North America", "Canada": "North America", "Costa Rica": "North America", "Honduras": "North America", "Panama": "North America", "Jamaica": "North America", "El Salvador": "North America", "Trinidad and Tobago": "North America", "Guatemala": "North America", "Nicaragua": "North America", "Cuba": "North America",
     "Brazil": "South America", "Argentina": "South America", "Colombia": "South America", "Chile": "South America", "Uruguay": "South America", "Peru": "South America", "Ecuador": "South America", "Paraguay": "South America", "Venezuela": "South America", "Bolivia": "South America",
@@ -91,7 +91,7 @@ const countryToContinent: { [key: string]: string } = {
 const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "North America", "Oceania", "Other"];
 const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab", "club world cup", "nations league"];
 
-const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya"];
+const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya", "Yemen"];
 
 // --- Sorting Logic ---
 const getLeagueImportance = (leagueName: string): number => {
@@ -462,16 +462,16 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
         return continentOrder.filter(c => groupedNationalTeams[c]).map(continent => (
             <AccordionItem value={`national-${continent}`} key={`national-${continent}`} className="rounded-lg border bg-card/50">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                <div className="flex items-center px-4 py-3">
+                    <AccordionTrigger className="flex-1 hover:no-underline p-0">
+                        <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                    </AccordionTrigger>
                     {isAdmin && (
-                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 ml-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
                             <Pencil className="h-4 w-4"/>
                         </Button>
                     )}
                 </div>
-              </AccordionTrigger>
               <AccordionContent className="p-1">
                 <ul className="flex flex-col">{
                   groupedNationalTeams[continent].map(team => {
@@ -508,16 +508,16 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         
         return continentOrder.filter(c => sortedGroupedCompetitions[c]).map(continent => (
              <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                     <div className="flex items-center gap-2">
+                <div className="flex items-center px-4 py-3">
+                    <AccordionTrigger className="flex-1 hover:no-underline p-0">
                         <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
-                        {isAdmin && (
-                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
-                                <Pencil className="h-4 w-4"/>
-                            </Button>
-                        )}
-                    </div>
-                </AccordionTrigger>
+                    </AccordionTrigger>
+                    {isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-9 w-9 ml-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
+                            <Pencil className="h-4 w-4"/>
+                        </Button>
+                    )}
+                </div>
                 <AccordionContent className="p-2 space-y-2">
                      <Accordion type="multiple" className="w-full space-y-2">
                         {Object.keys(sortedGroupedCompetitions[continent]).sort((a,b) => {
@@ -528,16 +528,16 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                            return getName('country', a, a).localeCompare(getName('country', b, b), 'ar');
                         }).map(country => (
                             <AccordionItem value={`country-${country}`} key={country} className="rounded-lg border bg-background/50">
-                                <AccordionTrigger className="px-3 py-2.5 hover:no-underline text-base">
-                                     <div className="flex items-center gap-2">
+                                <div className="flex items-center px-3 py-2.5">
+                                    <AccordionTrigger className="flex-1 hover:no-underline p-0 text-base">
                                         <span className="font-semibold">{getName('country', country, country)}</span>
-                                        {isAdmin && (
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country)); }}>
-                                                <Pencil className="h-3 w-3"/>
-                                            </Button>
-                                        )}
-                                    </div>
-                                </AccordionTrigger>
+                                    </AccordionTrigger>
+                                    {isAdmin && (
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 ml-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country)); }}>
+                                            <Pencil className="h-3 w-3"/>
+                                        </Button>
+                                    )}
+                                </div>
                                 <AccordionContent className="p-1">
                                     {sortedGroupedCompetitions[continent][country].map(({ league }) => (
                                         <LeagueHeaderItem
@@ -632,3 +632,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
+
+    
