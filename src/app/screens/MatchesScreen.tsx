@@ -288,6 +288,19 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     return () => unsub();
   }, [db, isAdmin]);
 
+  const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
+    if (!customNamesCache) return defaultName;
+    const firestoreMap = type === 'team' ? customNamesCache?.teams : customNamesCache?.leagues;
+    const customName = firestoreMap?.get(id);
+    if (customName) return customName;
+
+    const hardcodedMap = type === 'team' ? hardcodedTranslations.teams : hardcodedTranslations.leagues;
+    const hardcodedName = hardcodedMap[id as any];
+    if(hardcodedName) return hardcodedName;
+
+    return defaultName;
+}, [customNamesCache]);
+
 
   const handlePinToggle = useCallback((fixture: FixtureType) => {
     if (!db) return;
@@ -302,14 +315,31 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
         });
     } else {
-        const data: PredictionMatch = { fixtureData: fixture };
+        const processedFixture = {
+            ...fixture,
+            league: {
+                ...fixture.league,
+                name: getDisplayName('league', fixture.league.id, fixture.league.name),
+            },
+            teams: {
+                home: {
+                    ...fixture.teams.home,
+                    name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name),
+                },
+                away: {
+                    ...fixture.teams.away,
+                    name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name),
+                },
+            },
+        };
+        const data: PredictionMatch = { fixtureData: processedFixture };
         setDoc(docRef, data).then(() => {
             toast({ title: "تم التثبيت", description: "أصبحت المباراة متاحة الآن للتوقع." });
         }).catch(err => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'create', requestResourceData: data }));
         });
     }
-  }, [db, pinnedPredictionMatches, toast]);
+  }, [db, pinnedPredictionMatches, toast, getDisplayName]);
 
 
   const fetchAllCustomNames = useCallback(async (abortSignal: AbortSignal) => {
@@ -340,18 +370,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
       
     try {
         await fetchAllCustomNames(abortSignal);
-
-        const getDisplayName = (type: 'team' | 'league', id: number, defaultName: string) => {
-            const firestoreMap = type === 'team' ? customNamesCache?.teams : customNamesCache?.leagues;
-            const customName = firestoreMap?.get(id);
-            if (customName) return customName;
-
-            const hardcodedMap = type === 'team' ? hardcodedTranslations.teams : hardcodedTranslations.leagues;
-            const hardcodedName = hardcodedMap[id as any];
-            if(hardcodedName) return hardcodedName;
-
-            return defaultName;
-        };
 
         const url = activeTab === 'all-matches' ? '/api/football/fixtures?live=all' : `/api/football/fixtures?date=${dateKey}`;
         const response = await fetch(url, { signal: abortSignal });
@@ -399,7 +417,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             setLoading(false);
           }
       }
-  }, [db, activeTab, user, favorites, customNamesCache, fetchAllCustomNames]);
+  }, [db, activeTab, user, favorites, customNamesCache, fetchAllCustomNames, getDisplayName]);
 
 
   useEffect(() => {
