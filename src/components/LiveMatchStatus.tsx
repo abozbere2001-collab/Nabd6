@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -74,6 +73,7 @@ export const LiveMatchStatus = ({ fixture, large = false, customStatus }: { fixt
             };
         }
 
+        // CORRECTED: Ensure score is always home - away
         const score = `${goals.home} - ${goals.away}`;
 
         if (live) {

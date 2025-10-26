@@ -93,21 +93,26 @@ const PredictionCard = ({
   // 🎨 تحديد ألوان البطاقة حسب دقة التوقع
   const getPredictionStatusColors = useCallback(() => {
     if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
-
-    const actualHome = liveFixture.goals.away;
-    const actualAway = liveFixture.goals.home;
+    
+    // CORRECTED: Ensure direct comparison without inverting
+    const actualHome = liveFixture.goals.home;
+    const actualAway = liveFixture.goals.away;
 
     const predHome = userPrediction.homeGoals;
     const predAway = userPrediction.awayGoals;
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
 
-    if (actualHome === predHome && actualAway === predAway) return 'bg-green-500/80 text-white';
+    if (actualHome === predHome && actualAway === predAway) {
+      return 'bg-green-500/80 text-white';
+    }
 
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
 
-    if (actualWinner === predWinner) return 'bg-yellow-500/80 text-white';
+    if (actualWinner === predWinner) {
+      return 'bg-yellow-500/80 text-white';
+    }
 
     return 'bg-destructive/80 text-white';
   }, [isMatchLiveOrFinished, userPrediction, liveFixture.goals]);

@@ -28,12 +28,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // CRITICAL FIX: Ensure fixture.goals exists and scores are not null before calculating.
+    // CRITICAL FIX: Ensure correct data is compared
     if (!fixture.goals || fixture.goals.home === null || fixture.goals.away === null) {
       return 0; // Match not finished or score unavailable, no points.
     }
   
-    // The actual score is inverted in the API for some reason. Let's swap them.
+    // CORRECTED: No inversion needed. Direct mapping.
     const actualHome = fixture.goals.home;
     const actualAway = fixture.goals.away;
     const predHome = prediction.homeGoals;
