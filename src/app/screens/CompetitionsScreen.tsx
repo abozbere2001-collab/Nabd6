@@ -71,7 +71,6 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         fetchAllCustomNames();
         
         let unsubscribe: (() => void) | null = null;
-        
         const handleLocalFavoritesChange = () => {
             setFavorites(getLocalFavorites());
         };

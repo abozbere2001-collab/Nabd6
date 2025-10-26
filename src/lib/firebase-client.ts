@@ -47,15 +47,15 @@ export const handleNewUser = async (user: User, firestore: Firestore) => {
         };
         
         const favoritesRef = doc(firestore, 'users', user.uid, 'favorites', 'data');
-        // Start with a clean slate for favorites, but check local storage for guest data.
-        const initialFavorites: Partial<Favorites> = { userId: user.uid, teams: {}, leagues: {} };
         const localFavorites = getLocalFavorites();
-        if (Object.keys(localFavorites.teams || {}).length > 0 || Object.keys(localFavorites.leagues || {}).length > 0) {
-             const mergedTeams = { ...(initialFavorites.teams || {}), ...(localFavorites.teams || {}) };
-             const mergedLeagues = { ...(initialFavorites.leagues || {}), ...(localFavorites.leagues || {}) };
-             initialFavorites.teams = mergedTeams;
-             initialFavorites.leagues = mergedLeagues;
-             clearLocalFavorites(); // Clear local data after merging.
+        const initialFavorites: Partial<Favorites> = {
+            userId: user.uid,
+            teams: localFavorites.teams || {},
+            leagues: localFavorites.leagues || {},
+        };
+        
+        if (Object.keys(localFavorites).length > 0) {
+            clearLocalFavorites();
         }
 
         const batch = writeBatch(firestore);
@@ -86,7 +86,6 @@ export const signOut = (): Promise<void> => {
 export const updateUserDisplayName = async (user: User, newDisplayName: string): Promise<void> => {
     if (!user) throw new Error("User not authenticated.");
 
-    // The db object is imported directly from the firebase barrel file now
     const { firestore } = await import('@/firebase');
     const db = firestore;
 
