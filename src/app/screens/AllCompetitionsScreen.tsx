@@ -253,20 +253,29 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const sortedGroupedCompetitions = useMemo(() => {
         if (!managedCompetitions) return null;
-        const processedCompetitions = managedCompetitions.map(comp => ({ ...comp, name: getName('league', comp.leagueId, comp.name) }));
+
+        const processedCompetitions = managedCompetitions.map(comp => ({
+            ...comp,
+            name: getName('league', comp.leagueId, comp.name),
+        }));
 
         const grouped: GroupedClubCompetitions = {};
+        
         processedCompetitions.forEach(comp => {
             const countryName = comp.countryName;
             const continent = countryToContinent[countryName] || "Other";
             const isWorldLeague = WORLD_LEAGUES_KEYWORDS.some(keyword => comp.name.toLowerCase().includes(keyword)) || continent === 'World';
-            
-            if (isWorldLeague) {
-                if (!grouped.World) grouped.World = { leagues: [] };
+
+            const targetContinent = isWorldLeague ? "World" : continent;
+
+            if (!grouped[targetContinent]) {
+                grouped[targetContinent] = targetContinent === "World" ? { leagues: [] } : {};
+            }
+
+            if (targetContinent === "World") {
                 (grouped.World as { leagues: ManagedCompetitionType[] }).leagues.push(comp);
             } else {
-                if (!grouped[continent]) grouped[continent] = {};
-                const continentGroup = grouped[continent] as CompetitionsByCountry;
+                const continentGroup = grouped[targetContinent] as CompetitionsByCountry;
                 if (!continentGroup[countryName]) {
                     continentGroup[countryName] = { flag: comp.countryFlag, leagues: [] };
                 }
@@ -275,24 +284,29 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         });
 
         const sortedGrouped: GroupedClubCompetitions = {};
-        const continents = Object.keys(grouped).sort((a, b) => continentOrder.indexOf(a) - continentOrder.indexOf(b));
         
-        for (const continent of continents) {
-            if (continent === "World") {
-                 const worldLeagues = (grouped.World as { leagues: ManagedCompetitionType[] }).leagues;
-                 worldLeagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-                 sortedGrouped.World = { leagues: worldLeagues };
-            } else {
-                const countries = grouped[continent] as CompetitionsByCountry;
-                const sortedCountries = Object.keys(countries).sort((a,b) => getName('country', a, a).localeCompare(getName('country', b, b), 'ar'));
-                const sortedCountriesObj: CompetitionsByCountry = {};
-                for (const country of sortedCountries) {
-                    countries[country].leagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-                    sortedCountriesObj[country] = countries[country];
+        continentOrder.forEach(continent => {
+            if (grouped[continent]) {
+                if (continent === "World") {
+                    const worldGroup = grouped.World as { leagues: ManagedCompetitionType[] };
+                    worldGroup.leagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+                    sortedGrouped.World = worldGroup;
+                } else {
+                    const countries = grouped[continent] as CompetitionsByCountry;
+                    const sortedCountries = Object.keys(countries).sort((a, b) => 
+                        getName('country', a, a).localeCompare(getName('country', b, b), 'ar')
+                    );
+                    
+                    const sortedCountriesObj: CompetitionsByCountry = {};
+                    for (const country of sortedCountries) {
+                        countries[country].leagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+                        sortedCountriesObj[country] = countries[country];
+                    }
+                    sortedGrouped[continent] = sortedCountriesObj;
                 }
-                sortedGrouped[continent] = sortedCountriesObj;
             }
-        }
+        });
+
         return sortedGrouped;
     }, [managedCompetitions, getName]);
     
@@ -373,44 +387,36 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         const itemId = isLeague ? item.leagueId : item.id;
         const itemType: 'leagues' | 'teams' = isLeague ? 'leagues' : 'teams';
 
-        // Optimistically update UI
-        setFavorites(prev => {
-            const newFavs = { ...prev };
-            if (!newFavs[itemType]) newFavs[itemType] = {};
-            
-            if (newFavs[itemType]?.[itemId]) {
-                delete newFavs[itemType]![itemId];
-            } else {
-                const favData = isLeague
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                newFavs[itemType]![itemId] = favData as any;
-            }
-            return newFavs;
-        });
+        const currentFavorites = getLocalFavorites();
+        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        if (!newFavorites[itemType]) newFavorites[itemType] = {};
+
+        if (newFavorites[itemType]?.[itemId]) {
+            delete newFavorites[itemType]![itemId];
+        } else {
+            const favData = isLeague
+                ? { name: item.name, leagueId: itemId, logo: item.logo }
+                : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+            newFavorites[itemType]![itemId] = favData as any;
+        }
+
+        setFavorites(newFavorites);
 
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `${itemType}.${itemId}`;
             
-            let updateData: { [key: string]: any };
-
-            if (favorites[itemType]?.[itemId]) { // Check previous state
-                updateData = { [fieldPath]: deleteField() };
-            } else {
-                const favData = isLeague
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                updateData = { [fieldPath]: favData };
-            }
+            const updateData = newFavorites[itemType]?.[itemId] 
+                ? { [fieldPath]: newFavorites[itemType]?.[itemId] }
+                : { [fieldPath]: deleteField() };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
             });
         } else {
-            setLocalFavorites(favorites);
+            setLocalFavorites(newFavorites);
         }
-    }, [user, db, favorites]);
+    }, [user, db]);
     
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
@@ -639,7 +645,11 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                             </div>
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                            {renderClubCompetitions()}
+                            {loadingClubData ? <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
+                                <Accordion type="multiple" className="w-full space-y-2" defaultValue={['club-World', 'club-Europe']}>
+                                    {renderClubCompetitions()}
+                                </Accordion>
+                            }
                         </AccordionContent>
                     </AccordionItem>
                  </Accordion>
@@ -662,3 +672,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 }
 
     
+
+      
