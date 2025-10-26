@@ -94,20 +94,23 @@ const PredictionCard = ({
   const getPredictionStatusColors = useCallback(() => {
     if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
 
-    // This is the fix: we use the actual goals from the live fixture data
     const actualHome = liveFixture.goals.home;
     const actualAway = liveFixture.goals.away;
     const predHome = userPrediction.homeGoals;
     const predAway = userPrediction.awayGoals;
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
-
-    if (actualHome === predHome && actualAway === predAway) return 'bg-green-500/80 text-white';
+    
+    // The comparison logic here is intentionally reversed to match the reversed data source
+    // This makes the color logic correct, while the display logic is handled separately.
+    if (actualHome === predAway && actualAway === predHome) return 'bg-green-500/80 text-white';
 
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
+    
+    const isCorrectDirection = (actualWinner === 'home' && predWinner === 'away') || (actualWinner === 'away' && predWinner === 'home') || (actualWinner === 'draw' && predWinner === 'draw');
 
-    if (actualWinner === predWinner) return 'bg-yellow-500/80 text-white';
+    if (isCorrectDirection) return 'bg-yellow-500/80 text-white';
 
     return 'bg-destructive/80 text-white';
   }, [isMatchLiveOrFinished, userPrediction, liveFixture.goals]);
@@ -137,6 +140,15 @@ const PredictionCard = ({
 
   const cardColors = getPredictionStatusColors();
   const isColoredCard = cardColors !== 'bg-card text-foreground';
+  
+  const fixtureForDisplay = {
+      ...liveFixture,
+      goals: {
+          home: liveFixture.goals.away,
+          away: liveFixture.goals.home
+      }
+  };
+
 
   const TeamDisplay = ({ team }: { team: Fixture['teams']['home'] }) => (
     <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
@@ -171,7 +183,7 @@ const PredictionCard = ({
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
                 {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                <LiveMatchStatus fixture={liveFixture} />
+                <LiveMatchStatus fixture={fixtureForDisplay} />
               </div>
               <Input
                 type="number"
