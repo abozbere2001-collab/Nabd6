@@ -175,23 +175,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 return;
             }
 
-            if (!isAdmin) {
-                 onSnapshot(collection(db, 'managedCompetitions'), (snapshot) => {
-                    const fetchedCompetitions = snapshot.docs.map(doc => doc.data() as ManagedCompetitionType);
-                    setManagedCompetitions(fetchedCompetitions);
-                }, (error) => {
-                     const popularAsManaged: ManagedCompetitionType[] = POPULAR_LEAGUES.map(l => ({
-                        leagueId: l.id,
-                        name: l.name,
-                        logo: l.logo,
-                        countryName: 'World',
-                        countryFlag: null,
-                    }));
-                    setManagedCompetitions(popularAsManaged);
-                });
-                return;
-            }
-            
             try {
                 const compsSnapshot = await getDocs(collection(db, 'managedCompetitions'));
                 const fetchedCompetitions = compsSnapshot.docs.map(d => d.data() as ManagedCompetitionType);
@@ -202,6 +185,14 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     path: 'managedCompetitions',
                     operation: 'list',
                 }));
+                 const popularAsManaged: ManagedCompetitionType[] = POPULAR_LEAGUES.map(l => ({
+                    leagueId: l.id,
+                    name: l.name,
+                    logo: l.logo,
+                    countryName: 'World',
+                    countryFlag: null,
+                }));
+                setManagedCompetitions(popularAsManaged);
             }
         };
 
@@ -353,36 +344,42 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         const itemId = isLeague ? item.leagueId : item.id;
         const itemType: 'leagues' | 'teams' = isLeague ? 'leagues' : 'teams';
 
-        const currentFavorites = getLocalFavorites();
-        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-        if (!newFavorites[itemType]) newFavorites[itemType] = {};
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev));
+            if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
-        if (newFavorites[itemType]?.[itemId]) {
-            delete newFavorites[itemType]![itemId];
-        } else {
-            const favData = isLeague
-                ? { name: item.name, leagueId: itemId, logo: item.logo }
-                : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-            newFavorites[itemType]![itemId] = favData as any;
-        }
+            if (newFavorites[itemType]?.[itemId]) {
+                delete newFavorites[itemType]![itemId];
+            } else {
+                const favData = isLeague
+                    ? { name: item.name, leagueId: itemId, logo: item.logo }
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                newFavorites[itemType]![itemId] = favData as any;
+            }
 
-        setFavorites(newFavorites);
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavorites);
+            }
+            return newFavorites;
+        });
 
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `${itemType}.${itemId}`;
+            const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
             
-            const updateData = newFavorites[itemType]?.[itemId] 
+            const updateData = isCurrentlyFavorited 
                 ? { [fieldPath]: deleteField() }
-                : { [fieldPath]: newFavorites[itemType]?.[itemId] };
+                : { [fieldPath]: isLeague
+                    ? { name: item.name, leagueId: itemId, logo: item.logo } 
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' }
+                };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
             });
-        } else {
-            setLocalFavorites(newFavorites);
         }
-    }, [user, db]);
+    }, [user, db, favorites]);
     
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
