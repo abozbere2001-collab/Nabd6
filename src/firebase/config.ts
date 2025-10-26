@@ -5,12 +5,12 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 
 // Configuration object for Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyDG7nLIqi2QjPqsFGLeLJFHTkrpYbx4sNk",
-  authDomain: "studio-5560913388-9a637.firebaseapp.com",
-  projectId: "studio-5560913388-9a637",
-  storageBucket: "studio-5560913388-9a637.appspot.com",
-  messagingSenderId: "954115183601",
-  appId: "1:954115183601:web:e979508da0aa1de5506a50"
+  apiKey: "AIzaSyB1B2NlQyUNac6p_c0yZ0u-9vjFCoTqJjI",
+  authDomain: "nabd-d71ab.firebaseapp.com",
+  projectId: "nabd-d71ab",
+  storageBucket: "nabd-d71ab.appspot.com",
+  messagingSenderId: "338879612343",
+  appId: "1:338879612343:web:076f7f329c3d4b68453472"
 };
 
 interface FirebaseServices {
