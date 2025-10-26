@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -26,7 +27,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // Only calculate points if the match is finished
     if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
         return 0;
     }
@@ -35,8 +35,6 @@ const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
       return 0;
     }
     
-    // The prediction input is reversed (home input saves to awayGoals, etc.)
-    // So we must compare accordingly.
     const actualHome = fixture.goals.home;
     const actualAway = fixture.goals.away;
     const predHome = prediction.homeGoals;
@@ -338,72 +336,69 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
     
         try {
             // Step 1: Update points for individual predictions
-            const fixturesToUpdateSnapshot = await getDocs(
-                query(collection(db, "predictionFixtures"), where('fixtureData.fixture.status.short', 'in', ['FT', 'AET', 'PEN']))
-            );
+            const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
+            const pointsUpdateBatch = writeBatch(db);
+            const userNewPoints = new Map<string, { fixtureId: string, points: number }[]>();
     
-            let updatedPredictions: {[key: string]: Prediction} = {};
-    
-            for (const fixtureDoc of fixturesToUpdateSnapshot.docs) {
-                const fixtureId = fixtureDoc.id;
+            for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
-                
-                const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
-                if (userPredictionsSnapshot.empty) continue;
-                
-                const predUpdateBatch = writeBatch(db);
-                userPredictionsSnapshot.forEach(userPredDoc => {
-                    const userPrediction = userPredDoc.data() as Prediction;
-                    const newPoints = calculatePoints(userPrediction, fixtureData);
-                    
-                    if (userPrediction.points !== newPoints) {
-                        const userPredRef = doc(db, 'predictionFixtures', fixtureId, 'userPredictions', userPredDoc.id);
-                        predUpdateBatch.update(userPredRef, { points: newPoints });
-                    }
-                    updatedPredictions[`${fixtureId}-${userPredDoc.id}`] = {...userPrediction, points: newPoints};
-                });
-                await predUpdateBatch.commit();
-            }
-            
-            // Update local state for the current user
-            if(user) {
-                setAllUserPredictions(prev => {
-                    const newPredictions = {...prev};
-                    Object.values(updatedPredictions).forEach(p => {
-                        if(p.userId === user.uid) {
-                             newPredictions[p.fixtureId] = p;
-                        }
-                    });
-                    return newPredictions;
-                });
-            }
-            toast({ title: "تم تحديث نقاط التوقعات الفردية بنجاح." });
+                if (!fixtureData || !fixtureData.fixture) continue;
     
+                const userPredictionsSnapshot = await getDocs(collection(db, "predictionFixtures", fixtureDoc.id, "userPredictions"));
+                userPredictionsSnapshot.forEach(predDoc => {
+                    const pred = predDoc.data() as Prediction;
+                    const newPoints = calculatePoints(pred, fixtureData);
+                    
+                    if (pred.points !== newPoints) {
+                        pointsUpdateBatch.set(doc(db, "predictionFixtures", fixtureDoc.id, "userPredictions", predDoc.id), { points: newPoints }, { merge: true });
+                    }
+
+                    if (pred.userId) {
+                        if (!userNewPoints.has(pred.userId)) {
+                            userNewPoints.set(pred.userId, []);
+                        }
+                        userNewPoints.get(pred.userId)?.push({ fixtureId: fixtureDoc.id, points: newPoints });
+                    }
+                });
+            }
+    
+            await pointsUpdateBatch.commit();
+            toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
+    
+            // Update local state for current user
+            if (user && userNewPoints.has(user.uid)) {
+                const newPredictionsForUser: { [key: string]: Prediction } = {};
+                userNewPoints.get(user.uid)?.forEach(p => {
+                    const existingPred = allUserPredictions[p.fixtureId];
+                    if (existingPred) {
+                        newPredictionsForUser[p.fixtureId] = { ...existingPred, points: p.points };
+                    }
+                });
+                setAllUserPredictions(prev => ({ ...prev, ...newPredictionsForUser }));
+            }
+
             // Step 2 & 3: Aggregate all points and update leaderboard
-            const userPoints = new Map<string, number>();
+            const userTotalPoints = new Map<string, number>();
             const userProfiles = new Map<string, UserProfile>();
     
-            const allFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            for (const fixtureDoc of allFixturesSnapshot.docs) {
+            const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
+            for (const fixtureDoc of allFixturesForLeaderboard.docs) {
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
                 userPredictionsSnapshot.forEach(predDoc => {
                     const pred = predDoc.data() as Prediction;
                     if (pred.userId && typeof pred.points === 'number') {
-                        userPoints.set(pred.userId, (userPoints.get(pred.userId) || 0) + pred.points);
+                        userTotalPoints.set(pred.userId, (userTotalPoints.get(pred.userId) || 0) + pred.points);
                     }
                 });
             }
     
-            // Fetch user profiles in batches of 30
-            if (userPoints.size > 0) {
-                const allUserIds = Array.from(userPoints.keys());
+            if (userTotalPoints.size > 0) {
+                const allUserIds = Array.from(userTotalPoints.keys());
                 for (let i = 0; i < allUserIds.length; i += 30) {
                     const batchIds = allUserIds.slice(i, i + 30);
                     const usersQuery = query(collection(db, "users"), where('__name__', 'in', batchIds));
                     const usersSnapshot = await getDocs(usersQuery);
-                    usersSnapshot.forEach(doc => {
-                        userProfiles.set(doc.id, doc.data() as UserProfile);
-                    });
+                    usersSnapshot.forEach(doc => userProfiles.set(doc.id, doc.data() as UserProfile));
                 }
             }
     
@@ -411,12 +406,12 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             const leaderboardBatch = writeBatch(db);
             const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
             oldLeaderboardSnapshot.forEach(doc => {
-                if (!userPoints.has(doc.id) || !userProfiles.has(doc.id)) {
+                if (!userTotalPoints.has(doc.id) || !userProfiles.has(doc.id)) {
                     leaderboardBatch.delete(doc.ref);
                 }
             });
     
-            const sortedUsers = Array.from(userPoints.entries())
+            const sortedUsers = Array.from(userTotalPoints.entries())
                 .filter(([userId]) => userProfiles.has(userId))
                 .sort((a, b) => b[1] - a[1]);
     
@@ -449,7 +444,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         } finally {
             setIsUpdatingPoints(false);
         }
-    }, [db, isAdmin, toast, fetchLeaderboard, user]);
+    }, [db, isAdmin, toast, fetchLeaderboard, user, allUserPredictions]);
 
 
     const filteredMatches = useMemo(() => {

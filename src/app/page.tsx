@@ -14,6 +14,7 @@ import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
 import { WelcomeScreen, GUEST_MODE_KEY } from './screens/WelcomeScreen';
 import { handleNewUser } from '@/lib/firebase-client';
 import { type User } from 'firebase/auth';
+import { ProfileScreen } from './screens/ProfileScreen';
 
 export type ScreenKey = 'Welcome' | 'SignUp' | 'Matches' | 'Competitions' | 'AllCompetitions' | 'News' | 'Settings' | 'CompetitionDetails' | 'TeamDetails' | 'PlayerDetails' | 'AdminFavoriteTeamDetails' | 'Profile' | 'SeasonPredictions' | 'SeasonTeamSelection' | 'SeasonPlayerSelection' | 'AddEditNews' | 'ManageTopScorers' | 'MatchDetails' | 'NotificationSettings' | 'GeneralSettings' | 'ManagePinnedMatch' | 'PrivacyPolicy' | 'TermsOfService' | 'FavoriteSelection' | 'GoPro' | 'MyCountry' | 'Predictions';
 
@@ -38,6 +39,7 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     const { db } = useFirestore();
     const [onboardingComplete, setOnboardingComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [needsDisplayName, setNeedsDisplayName] = useState(false);
 
     useEffect(() => {
         const checkOnboarding = async () => {
@@ -57,7 +59,9 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
             const userDocRef = doc(db, 'users', user.uid);
             try {
                 const userDoc = await getDoc(userDocRef);
-                setOnboardingComplete(userDoc.exists() && userDoc.data().onboardingComplete);
+                const userData = userDoc.data();
+                setOnboardingComplete(userData?.onboardingComplete || false);
+                setNeedsDisplayName(!userData?.displayName);
             } catch (error) {
                 console.error("Error checking onboarding status:", error);
                 setOnboardingComplete(false);
@@ -80,12 +84,21 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
         const userDocRef = doc(db, 'users', user.uid);
         try {
             await setDoc(userDocRef, { onboardingComplete: true }, { merge: true });
+            setOnboardingComplete(true);
+            // After completing favorite selection, check if they still need a display name
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.data()?.displayName) {
+                setNeedsDisplayName(true);
+            }
         } catch (error) {
             const permissionError = new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { onboardingComplete: true } });
             errorEmitter.emit('permission-error', permissionError);
         }
-        setOnboardingComplete(true);
     };
+    
+    const handleDisplayNameSet = () => {
+        setNeedsDisplayName(false);
+    }
 
     if (isLoading) {
         return <LoadingSplashScreen />;
@@ -93,6 +106,13 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
 
     if (!onboardingComplete) {
         return <FavoriteSelectionScreen onOnboardingComplete={handleOnboardingComplete} />;
+    }
+    
+    if (needsDisplayName) {
+        // A simplified version of navigate/goBack for this specific flow
+        const pseudoNavigate = () => {};
+        const pseudoGoBack = () => handleDisplayNameSet();
+        return <ProfileScreen navigate={pseudoNavigate} goBack={pseudoGoBack} canGoBack={false} />;
     }
 
     return (

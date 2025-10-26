@@ -143,20 +143,6 @@ const PredictionCard = ({
 
   const cardColors = getPredictionStatusColors();
   const isColoredCard = cardColors !== 'bg-card text-foreground';
-  
-  // Create a version of the fixture for display that respects the RTL layout
-  const fixtureForDisplay = {
-      ...liveFixture,
-      teams: {
-          home: liveFixture.teams.away,
-          away: liveFixture.teams.home,
-      },
-      goals: {
-          home: liveFixture.goals.away,
-          away: liveFixture.goals.home
-      }
-  };
-
 
   const TeamDisplay = ({ team }: { team: Fixture['teams']['home'] }) => (
     <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
@@ -184,9 +170,9 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={awayValue} // Note: Using awayValue for the right side input to match visual layout
-                onChange={(e) => setAwayValue(e.target.value)}
-                id={`away-${liveFixture.fixture.id}`} // Logical ID
+                value={homeValue}
+                onChange={(e) => setHomeValue(e.target.value)}
+                id={`home-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
@@ -200,9 +186,9 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={homeValue} // Note: Using homeValue for the left side input
-                onChange={(e) => setHomeValue(e.target.value)}
-                id={`home-${liveFixture.fixture.id}`} // Logical ID
+                value={awayValue}
+                onChange={(e) => setAwayValue(e.target.value)}
+                id={`away-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
             </div>
