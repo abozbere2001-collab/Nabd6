@@ -52,7 +52,7 @@ interface SearchableItem {
 
 
 // --- Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
+const COMPETITIONS_CACHE_KEY = 'goalstack_competitions_cache';
 const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
 interface Cache<T> {
     data: T;
@@ -133,9 +133,10 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
   
   const buildLocalIndex = useCallback(async () => {
+    if (!db) return;
     setLoading(true);
     const index: SearchableItem[] = [];
-    const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
+    const competitionsCache = getCachedData<{managedCompetitions: ManagedCompetition[]}>(COMPETITIONS_CACHE_KEY);
     const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
     
     let customTeamNames = new Map<number, string>();
@@ -155,17 +156,16 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return customMap.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
     };
 
-    if (competitionsCache) {
-        competitionsCache.forEach(comp => {
-            const league = comp.league;
-            const name = getName('league', league.id, league.name);
+    if (competitionsCache?.managedCompetitions) {
+        competitionsCache.managedCompetitions.forEach(comp => {
+            const name = getName('league', comp.leagueId, comp.name);
             index.push({
-                id: league.id,
+                id: comp.leagueId,
                 type: 'leagues',
                 name,
                 normalizedName: normalizeArabic(name),
-                logo: league.logo,
-                originalItem: { id: league.id, name: league.name, logo: league.logo }
+                logo: comp.logo,
+                originalItem: { id: comp.leagueId, name: comp.name, logo: comp.logo }
             });
         });
     }
@@ -394,7 +394,7 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   };
   
   const handleSaveRenameOrNote = async (type: RenameType, id: string | number, newName: string, newNote?: string) => {
-    if (!renameItem) return;
+    if (!renameItem || !db) return;
     const { originalData, purpose } = renameItem;
 
     if (purpose === 'rename' && isAdmin && db) {
@@ -500,7 +500,5 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
 
 
 
-
-    
 
     
