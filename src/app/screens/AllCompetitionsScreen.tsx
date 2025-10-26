@@ -187,7 +187,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         
         setLoadingClubData(false);
 
-    }, [db, toast, isAdmin]);
+    }, [db, toast]);
 
 
     useEffect(() => {
@@ -238,7 +238,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             grouped[targetContinent].push(comp);
         });
 
-        // Sort competitions within each continent group
+        // Sort competitions within each continent group by name
         for (const continent in grouped) {
             grouped[continent].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
         }
@@ -595,3 +595,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     
 
+
+
+    
