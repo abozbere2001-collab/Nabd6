@@ -56,10 +56,18 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
       });
       return;
     }
+    if (!db) {
+      toast({
+        variant: 'destructive',
+        title: 'خطأ',
+        description: 'خدمة قاعدة البيانات غير متاحة حاليًا.',
+      });
+      return;
+    }
     
     setSaving(true);
     try {
-      await updateUserDisplayName(user, displayName.trim());
+      await updateUserDisplayName(user, displayName.trim(), db);
       toast({
         title: 'تم الحفظ بنجاح',
         description: 'تم تحديث اسم العرض الخاص بك.',

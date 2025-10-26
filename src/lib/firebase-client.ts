@@ -88,12 +88,8 @@ export const signOut = (): Promise<void> => {
 };
 
 
-export const updateUserDisplayName = async (user: User, newDisplayName: string): Promise<void> => {
+export const updateUserDisplayName = async (user: User, newDisplayName: string, db: Firestore): Promise<void> => {
     if (!user) throw new Error("User not authenticated.");
-
-    const { firestore } = await import('@/firebase');
-    const db = firestore;
-
     if (!db) {
         console.error("Firestore not available for updateUserDisplayName");
         throw new Error("Database service is not available.");
