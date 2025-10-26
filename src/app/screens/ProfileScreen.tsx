@@ -38,7 +38,7 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
         if (doc.exists()) {
             const data = doc.data() as UserProfile;
             setProfile(data);
-            setDisplayName(data.displayName);
+            setDisplayName(data.displayName || '');
         }
         setLoading(false);
     });
