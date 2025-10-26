@@ -127,36 +127,35 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
             <CardContent className="p-3">
                 <main dir="rtl" className="flex items-start justify-between gap-1">
 
-                    {/* Home Team (Right) */}
                     <TeamDisplay team={liveFixture.teams.home} />
-
-                    {/* Score Area */}
-                    <div className="flex items-center gap-1" dir="ltr">
-                         <Input 
-                            type="number" 
-                            className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
-                            min="0"
-                            value={homeValue}
-                            onChange={handleHomeChange}
-                            id={`home-${liveFixture.fixture.id}`}
-                            disabled={isPredictionDisabled}
-                        />
-                        <div className="flex flex-col items-center justify-center min-w-[70px] text-center relative">
-                            {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute top-0"/>}
-                            <LiveMatchStatus fixture={liveFixture} />
+                    
+                    <div className="flex flex-col items-center justify-center text-center">
+                         <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
+                             <Input 
+                                type="number" 
+                                className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
+                                min="0"
+                                value={homeValue}
+                                onChange={handleHomeChange}
+                                id={`home-${liveFixture.fixture.id}`}
+                                disabled={isPredictionDisabled}
+                            />
+                            <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
+                                {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1"/>}
+                                <LiveMatchStatus fixture={liveFixture} />
+                            </div>
+                            <Input 
+                                type="number" 
+                                className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
+                                min="0" 
+                                value={awayValue}
+                                onChange={handleAwayChange}
+                                id={`away-${liveFixture.fixture.id}`}
+                                disabled={isPredictionDisabled}
+                            />
                         </div>
-                        <Input 
-                            type="number" 
-                            className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
-                            min="0" 
-                            value={awayValue}
-                            onChange={handleAwayChange}
-                            id={`away-${liveFixture.fixture.id}`}
-                            disabled={isPredictionDisabled}
-                        />
                     </div>
                     
-                    {/* Away Team (Left) */}
                     <TeamDisplay team={liveFixture.teams.away} />
 
                 </main>
