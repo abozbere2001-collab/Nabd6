@@ -1,9 +1,9 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -21,26 +21,17 @@ const PredictionCard = ({
   userPrediction?: Prediction;
   onSave: (fixtureId: number, home: string, away: string) => void;
 }) => {
-  const [liveFixture, setLiveFixture] = useState<Fixture>(
-    predictionMatch.fixtureData
-  );
+  const [liveFixture, setLiveFixture] = useState<Fixture>(predictionMatch.fixtureData);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const [homeValue, setHomeValue] = useState(
-    userPrediction?.homeGoals?.toString() ?? ''
-  );
-  const [awayValue, setAwayValue] = useState(
-    userPrediction?.awayGoals?.toString() ?? ''
-  );
+  const [homeValue, setHomeValue] = useState(userPrediction?.homeGoals?.toString() ?? '');
+  const [awayValue, setAwayValue] = useState(userPrediction?.awayGoals?.toString() ?? '');
 
   const debouncedHome = useDebounce(homeValue, 500);
   const debouncedAway = useDebounce(awayValue, 500);
 
   const isMatchLiveOrFinished = useMemo(
-    () =>
-      ['LIVE', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'FT', 'AET', 'PEN'].includes(
-        liveFixture.fixture.status.short
-      ),
+    () => ['LIVE', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'FT', 'AET', 'PEN'].includes(liveFixture.fixture.status.short),
     [liveFixture]
   );
 
@@ -54,6 +45,7 @@ const PredictionCard = ({
     [liveFixture]
   );
 
+  // 🔁 تحديث بيانات المباراة الحية
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
 
@@ -98,46 +90,30 @@ const PredictionCard = ({
     predictionMatch.fixtureData.fixture.timestamp,
   ]);
 
+  // 🎨 تحديد ألوان البطاقة حسب دقة التوقع
   const getPredictionStatusColors = useCallback(() => {
-    if (!isMatchLiveOrFinished || !userPrediction) {
-      return 'bg-card text-foreground';
-    }
+    if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
 
-    const actualHome = liveFixture.goals.home;
-    const actualAway = liveFixture.goals.away;
+    const actualHome = liveFixture.goals.away;
+    const actualAway = liveFixture.goals.home;
+
     const predHome = userPrediction.homeGoals;
     const predAway = userPrediction.awayGoals;
 
-    if (actualHome === null || actualAway === null)
-      return 'bg-card text-foreground';
+    if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
 
-    if (actualHome === predHome && actualAway === predAway) {
-      return 'bg-green-500/80 text-white';
-    }
+    if (actualHome === predHome && actualAway === predAway) return 'bg-green-500/80 text-white';
 
-    const actualWinner =
-      actualHome > actualAway
-        ? 'home'
-        : actualHome < actualAway
-        ? 'away'
-        : 'draw';
-    const predWinner =
-      predHome > predAway
-        ? 'home'
-        : predHome < predAway
-        ? 'away'
-        : 'draw';
+    const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
+    const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
 
-    if (actualWinner === predWinner) {
-      return 'bg-yellow-500/80 text-white';
-    }
+    if (actualWinner === predWinner) return 'bg-yellow-500/80 text-white';
 
     return 'bg-destructive/80 text-white';
   }, [isMatchLiveOrFinished, userPrediction, liveFixture.goals]);
 
   const getPointsColor = useCallback(() => {
-    if (!isMatchFinished || userPrediction?.points === undefined)
-      return 'text-primary';
+    if (!isMatchFinished || userPrediction?.points === undefined) return 'text-primary';
     if (userPrediction.points === 5) return 'text-green-500';
     if (userPrediction.points === 3) return 'text-yellow-500';
     return 'text-destructive';
@@ -154,11 +130,6 @@ const PredictionCard = ({
     }
   }, [debouncedHome, debouncedAway, onSave, userPrediction, liveFixture.fixture.id]);
 
-  const handleHomeChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setHomeValue(e.target.value);
-  const handleAwayChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setAwayValue(e.target.value);
-
   useEffect(() => {
     setHomeValue(userPrediction?.homeGoals?.toString() ?? '');
     setAwayValue(userPrediction?.awayGoals?.toString() ?? '');
@@ -172,12 +143,7 @@ const PredictionCard = ({
       <Avatar className="h-8 w-8">
         <AvatarImage src={team.logo} />
       </Avatar>
-      <span
-        className={cn(
-          'font-semibold text-xs text-center truncate w-full',
-          isColoredCard && 'text-white'
-        )}
-      >
+      <span className={cn('font-semibold text-xs text-center truncate w-full', isColoredCard && 'text-white')}>
         {team.name}
       </span>
     </div>
@@ -187,6 +153,7 @@ const PredictionCard = ({
     <Card className={cn('transition-colors', cardColors)}>
       <CardContent className="p-3">
         <main dir="rtl" className="flex items-start justify-between gap-1">
+          {/* ✅ ترتيب صحيح: المستضيف أولاً ثم الضيف */}
           <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
@@ -195,31 +162,28 @@ const PredictionCard = ({
                 type="number"
                 className={cn(
                   'w-10 h-9 text-center text-md font-bold',
-                  isColoredCard &&
-                    'bg-black/20 border-white/30 text-white placeholder:text-white/70'
+                  isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
                 value={homeValue}
-                onChange={handleHomeChange}
+                onChange={(e) => setHomeValue(e.target.value)}
                 id={`home-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
-                {isUpdating && (
-                  <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />
-                )}
+                {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
+                {/* ✅ النتيجة الفعلية الآن بالاتجاه الصحيح */}
                 <LiveMatchStatus fixture={liveFixture} />
               </div>
               <Input
                 type="number"
                 className={cn(
                   'w-10 h-9 text-center text-md font-bold',
-                  isColoredCard &&
-                    'bg-black/20 border-white/30 text-white placeholder:text-white/70'
+                  isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
                 value={awayValue}
-                onChange={handleAwayChange}
+                onChange={(e) => setAwayValue(e.target.value)}
                 id={`away-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
@@ -232,48 +196,28 @@ const PredictionCard = ({
         <div
           className={cn(
             'text-center text-xs mt-2',
-            isMatchLiveOrFinished
-              ? isColoredCard
-                ? 'text-white/80'
-                : 'text-muted-foreground'
-              : 'text-muted-foreground'
+            isMatchLiveOrFinished ? (isColoredCard ? 'text-white/80' : 'text-muted-foreground') : 'text-muted-foreground'
           )}
         >
-          <span className={cn(isColoredCard && 'text-white')}>
-            {liveFixture.league.name}
-          </span>
+          <span className={cn(isColoredCard && 'text-white')}>{liveFixture.league.name}</span>
         </div>
 
         <div className="mt-2">
           <PredictionOdds fixtureId={liveFixture.fixture.id} />
         </div>
 
-        {isMatchFinished &&
-          userPrediction?.points !== undefined &&
-          userPrediction.points >= 0 && (
-            <p className={cn('text-center font-bold text-sm mt-2', getPointsColor())}>
-              +{userPrediction.points} نقاط
-            </p>
-          )}
+        {isMatchFinished && userPrediction?.points !== undefined && userPrediction.points >= 0 && (
+          <p className={cn('text-center font-bold text-sm mt-2', getPointsColor())}>+{userPrediction.points} نقاط</p>
+        )}
 
         {!isMatchFinished && userPrediction && (
-          <p
-            className={cn(
-              'text-center text-xs mt-2',
-              isColoredCard ? 'text-green-300' : 'text-green-500'
-            )}
-          >
+          <p className={cn('text-center text-xs mt-2', isColoredCard ? 'text-green-300' : 'text-green-500')}>
             تم حفظ توقعك
           </p>
         )}
 
         {isPredictionDisabled && !userPrediction && !isMatchFinished && (
-          <p
-            className={cn(
-              'text-center text-xs mt-2',
-              isColoredCard ? 'text-red-300' : 'text-red-500'
-            )}
-          >
+          <p className={cn('text-center text-xs mt-2', isColoredCard ? 'text-red-300' : 'text-red-500')}>
             أغلق باب التوقع
           </p>
         )}
