@@ -359,17 +359,17 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     
                     if (pred.points !== newPoints) {
                         pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
-                        if (pred.userId === user?.uid) {
+                         if (pred.userId === user?.uid) {
                             locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
                         }
                     }
                 });
             }
-
+            
             await pointsUpdateBatch.commit();
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
             
-            // Update local state immediately for the current user
+            // This is the crucial fix: update local state immediately for the current user
             if (Object.keys(locallyUpdatedPredictions).length > 0) {
                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
             }

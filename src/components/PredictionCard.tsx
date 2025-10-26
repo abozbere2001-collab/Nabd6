@@ -167,9 +167,9 @@ const PredictionCard = ({
                     isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                     )}
                     min="0"
-                    value={awayValue}
-                    onChange={(e) => setAwayValue(e.target.value)}
-                    id={`away-${liveFixture.fixture.id}`}
+                    value={homeValue}
+                    onChange={(e) => setHomeValue(e.target.value)}
+                    id={`home-${liveFixture.fixture.id}`}
                     disabled={isPredictionDisabled}
                 />
                 <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
@@ -183,9 +183,9 @@ const PredictionCard = ({
                     isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                     )}
                     min="0"
-                    value={homeValue}
-                    onChange={(e) => setHomeValue(e.target.value)}
-                    id={`home-${liveFixture.fixture.id}`}
+                    value={awayValue}
+                    onChange={(e) => setAwayValue(e.target.value)}
+                    id={`away-${liveFixture.fixture.id}`}
                     disabled={isPredictionDisabled}
                 />
             </div>
