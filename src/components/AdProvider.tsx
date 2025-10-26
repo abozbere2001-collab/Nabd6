@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useAuth } from '@/firebase/provider';
+import { useAuth, useAdmin } from '@/firebase/provider';
 import { Button } from './ui/button';
 import { NabdAlMalaebLogo } from './icons/NabdAlMalaebLogo';
 import { X, Loader2 } from 'lucide-react';
@@ -25,6 +25,7 @@ const BANNER_AD_DISMISSED_KEY = 'goalstack_banner_ad_dismissed_session';
 
 export const AdProvider = ({ children }: { children: React.ReactNode }) => {
   const { isProUser } = useAuth();
+  const { isAdmin } = useAdmin();
   const [shouldShowSplash, setShouldShowSplash] = useState(false);
   const [bannerAdDismissed, setBannerAdDismissed] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -32,7 +33,7 @@ export const AdProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   useEffect(() => {
-    if (isProUser || typeof window === 'undefined') {
+    if (isProUser || isAdmin || typeof window === 'undefined') {
       setShouldShowSplash(false);
       return;
     }
@@ -62,7 +63,7 @@ export const AdProvider = ({ children }: { children: React.ReactNode }) => {
         setShouldShowSplash(true);
       }
     }
-  }, [isProUser]);
+  }, [isProUser, isAdmin]);
 
   const setSplashAdShown = () => {
     if (typeof window !== 'undefined') {
@@ -79,8 +80,8 @@ export const AdProvider = ({ children }: { children: React.ReactNode }) => {
      }
   }
 
-  const showSplashAd = !isProUser && shouldShowSplash;
-  const showBannerAd = !isProUser && !bannerAdDismissed;
+  const showSplashAd = !isProUser && !isAdmin && shouldShowSplash;
+  const showBannerAd = !isProUser && !isAdmin && !bannerAdDismissed;
 
   const value = {
     showSplashAd,
@@ -159,3 +160,5 @@ export const BannerAd = () => {
         </div>
     )
 }
+
+    

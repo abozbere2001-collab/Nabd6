@@ -169,8 +169,19 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         };
 
         const fetchClubData = async () => {
-             if (!isAdmin && db) {
-                // For regular users, use onSnapshot for managedCompetitions
+             if (!db) {
+                const popularAsManaged: ManagedCompetitionType[] = POPULAR_LEAGUES.map(l => ({
+                    leagueId: l.id,
+                    name: l.name,
+                    logo: l.logo,
+                    countryName: 'World', 
+                    countryFlag: null,
+                }));
+                setManagedCompetitions(popularAsManaged);
+                return;
+            }
+
+            if (!isAdmin) {
                  onSnapshot(collection(db, 'managedCompetitions'), (snapshot) => {
                     const fetchedCompetitions = snapshot.docs.map(doc => doc.data() as ManagedCompetitionType);
                     setManagedCompetitions(fetchedCompetitions);
@@ -179,32 +190,15 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                         leagueId: l.id,
                         name: l.name,
                         logo: l.logo,
-                        countryName: 'World', // A sensible default
+                        countryName: 'World',
                         countryFlag: null,
                     }));
                     setManagedCompetitions(popularAsManaged);
                 });
                 return;
             }
-
-            const cached = getCachedData<CompetitionsCache>(COMPETITIONS_CACHE_KEY);
-            let serverLastUpdated = 0;
             
-            if (db) {
-                try {
-                    const cacheBusterRef = doc(db, 'appConfig', 'cache');
-                    const cacheBusterSnap = await getDoc(cacheBusterRef);
-                    serverLastUpdated = cacheBusterSnap.exists() ? cacheBusterSnap.data().competitionsLastUpdated?.toMillis() : 0;
-                } catch (e) { console.warn("Could not check cache-buster."); }
-            }
-            
-             if (cached?.data?.managedCompetitions && cached.data.managedCompetitions.length > 0 && !forceRefresh && cached.lastFetched > serverLastUpdated) {
-                setManagedCompetitions(cached.data.managedCompetitions);
-                return; 
-            }
-
             try {
-                if (!db) return;
                 const compsSnapshot = await getDocs(collection(db, 'managedCompetitions'));
                 const fetchedCompetitions = compsSnapshot.docs.map(d => d.data() as ManagedCompetitionType);
                 setManagedCompetitions(fetchedCompetitions);
@@ -674,5 +668,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
 
       
+
+    
 
     

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -53,22 +54,22 @@ const FixturesList = React.memo((props: {
     
     const { favoriteTeamMatches, otherFixtures } = useMemo(() => {
         let favoriteTeamMatches: FixtureType[] = [];
-        let otherFixtures: FixtureType[] = [];
+        let otherFixturesList: FixtureType[] = [];
 
         if (props.activeTab === 'my-results') {
              props.fixtures.forEach(f => {
                 if (props.favoritedTeamIds.includes(f.teams.home.id) || props.favoritedTeamIds.includes(f.teams.away.id)) {
                     favoriteTeamMatches.push(f);
                 } else if (props.favoritedLeagueIds.includes(f.league.id)) {
-                    otherFixtures.push(f);
+                    otherFixturesList.push(f);
                 }
             });
         } else {
             // For 'all-matches' tab
-            otherFixtures = props.fixtures;
+            otherFixturesList = props.fixtures;
         }
 
-        return { favoriteTeamMatches, otherFixtures };
+        return { favoriteTeamMatches, otherFixtures: otherFixturesList };
 
     }, [props.fixtures, props.activeTab, props.favoritedTeamIds, props.favoritedLeagueIds]);
 
@@ -120,7 +121,7 @@ const FixturesList = React.memo((props: {
 
     return (
         <div className="space-y-4">
-            {props.activeTab === 'my-results' && favoriteTeamMatches.length > 0 && (
+            {favoriteTeamMatches.length > 0 && (
                  <div>
                     <div className="font-semibold text-foreground py-1 px-3 rounded-md bg-card border flex items-center gap-2 text-xs h-6">
                         <Star className="h-4 w-4 text-yellow-400" />
@@ -533,3 +534,5 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     </div>
   );
 }
+
+    
