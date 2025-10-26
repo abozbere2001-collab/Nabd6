@@ -369,7 +369,6 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             await pointsUpdateBatch.commit();
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
             
-            // This is the crucial fix: update local state immediately for the current user
             if (Object.keys(locallyUpdatedPredictions).length > 0) {
                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
             }

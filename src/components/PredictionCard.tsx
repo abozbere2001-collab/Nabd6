@@ -159,8 +159,8 @@ const PredictionCard = ({
           <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
-            <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
-                <Input
+             <div className="flex items-center gap-1 min-w-[120px] justify-center">
+                 <Input
                     type="number"
                     className={cn(
                     'w-10 h-9 text-center text-md font-bold',
