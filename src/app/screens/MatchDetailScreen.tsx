@@ -27,6 +27,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { Button } from '@/components/ui/button';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
+import { isMatchLive } from '@/lib/matchStatus';
 
 // This is a temporary fallback. In a real app, you would use a proper i18n library.
 const useTranslation = () => ({ t: (key: string) => key.replace(/_/g, ' ') });
@@ -35,7 +36,7 @@ const useTranslation = () => ({ t: (key: string) => key.replace(/_/g, ' ') });
 type RenameType = 'player' | 'coach' | 'team' | 'league' | 'continent' | 'country' | 'status';
 
 
-const PlayerCard = ({ player, navigate, onRename, isAdmin }: { player: PlayerType, navigate: ScreenProps['navigate'], onRename: () => void, isAdmin: boolean }) => {
+const PlayerCard = ({ player, navigate, onRename, isAdmin, showRating }: { player: PlayerType, navigate: ScreenProps['navigate'], onRename: () => void, isAdmin: boolean, showRating: boolean }) => {
     const { t } = useTranslation();
     const fallbackImage = "https://media.api-sports.io/football/players/0.png";
     const playerImage = player.photo && player.photo.trim() !== '' ? player.photo : fallbackImage;
@@ -69,7 +70,7 @@ const PlayerCard = ({ player, navigate, onRename, isAdmin }: { player: PlayerTyp
                         {player.number}
                     </div>
                 )}
-                {rating && (
+                {showRating && rating && (
                     <div className={cn(
                         `absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-background`,
                         getRatingColor(rating)
@@ -349,7 +350,7 @@ const TimelineTab = ({ events, homeTeam, awayTeam }: { events: MatchEvent[] | nu
     );
 }
 
-const LineupsTab = ({ lineups, events, navigate, isAdmin, onRename, homeTeamId, awayTeamId, detailedPlayersMap }: { lineups: LineupData[] | null; events: MatchEvent[] | null; navigate: ScreenProps['navigate'], isAdmin: boolean, onRename: (type: RenameType, id: number, name: string, originalName: string) => void, homeTeamId: number, awayTeamId: number, detailedPlayersMap: Map<number, { player: PlayerType; statistics: any[] }> }) => {
+const LineupsTab = ({ lineups, events, navigate, isAdmin, onRename, homeTeamId, awayTeamId, detailedPlayersMap, matchStarted }: { lineups: LineupData[] | null; events: MatchEvent[] | null; navigate: ScreenProps['navigate'], isAdmin: boolean, onRename: (type: RenameType, id: number, name: string, originalName: string) => void, homeTeamId: number, awayTeamId: number, detailedPlayersMap: Map<number, { player: PlayerType; statistics: any[] }>, matchStarted: boolean }) => {
     const { t } = useTranslation();
     const [activeTeamTab, setActiveTeamTab] = useState<'home' | 'away'>('home');
     
@@ -416,7 +417,7 @@ const LineupsTab = ({ lineups, events, navigate, isAdmin, onRename, homeTeamId, 
                     <div key={row} className="flex justify-around items-center w-full">
                         {formationGrid[row]?.map(p => {
                             const fullPlayer = getPlayerWithDetails(p.player);
-                            return <PlayerCard key={p.player.id || p.player.name} player={fullPlayer} navigate={navigate} isAdmin={isAdmin} onRename={() => onRename('player', p.player.id, p.player.name, p.player.name)} />
+                            return <PlayerCard key={p.player.id || p.player.name} player={fullPlayer} navigate={navigate} isAdmin={isAdmin} onRename={() => onRename('player', p.player.id, p.player.name, p.player.name)} showRating={matchStarted} />
                         })}
                     </div>
                 ))}
@@ -424,7 +425,7 @@ const LineupsTab = ({ lineups, events, navigate, isAdmin, onRename, homeTeamId, 
                     <div className="flex justify-around items-center">
                         {ungriddedPlayers.map(p => {
                             const fullPlayer = getPlayerWithDetails(p.player);
-                            return <PlayerCard key={p.player.id || p.player.name} player={fullPlayer} navigate={navigate} isAdmin={isAdmin} onRename={() => onRename('player', p.player.id, p.player.name, p.player.name)} />
+                            return <PlayerCard key={p.player.id || p.player.name} player={fullPlayer} navigate={navigate} isAdmin={isAdmin} onRename={() => onRename('player', p.player.id, p.player.name, p.player.name)} showRating={matchStarted} />
                         })}
                     </div>
                 )}
@@ -832,6 +833,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
     
     const homeTeamId = processedFixture.teams.home.id;
     const awayTeamId = processedFixture.teams.away.id;
+    const matchStarted = processedFixture.fixture.status.short !== 'NS';
     
     return (
       <div className="flex h-full flex-col bg-background">
@@ -898,6 +900,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
                   homeTeamId={homeTeamId}
                   awayTeamId={awayTeamId}
                   detailedPlayersMap={detailedPlayersMap}
+                  matchStarted={matchStarted}
                 />
               </TabsContent>
               <TabsContent value="timeline" className="pt-4">

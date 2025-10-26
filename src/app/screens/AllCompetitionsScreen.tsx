@@ -105,7 +105,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
     const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string>, countries: Map<string, string>, continents: Map<string, string> }>({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
 
-    const [managedCompetitions, setManagedCompetitions] = useState<ManagedCompetitionType[] | null>(null);
+    const [managedCompetitions, setManagedCompetitions] = useState<ManagedCompetitionType[]>(
+        POPULAR_LEAGUES.map(l => ({ leagueId: l.id, name: l.name, logo: l.logo, countryName: 'World', countryFlag: null }))
+    );
     const [nationalTeams, setNationalTeams] = useState<Team[] | null>(null);
     const [loadingClubData, setLoadingClubData] = useState(true);
     const [loadingNationalTeams, setLoadingNationalTeams] = useState(false);
@@ -163,36 +165,20 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         };
 
         const fetchClubData = async () => {
-             if (!db) {
-                const popularAsManaged: ManagedCompetitionType[] = POPULAR_LEAGUES.map(l => ({
-                    leagueId: l.id,
-                    name: l.name,
-                    logo: l.logo,
-                    countryName: 'World', 
-                    countryFlag: null,
-                }));
-                setManagedCompetitions(popularAsManaged);
-                return;
-            }
+             if (!db) { return; }
 
             try {
                 const compsSnapshot = await getDocs(collection(db, 'managedCompetitions'));
                 const fetchedCompetitions = compsSnapshot.docs.map(d => d.data() as ManagedCompetitionType);
-                setManagedCompetitions(fetchedCompetitions);
-                setCachedData(COMPETITIONS_CACHE_KEY, { managedCompetitions: fetchedCompetitions, lastFetched: Date.now() });
+                if (fetchedCompetitions.length > 0) {
+                  setManagedCompetitions(fetchedCompetitions);
+                  setCachedData(COMPETITIONS_CACHE_KEY, { managedCompetitions: fetchedCompetitions, lastFetched: Date.now() });
+                }
             } catch (error) {
                  errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: 'managedCompetitions',
                     operation: 'list',
                 }));
-                 const popularAsManaged: ManagedCompetitionType[] = POPULAR_LEAGUES.map(l => ({
-                    leagueId: l.id,
-                    name: l.name,
-                    logo: l.logo,
-                    countryName: 'World',
-                    countryFlag: null,
-                }));
-                setManagedCompetitions(popularAsManaged);
             }
         };
 
@@ -608,3 +594,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
 
     
+
