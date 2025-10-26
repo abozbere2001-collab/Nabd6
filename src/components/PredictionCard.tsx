@@ -114,21 +114,24 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
 
     const cardColors = getPredictionStatusColors();
     const isColoredCard = cardColors !== 'bg-card text-foreground';
+    
+    const TeamDisplay = ({ team }: { team: Fixture['teams']['home'] }) => (
+        <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
+            <Avatar className="h-8 w-8"><AvatarImage src={team.logo} /></Avatar>
+            <span className={cn("font-semibold text-xs text-center truncate w-full", isColoredCard && "text-white")}>{team.name}</span>
+        </div>
+    );
 
     return (
         <Card className={cn("transition-colors", cardColors)}>
             <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-1">
-                    
-                    {/* Home Team (Host) - on the right */}
-                    <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
-                        <Avatar className="h-8 w-8"><AvatarImage src={liveFixture.teams.home.logo} /></Avatar>
-                        <span className={cn("font-semibold text-xs text-center truncate w-full", isColoredCard && "text-white")}>{liveFixture.teams.home.name}</span>
-                    </div>
+                <main dir="rtl" className="flex items-start justify-between gap-1">
 
-                    {/* Score Inputs and Live Status */}
+                    {/* Home Team (Right) */}
+                    <TeamDisplay team={liveFixture.teams.home} />
+
+                    {/* Score Area */}
                     <div className="flex items-center gap-1" dir="ltr">
-                        {/* Home Score Input (Right) */}
                         <Input 
                             type="number" 
                             className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
@@ -138,12 +141,10 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                             id={`home-${liveFixture.fixture.id}`}
                             disabled={isPredictionDisabled}
                         />
-                        {/* Live Status */}
-                         <div className="flex flex-col items-center justify-center min-w-[70px] text-center relative">
+                        <div className="flex flex-col items-center justify-center min-w-[70px] text-center relative">
                             {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute top-0"/>}
                             <LiveMatchStatus fixture={liveFixture} />
-                         </div>
-                        {/* Away Score Input (Left) */}
+                        </div>
                         <Input 
                             type="number" 
                             className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
@@ -155,13 +156,10 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                         />
                     </div>
                     
-                     {/* Away Team (Guest) - on the left */}
-                    <div className="flex flex-col items-center gap-1 flex-1 truncate">
-                        <Avatar className="h-8 w-8"><AvatarImage src={liveFixture.teams.away.logo} /></Avatar>
-                        <span className={cn("font-semibold text-xs text-center truncate w-full", isColoredCard && "text-white")}>{liveFixture.teams.away.name}</span>
-                    </div>
+                    {/* Away Team (Left) */}
+                    <TeamDisplay team={liveFixture.teams.away} />
 
-                </div>
+                </main>
                  <div className={cn("text-center text-xs mt-2", isMatchLiveOrFinished ? (isColoredCard ? 'text-white/80' : 'text-muted-foreground') : 'text-muted-foreground')}>
                     <span className={cn(isColoredCard && "text-white")}>{liveFixture.league.name}</span>
                 </div>
