@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -93,6 +92,26 @@ const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "N
 const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab"];
 
 const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya"];
+
+// --- Sorting Logic ---
+const getLeagueImportance = (leagueName: string): number => {
+    const lowerCaseName = leagueName.toLowerCase();
+    // World
+    if (lowerCaseName.includes('world cup')) return 1;
+    if (lowerCaseName.includes('champions league')) return 2;
+    if (lowerCaseName.includes('euro') || lowerCaseName.includes('copa america') || lowerCaseName.includes('afc asian cup') || lowerCaseName.includes('africa cup of nations')) return 3;
+    if (lowerCaseName.includes('europa league') || lowerCaseName.includes('afc cup') || lowerCaseName.includes('conference league')) return 4;
+    if (lowerCaseName.includes('nations league') || lowerCaseName.includes('club world cup')) return 5;
+    if (lowerCaseName.includes('friendly')) return 99;
+
+    // Domestic
+    if (lowerCaseName.includes('premier league') || lowerCaseName.includes('la liga') || lowerCaseName.includes('serie a') || lowerCaseName.includes('bundesliga') || lowerCaseName.includes('ligue 1') || lowerCaseName.includes('stars league')) return 10;
+    if (lowerCaseName.includes('cup') || lowerCaseName.includes('copa') || lowerCaseName.includes('kfp') || lowerCaseName.includes("king's cup")) return 11;
+    if (lowerCaseName.includes('championship') || lowerCaseName.includes('segunda') || lowerCaseName.includes('serie b') || lowerCaseName.includes('division 2')) return 12;
+
+    return 50; // Default importance
+}
+
 
 // --- MAIN SCREEN COMPONENT ---
 export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps) {
@@ -246,8 +265,25 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 grouped[continent][countryKey].push(league);
             });
         
+        // Sort leagues within each country
+        for (const continent in grouped) {
+            for (const country in grouped[continent]) {
+                grouped[continent][country].sort((a, b) => {
+                    const importanceA = getLeagueImportance(a.league.name);
+                    const importanceB = getLeagueImportance(b.league.name);
+                    if (importanceA !== importanceB) {
+                        return importanceA - importanceB;
+                    }
+                    // Secondary sort by translated name if importance is the same
+                    const translatedNameA = getName('league', a.league.id, a.league.name);
+                    const translatedNameB = getName('league', b.league.id, b.league.name);
+                    return translatedNameA.localeCompare(translatedNameB, 'ar');
+                });
+            }
+        }
+        
         return grouped;
-    }, [allLeagues]);
+    }, [allLeagues, getName]);
 
     
     const fetchNationalTeams = useCallback(async () => {
@@ -583,5 +619,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
+    
 
     
