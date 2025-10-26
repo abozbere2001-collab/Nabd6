@@ -92,6 +92,7 @@ const countryToContinent: { [key: string]: string } = {
 const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "North America", "Oceania", "Other"];
 const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab"];
 
+const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya"];
 
 // --- MAIN SCREEN COMPONENT ---
 export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps) {
@@ -227,7 +228,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             .forEach(league => {
                 const leagueNameLower = league.league.name.toLowerCase();
                 const countryNameLower = league.country.name.toLowerCase();
-                let continent = "Other";
+                let continent: string;
 
                 if (WORLD_LEAGUES_KEYWORDS.some(keyword => leagueNameLower.includes(keyword)) || countryNameLower === 'world') {
                     continent = "World";
@@ -475,34 +476,34 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-2 space-y-2">
-                    {Object.keys(sortedGroupedCompetitions[continent]).sort((a,b) => getName('country', a, a).localeCompare(getName('country', b, b), 'ar')).map(country => (
-                         <Accordion type="multiple" key={country} className="w-full">
-                            <AccordionItem value={`country-${country}`} className="rounded-lg border bg-background/50">
-                                <AccordionTrigger className="px-3 py-2.5 hover:no-underline text-base">
-                                     <div className="flex items-center gap-2">
-                                        <span>{getName('country', country, country)}</span>
-                                        {isAdmin && (
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country)); }}>
-                                                <Pencil className="h-4 w-4"/>
-                                            </Button>
-                                        )}
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-1">
-                                    {sortedGroupedCompetitions[continent][country].map(({ league }) => (
-                                        <LeagueHeaderItem
-                                            key={league.id}
-                                            league={{leagueId: league.id, name: getName('league', league.id, league.name), logo: league.logo, countryName: country}}
-                                            isFavorited={!!favorites.leagues?.[league.id]}
-                                            onFavoriteToggle={() => handleFavoriteToggle(league, 'leagues')}
-                                            onRename={() => handleOpenRename('league', league.id, getName('league', league.id, league.name), league.name)}
-                                            onClick={() => navigate('CompetitionDetails', { title: getName('league', league.id, league.name), leagueId: league.id, logo: league.logo })}
-                                            isAdmin={isAdmin}
-                                        />
-                                    ))}
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
+                    {Object.keys(sortedGroupedCompetitions[continent]).sort((a,b) => {
+                       const aIsPriority = priorityCountries.includes(a);
+                       const bIsPriority = priorityCountries.includes(b);
+                       if (aIsPriority && !bIsPriority) return -1;
+                       if (!aIsPriority && bIsPriority) return 1;
+                       return getName('country', a, a).localeCompare(getName('country', b, b), 'ar');
+                    }).map(country => (
+                         <div key={country} className="space-y-1">
+                            <div className="flex items-center gap-2 px-2">
+                                <span className="font-semibold text-muted-foreground">{getName('country', country, country)}</span>
+                                {isAdmin && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country)); }}>
+                                        <Pencil className="h-3 w-3"/>
+                                    </Button>
+                                )}
+                            </div>
+                            {sortedGroupedCompetitions[continent][country].map(({ league }) => (
+                                <LeagueHeaderItem
+                                    key={league.id}
+                                    league={{leagueId: league.id, name: getName('league', league.id, league.name), logo: league.logo, countryName: country}}
+                                    isFavorited={!!favorites.leagues?.[league.id]}
+                                    onFavoriteToggle={() => handleFavoriteToggle(league, 'leagues')}
+                                    onRename={() => handleOpenRename('league', league.id, getName('league', league.id, league.name), league.name)}
+                                    onClick={() => navigate('CompetitionDetails', { title: getName('league', league.id, league.name), leagueId: league.id, logo: league.logo })}
+                                    isAdmin={isAdmin}
+                                />
+                            ))}
+                        </div>
                     ))}
                 </AccordionContent>
              </AccordionItem>
@@ -582,3 +583,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
+    
