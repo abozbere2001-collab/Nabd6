@@ -48,6 +48,7 @@ const FixturesList = React.memo((props: {
     navigate: ScreenProps['navigate'],
     pinnedPredictionMatches: Set<number>,
     onPinToggle: (fixture: FixtureType) => void,
+    isAdmin: boolean,
 }) => {
     
     const { favoriteTeamMatches, otherFixtures } = useMemo(() => {
@@ -133,6 +134,7 @@ const FixturesList = React.memo((props: {
                                 navigate={props.navigate}
                                 isPinnedForPrediction={props.pinnedPredictionMatches.has(f.fixture.id)}
                                 onPinToggle={props.onPinToggle}
+                                isAdmin={props.isAdmin}
                             />
                         ))}
                     </div>
@@ -155,6 +157,7 @@ const FixturesList = React.memo((props: {
                                     navigate={props.navigate}
                                     isPinnedForPrediction={props.pinnedPredictionMatches.has(f.fixture.id)}
                                     onPinToggle={props.onPinToggle}
+                                    isAdmin={props.isAdmin}
                                 />
                             ))}
                         </div>
@@ -507,6 +510,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
                     navigate={navigate}
                     pinnedPredictionMatches={pinnedPredictionMatches}
                     onPinToggle={handlePinToggle}
+                    isAdmin={isAdmin}
                 />
             </TabsContent>
             
@@ -521,6 +525,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
                     navigate={navigate}
                     pinnedPredictionMatches={pinnedPredictionMatches}
                     onPinToggle={handlePinToggle}
+                    isAdmin={isAdmin}
                 />
             </TabsContent>
 

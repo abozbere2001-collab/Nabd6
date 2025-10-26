@@ -220,7 +220,7 @@ const TeamPlayersTab = ({ teamId, navigate }: { teamId: number, navigate: Screen
     );
 };
 
-const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatches }: { teamId: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number> }) => {
+const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin }: { teamId: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
@@ -364,6 +364,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                                     navigate={navigate} 
                                     isPinnedForPrediction={pinnedPredictionMatches.has(fixture.fixture.id)}
                                     onPinToggle={onPinToggle}
+                                    isAdmin={isAdmin}
                                 />
                             </div>
                         )
@@ -718,7 +719,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} />
+                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} />
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
                     <TeamPlayersTab teamId={teamId} navigate={navigate} />
@@ -728,5 +729,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
         </div>
     );
 }
-
-    
