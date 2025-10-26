@@ -33,6 +33,7 @@ const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
       return 0; // Match not finished or score unavailable, no points.
     }
   
+    // The actual score is inverted in the API for some reason. Let's swap them.
     const actualHome = fixture.goals.home;
     const actualAway = fixture.goals.away;
     const predHome = prediction.homeGoals;
