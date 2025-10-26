@@ -232,113 +232,67 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
 
 
   useEffect(() => {
-    const findActiveSeasonAndFetchData = async () => {
-        if (!leagueId) {
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        await fetchAllCustomNames();
-
-        const seasonsToTry = [CURRENT_SEASON, CURRENT_SEASON + 1, CURRENT_SEASON -1, CURRENT_SEASON + 2, CURRENT_SEASON - 2];
-        let activeSeason = CURRENT_SEASON;
-        let foundData = false;
-
-        for (const year of seasonsToTry) {
-            try {
-                const cacheKey = `competition_data_${leagueId}_${year}`;
-                let cachedData = getCachedData(cacheKey);
-
-                if (cachedData) {
-                    foundData = true;
-                    activeSeason = year;
-                    setSeason(year);
-                    break;
-                }
-                
-                const standingsRes = await fetch(`/api/football/standings?league=${leagueId}&season=${year}`);
-                const standingsData = await standingsRes.json();
-
-                if (standingsData.response?.[0]?.league?.standings?.[0]?.length > 0) {
-                    foundData = true;
-                    activeSeason = year;
-                    setSeason(year);
-                    break;
-                }
-            } catch (error) {
-                console.warn(`No data found for season ${year}`);
-            }
-        }
-        fetchDataForSeason(activeSeason);
-    };
-
-    const fetchDataForSeason = async (seasonToFetch: number) => {
+    const fetchData = async (seasonToFetch: number) => {
         if (!leagueId) return;
         setLoading(true);
         if (customNames === null) await fetchAllCustomNames();
 
+        const cacheKey = `competition_data_${leagueId}_${seasonToFetch}`;
+        const cachedData = getCachedData(cacheKey);
+
+        if (cachedData) {
+            setStandings(cachedData.standings || []);
+            setTopScorers(cachedData.topScorers || []);
+            setTeams(cachedData.teams || []);
+            setFixtures(cachedData.fixtures || []);
+            setLoading(false);
+            return;
+        }
+
         try {
-            const cacheKey = `competition_data_${leagueId}_${seasonToFetch}`;
-            const cachedData = getCachedData(cacheKey);
+            const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
+                fetch(`/api/football/standings?league=${leagueId}&season=${seasonToFetch}`),
+                fetch(`/api/football/players/topscorers?league=${leagueId}&season=${seasonToFetch}`),
+                fetch(`/api/football/teams?league=${leagueId}&season=${seasonToFetch}`),
+                fetch(`/api/football/fixtures?league=${leagueId}&season=${seasonToFetch}`)
+            ]);
+
+            const standingsData = await standingsRes.json();
+            const scorersData = await scorersRes.json();
+            const teamsData = await teamsRes.json();
+            const fixturesData = await fixturesRes.json();
             
-            if (cachedData) {
-                setStandings(cachedData.standings || []);
-                setTopScorers(cachedData.topScorers || []);
-                setTeams(cachedData.teams || []);
-                setFixtures(cachedData.fixtures || []);
-                if (!initialTitle && cachedData.fixtures.length > 0) {
-                    const hardcodedName = hardcodedTranslations.leagues[cachedData.fixtures[0].league.id];
-                    setDisplayTitle(hardcodedName || cachedData.fixtures[0].league.name);
-                }
-            } else {
-                const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
-                    fetch(`/api/football/standings?league=${leagueId}&season=${seasonToFetch}`),
-                    fetch(`/api/football/players/topscorers?league=${leagueId}&season=${seasonToFetch}`),
-                    fetch(`/api/football/teams?league=${leagueId}&season=${seasonToFetch}`),
-                    fetch(`/api/football/fixtures?league=${leagueId}&season=${seasonToFetch}`)
-                ]);
+            const newStandings = standingsData.response[0]?.league?.standings[0] || [];
+            const newTopScorers = scorersData.response || [];
+            const newTeams = teamsData.response || [];
+            const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
 
-                const standingsData = await standingsRes.json();
-                const scorersData = await scorersRes.json();
-                const teamsData = await teamsRes.json();
-                const fixturesData = await fixturesRes.json();
-                
-                const newStandings = standingsData.response[0]?.league?.standings[0] || [];
-                const newTopScorers = scorersData.response || [];
-                const newTeams = teamsData.response || [];
-                const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
+            setStandings(newStandings);
+            setTopScorers(newTopScorers);
+            setTeams(newTeams);
+            setFixtures(sortedFixtures);
 
-                setStandings(newStandings);
-                setTopScorers(newTopScorers);
-                setTeams(newTeams);
-                setFixtures(sortedFixtures);
-
-                if(!initialTitle && sortedFixtures.length > 0) {
-                     const hardcodedName = hardcodedTranslations.leagues[sortedFixtures[0].league.id];
-                     setDisplayTitle(hardcodedName || sortedFixtures[0].league.name);
-                }
-
-                setCachedData(cacheKey, {
-                    standings: newStandings,
-                    topScorers: newTopScorers,
-                    teams: newTeams,
-                    fixtures: sortedFixtures,
-                });
+            if(!initialTitle && sortedFixtures.length > 0) {
+                 const hardcodedName = hardcodedTranslations.leagues[sortedFixtures[0].league.id];
+                 setDisplayTitle(hardcodedName || sortedFixtures[0].league.name);
             }
+
+            setCachedData(cacheKey, {
+                standings: newStandings,
+                topScorers: newTopScorers,
+                teams: newTeams,
+                fixtures: sortedFixtures,
+            });
         } catch (error) {
             console.error("Failed to fetch competition details:", error);
+            toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
         } finally {
             setLoading(false);
         }
-    }
+    };
 
-    if (season !== CURRENT_SEASON) {
-        fetchDataForSeason(season);
-    } else {
-        findActiveSeasonAndFetchData();
-    }
-
-  }, [leagueId, season, fetchAllCustomNames, initialTitle]);
+    fetchData(season);
+  }, [leagueId, season, customNames, fetchAllCustomNames, initialTitle, toast]);
   
 
   useEffect(() => {

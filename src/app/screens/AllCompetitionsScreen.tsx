@@ -87,7 +87,7 @@ const countryToContinent: { [key: string]: string } = {
 };
 
 const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "North America", "Oceania", "Other"];
-const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf"];
+const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab"];
 
 
 // --- MAIN SCREEN COMPONENT ---
@@ -233,15 +233,50 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         };
     }, [user, db, fetchAllData]);
 
-    const sortedClubCompetitions = useMemo(() => {
-        if (!managedCompetitions || managedCompetitions.length === 0) return [];
-        return managedCompetitions
-            .map(comp => ({
+    const groupedClubCompetitions = useMemo(() => {
+        if (!managedCompetitions || managedCompetitions.length === 0) return {};
+    
+        const grouped: { [continent: string]: ManagedCompetitionType[] } = {};
+    
+        managedCompetitions.forEach(comp => {
+            let continent = "Other";
+            const lowerCaseName = comp.name.toLowerCase();
+            const lowerCaseCountry = (comp.countryName || '').toLowerCase();
+    
+            const isWorldLeague = WORLD_LEAGUES_KEYWORDS.some(keyword => lowerCaseName.includes(keyword) || lowerCaseCountry.includes(keyword));
+    
+            if (isWorldLeague) {
+                continent = "World";
+            } else if (comp.countryName && countryToContinent[comp.countryName]) {
+                continent = countryToContinent[comp.countryName];
+            }
+    
+            if (!grouped[continent]) {
+                grouped[continent] = [];
+            }
+            grouped[continent].push({
                 ...comp,
                 name: getName('league', comp.leagueId, comp.name),
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            });
+        });
+
+        // Sort leagues within each continent alphabetically
+        for (const continent in grouped) {
+            grouped[continent].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+        }
+    
+        return grouped;
     }, [managedCompetitions, getName]);
+    
+    const sortedContinents = useMemo(() => {
+        return Object.keys(groupedClubCompetitions).sort((a, b) => {
+            const indexA = continentOrder.indexOf(a);
+            const indexB = continentOrder.indexOf(b);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+    }, [groupedClubCompetitions]);
 
     
     const groupedNationalTeams = useMemo(() => {
@@ -459,23 +494,29 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     const renderClubCompetitions = () => {
-        if (!sortedClubCompetitions || sortedClubCompetitions.length === 0) return null;
+        if (loadingClubData) return null;
+        if (sortedContinents.length === 0) return <p className="p-4 text-center text-muted-foreground">لا توجد بطولات أندية متاحة.</p>;
         
-        return (
-            <div className="space-y-2">
-                {sortedClubCompetitions.map(comp => (
-                    <LeagueHeaderItem
-                        key={comp.leagueId}
-                        league={comp}
-                        isFavorited={!!favorites.leagues?.[comp.leagueId]}
-                        onFavoriteToggle={() => handleFavoriteToggle(comp)}
-                        onRename={() => handleOpenRename('league', comp.leagueId, comp.name, comp.name)}
-                        onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
-                        isAdmin={isAdmin}
-                    />
-                ))}
-            </div>
-        );
+        return sortedContinents.map(continent => (
+            <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                    <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                </AccordionTrigger>
+                <AccordionContent className="p-2 space-y-2">
+                    {groupedClubCompetitions[continent].map(comp => (
+                        <LeagueHeaderItem
+                            key={comp.leagueId}
+                            league={comp}
+                            isFavorited={!!favorites.leagues?.[comp.leagueId]}
+                            onFavoriteToggle={() => handleFavoriteToggle(comp)}
+                            onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions.find(c => c.leagueId === comp.leagueId)?.name)}
+                            onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
+                            isAdmin={isAdmin}
+                        />
+                    ))}
+                </AccordionContent>
+            </AccordionItem>
+        ));
     };
 
 
@@ -540,9 +581,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                             </div>
                         </AccordionTrigger>
                         <AccordionContent className="p-2">
-                            {loadingClubData ? <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div> :
-                                renderClubCompetitions()
-                            }
+                             <Accordion type="multiple" className="w-full space-y-2">
+                                {renderClubCompetitions()}
+                            </Accordion>
                         </AccordionContent>
                     </AccordionItem>
                  </Accordion>
@@ -563,7 +604,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-    
-
-    
