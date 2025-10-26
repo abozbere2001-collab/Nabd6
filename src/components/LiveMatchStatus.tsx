@@ -73,8 +73,8 @@ export const LiveMatchStatus = ({ fixture, large = false, customStatus }: { fixt
             };
         }
 
-        // The correct, non-inverted score display.
-        const score = `${goals.home} - ${goals.away}`;
+        // This is the fix: Display the score inverted to match the inverted data source.
+        const score = `${goals.away} - ${goals.home}`;
 
         if (live) {
             return {
