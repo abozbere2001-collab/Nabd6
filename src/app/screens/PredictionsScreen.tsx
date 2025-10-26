@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
     if (!fixture.goals || fixture.goals.home === null || fixture.goals.away === null) {
-      return 0; // Match not finished or score unavailable, no points.
+      return 0;
     }
     
     // Correctly align actual and predicted scores
@@ -330,16 +330,19 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
     
         try {
             // Step 1: Update points for individual predictions
-            toast({ title: "الخطوة 1/3", description: "تحديث نقاط التوقعات..." });
+            toast({ title: "الخطوة 1/3: تحديث نقاط التوقعات", description: "جاري حساب النقاط لكل توقع..." });
+            
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
             const locallyUpdatedPredictions: { [key: string]: Prediction } = {};
-    
+
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureId = fixtureDoc.id;
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
     
                 if (['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short)) {
                     const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
+                    if (userPredictionsSnapshot.empty) continue;
+
                     const predUpdateBatch = writeBatch(db);
                     let hasUpdates = false;
 
@@ -356,22 +359,22 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                             }
                         }
                     });
-                     if (hasUpdates) {
+
+                    if (hasUpdates) {
                         await predUpdateBatch.commit();
                     }
                 }
             }
-    
+
             if (Object.keys(locallyUpdatedPredictions).length > 0) {
-                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
+                setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
             }
-            toast({ title: "نجاح الخطوة 1/3", description: "تم تحديث نقاط التوقعات." });
-    
+            toast({ title: "نجاح الخطوة 1/3", description: "تم تحديث نقاط التوقعات الفردية." });
+
             // Step 2: Aggregate all points for the leaderboard
-            toast({ title: "الخطوة 2/3", description: "تجميع كل النقاط..." });
+            toast({ title: "الخطوة 2/3: تجميع نقاط لوحة الصدارة", description: "جاري تجميع كل النقاط..." });
             const userPoints = new Map<string, number>();
             const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
-    
             for (const fixtureDoc of allFixturesForLeaderboard.docs) {
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
                 userPredictionsSnapshot.forEach(predDoc => {
@@ -381,9 +384,9 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     }
                 });
             }
-    
+
             // Step 3: Fetch user profiles and update leaderboard
-            toast({ title: "الخطوة 3/3", description: "تحديث لوحة الصدارة..." });
+            toast({ title: "الخطوة 3/3: تحديث لوحة الصدارة", description: "جاري جلب بيانات المستخدمين..." });
             const userProfiles = new Map<string, UserProfile>();
             if (userPoints.size > 0) {
                 const allUsersSnapshot = await getDocs(collection(db, "users"));
@@ -392,6 +395,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                 });
             }
             
+            // Clear old leaderboard and write new one
             const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
             const deleteBatch = writeBatch(db);
             oldLeaderboardSnapshot.forEach(doc => deleteBatch.delete(doc.ref));
@@ -418,7 +422,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         } catch (error) {
             console.error("Error calculating all points:", error);
             if (error instanceof Error) {
-                toast({ variant: 'destructive', title: "خطأ", description: error.message || "حدث خطأ أثناء تحديث لوحة الصدارة." });
+                toast({ variant: 'destructive', title: "خطأ فادح", description: error.message || "حدث خطأ أثناء تحديث لوحة الصدارة." });
             }
         } finally {
             setIsUpdatingPoints(false);
@@ -460,7 +464,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                <TabsContent value="voting" className="flex-1 flex flex-col mt-0 data-[state=inactive]:hidden min-h-0">
                     <DateScroller selectedDateKey={selectedDateKey} onDateSelect={setSelectedDateKey} />
                     <div className="flex-1 overflow-y-auto p-1 space-y-4 pt-4">
-                        {loadingMatches || isCheckingAdmin ? (
+                        {loadingMatches || isCheckingAdmin || loadingUserPredictions ? (
                             <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
                         ) : !user ? (
                             <div className="text-center text-muted-foreground pt-10">
