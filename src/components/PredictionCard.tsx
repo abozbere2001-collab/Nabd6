@@ -120,8 +120,8 @@ const PredictionCard = ({
 
   const getPointsColor = useCallback(() => {
     if (!isMatchFinished || userPrediction?.points === undefined) return 'text-primary';
-    if (userPrediction.points === 5) return 'text-green-500';
-    if (userPrediction.points === 3) return 'text-yellow-500';
+    if (userPrediction.points === 3) return 'text-green-500';
+    if (userPrediction.points === 1) return 'text-yellow-500';
     return 'text-destructive';
   }, [isMatchFinished, userPrediction]);
 
@@ -159,7 +159,7 @@ const PredictionCard = ({
     <Card className={cn('transition-colors', cardColors)}>
       <CardContent className="p-3">
         <main dir="rtl" className="flex items-start justify-between gap-1">
-          <TeamDisplay team={liveFixture.teams.away} />
+          <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
@@ -170,9 +170,9 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={awayValue}
-                onChange={(e) => setAwayValue(e.target.value)}
-                id={`away-${liveFixture.fixture.id}`}
+                value={homeValue}
+                onChange={(e) => setHomeValue(e.target.value)}
+                id={`home-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
@@ -186,15 +186,15 @@ const PredictionCard = ({
                   isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                 )}
                 min="0"
-                value={homeValue}
-                onChange={(e) => setHomeValue(e.target.value)}
-                id={`home-${liveFixture.fixture.id}`}
+                value={awayValue}
+                onChange={(e) => setAwayValue(e.target.value)}
+                id={`away-${liveFixture.fixture.id}`}
                 disabled={isPredictionDisabled}
               />
             </div>
           </div>
 
-          <TeamDisplay team={liveFixture.teams.home} />
+          <TeamDisplay team={liveFixture.teams.away} />
         </main>
 
         <div
