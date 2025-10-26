@@ -39,7 +39,11 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                 const res = await fetch(`/api/football/fixtures?id=${liveFixture.fixture.id}`);
                 const data = await res.json();
                 if (data.response && data.response.length > 0) {
-                    setLiveFixture(data.response[0]);
+                    // This is the crucial fix: update the entire fixture object
+                    setLiveFixture(prevFixture => ({
+                        ...prevFixture,
+                        ...data.response[0],
+                    }));
                 }
             } catch (error) {
                 console.error("Failed to fetch live fixture data:", error);
@@ -125,13 +129,12 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
     return (
         <Card className={cn("transition-colors", cardColors)}>
             <CardContent className="p-3">
-                <main dir="rtl" className="flex items-start justify-between gap-1">
-
+                 <main dir="rtl" className="flex items-start justify-between gap-1">
                     <TeamDisplay team={liveFixture.teams.home} />
-                    
+
                     <div className="flex flex-col items-center justify-center text-center">
-                         <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
-                             <Input 
+                        <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
+                            <Input 
                                 type="number" 
                                 className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
                                 min="0"
@@ -157,7 +160,6 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                     </div>
                     
                     <TeamDisplay team={liveFixture.teams.away} />
-
                 </main>
                  <div className={cn("text-center text-xs mt-2", isMatchLiveOrFinished ? (isColoredCard ? 'text-white/80' : 'text-muted-foreground') : 'text-muted-foreground')}>
                     <span className={cn(isColoredCard && "text-white")}>{liveFixture.league.name}</span>
@@ -166,7 +168,6 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                 <div className="mt-2">
                     <PredictionOdds fixtureId={liveFixture.fixture.id} />
                 </div>
-
 
                 {isMatchFinished && userPrediction?.points !== undefined && userPrediction.points >= 0 && (
                      <p className={cn("text-center font-bold text-sm mt-2", getPointsColor())}>
