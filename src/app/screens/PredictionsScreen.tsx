@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -27,9 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // Intentionally reversing home/away to match the reversed data source
-    const actualHome = fixture.goals.away;
-    const actualAway = fixture.goals.home;
+    const actualHome = fixture.goals.home;
+    const actualAway = fixture.goals.away;
     
     const predHome = prediction.homeGoals;
     const predAway = prediction.awayGoals;
@@ -331,10 +329,11 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
     toast({ title: "بدء تحديث النقاط...", description: "جاري حساب النقاط لجميع المستخدمين." });
 
     try {
-        // Step 1: Update points for individual predictions
+        // Step 1: Update points for individual predictions for finished matches
+        toast({ title: "الخطوة 1/3", description: "تحديث نقاط التوقعات الفردية..." });
         const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
         const predictionUpdateBatch = writeBatch(db);
-        let predictionsUpdated = false;
+        let updatedPredictions = false;
 
         for (const fixtureDoc of fixturesSnapshot.docs) {
             const fixtureId = fixtureDoc.id;
@@ -349,21 +348,18 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     if (userPrediction.points !== newPoints) {
                         const userPredRef = doc(db, 'predictionFixtures', fixtureId, 'userPredictions', userPredDoc.id);
                         predictionUpdateBatch.update(userPredRef, { points: newPoints });
-                        predictionsUpdated = true;
+                        updatedPredictions = true;
                     }
                 });
             }
         }
         
-        if (predictionsUpdated) {
+        if (updatedPredictions) {
             await predictionUpdateBatch.commit();
-            toast({ title: "مرحلة 1/2", description: "تم تحديث نقاط التوقعات الفردية." });
-        } else {
-            toast({ title: "مرحلة 1/2", description: "لا توجد نقاط جديدة لتحديثها." });
         }
 
-
         // Step 2: Aggregate all points for the leaderboard
+        toast({ title: "الخطوة 2/3", description: "تجميع كل النقاط..." });
         const userPoints = new Map<string, number>();
         const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
         for (const fixtureDoc of allFixturesForLeaderboard.docs) {
@@ -376,14 +372,16 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             });
         }
 
-        // Step 3: Fetch user profiles
+        // Step 3: Fetch user profiles and update leaderboard
+        toast({ title: "الخطوة 3/3", description: "تحديث لوحة الصدارة..." });
         const userProfiles = new Map<string, UserProfile>();
-        const usersSnapshot = await getDocs(collection(db, "users"));
-        usersSnapshot.forEach(doc => {
-            userProfiles.set(doc.id, doc.data() as UserProfile);
-        });
-
-        // Step 4: Update the leaderboard collection
+        if (userPoints.size > 0) {
+            const usersSnapshot = await getDocs(collection(db, "users"));
+            usersSnapshot.forEach(doc => {
+                userProfiles.set(doc.id, doc.data() as UserProfile);
+            });
+        }
+        
         const leaderboardBatch = writeBatch(db);
         for (const [userId, totalPoints] of userPoints.entries()) {
             const userData = userProfiles.get(userId);
@@ -400,7 +398,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         await leaderboardBatch.commit();
 
         toast({ title: "نجاح!", description: "تم تحديث لوحة الصدارة بنجاح." });
-        fetchLeaderboard();
+        await fetchLeaderboard();
 
     } catch (error) {
         console.error("Error calculating all points:", error);
