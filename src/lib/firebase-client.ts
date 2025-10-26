@@ -7,7 +7,7 @@ import {
   type User, 
   getAuth,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, Firestore, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, Firestore, writeBatch, serverTimestamp, updateDoc as firestoreUpdateDoc } from 'firebase/firestore';
 import type { UserProfile, UserScore, Favorites } from './types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -94,13 +94,17 @@ export const updateUserDisplayName = async (user: User, newDisplayName: string):
     const { firestore } = await import('@/firebase');
     const db = firestore;
 
+    if (!db) {
+        console.error("Firestore not available for updateUserDisplayName");
+        throw new Error("Database service is not available.");
+    }
+
     await updateProfile(user, { displayName: newDisplayName });
 
     const userRef = doc(db, 'users', user.uid);
-    const rtdbUserRef = ref(getDatabase(), `users/${user.uid}`);
     
     const userProfileUpdateData = { displayName: newDisplayName };
-    setDoc(userRef, userProfileUpdateData, { merge: true })
+    firestoreUpdateDoc(userRef, userProfileUpdateData)
         .catch((serverError) => {
             const permissionError = new FirestorePermissionError({
                 path: userRef.path,
@@ -109,6 +113,4 @@ export const updateUserDisplayName = async (user: User, newDisplayName: string):
             });
             errorEmitter.emit('permission-error', permissionError);
         });
-
-    set(rtdbUserRef, { displayName: newDisplayName, photoURL: user.photoURL }).catch(console.error);
 };
