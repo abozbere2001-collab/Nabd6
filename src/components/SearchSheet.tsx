@@ -309,39 +309,39 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         const itemId = item.id;
         const isLeague = itemType === 'leagues';
 
+        setFavorites(prev => {
+            const newFavs = JSON.parse(JSON.stringify(prev));
+            if (!newFavs[itemType]) newFavs[itemType] = {};
+            
+            if (newFavs[itemType][itemId]) {
+                delete newFavs[itemType][itemId];
+            } else {
+                const favData = isLeague 
+                    ? { name: item.name, leagueId: itemId, logo: item.logo }
+                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                newFavs[itemType][itemId] = favData as any;
+            }
+
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavs);
+            }
+            return newFavs;
+        });
+
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
             const fieldPath = `${itemType}.${itemId}`;
             
-            let updateData;
-            if (isCurrentlyFavorited) {
-                updateData = { [fieldPath]: deleteField() };
-            } else {
-                const favData = isLeague 
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                updateData = { [fieldPath]: favData };
-            }
-            updateDoc(favDocRef, updateData).catch(err => {
+            const updateData = isCurrentlyFavorited
+                ? { [fieldPath]: deleteField() }
+                : { [fieldPath]: isLeague 
+                    ? { name: item.name, leagueId: itemId, logo: item.logo } 
+                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' } };
+
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}))
             });
-
-        } else { // Guest user
-            const currentFavorites = getLocalFavorites();
-            if (!currentFavorites[itemType]) {
-                currentFavorites[itemType] = {};
-            }
-            
-            if (currentFavorites[itemType]?.[itemId]) {
-                delete currentFavorites[itemType]![itemId];
-            } else {
-                const favData = isLeague 
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                currentFavorites[itemType]![itemId] = favData as any;
-            }
-            setLocalFavorites(currentFavorites);
         }
     }, [user, db, favorites]);
 
@@ -352,22 +352,25 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return;
     }
     if (!db) return;
+
+    setFavorites(prev => {
+        const newFavs = JSON.parse(JSON.stringify(prev));
+        if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+        if (newFavs.crownedTeams[team.id]) {
+            delete newFavs.crownedTeams[team.id];
+        } else {
+            newFavs.crownedTeams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, note: '' };
+        }
+        return newFavs;
+    });
+
     const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
     const fieldPath = `crownedTeams.${team.id}`;
     const isCrowned = !!favorites.crownedTeams?.[team.id];
 
-    let updateData;
-    if (isCrowned) {
-        updateData = { [fieldPath]: deleteField() };
-    } else {
-        const crownedTeamData: CrownedTeam = {
-            teamId: team.id,
-            name: team.name,
-            logo: team.logo,
-            note: '',
-        };
-        updateData = { [fieldPath]: crownedTeamData };
-    }
+    const updateData = isCrowned 
+        ? { [fieldPath]: deleteField() }
+        : { [fieldPath]: { teamId: team.id, name: team.name, logo: team.logo, note: '' } };
     
     updateDoc(favRef, updateData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
@@ -495,3 +498,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
 }
 
 
+
+
+    

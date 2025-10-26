@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
-import { getLocalFavorites } from '@/lib/local-favorites';
+import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
 
 // --- MAIN SCREEN COMPONENT ---
 export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps) {
@@ -257,3 +257,5 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         </div>
     );
 }
+
+    

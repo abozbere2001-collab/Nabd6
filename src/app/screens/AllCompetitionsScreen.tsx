@@ -7,7 +7,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { Star, Pencil, Plus, Search, Users, Trophy, Loader2, RefreshCw } from 'lucide-react';
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
-import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
+import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, collection, onSnapshot, getDocs, writeBatch, getDoc, deleteDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { AddCompetitionDialog } from '@/components/AddCompetitionDialog';
@@ -226,31 +226,27 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     useEffect(() => {
-        fetchAllData();
-    
         let unsubscribe: (() => void) | null = null;
-        if (user && !user.isAnonymous && db) {
+        const handleLocalFavoritesChange = () => {
+            setFavorites(getLocalFavorites());
+        };
+
+        if (user && db && !user.isAnonymous) {
             const favoritesRef = doc(db, 'users', user.uid, 'favorites', 'data');
             unsubscribe = onSnapshot(favoritesRef, (docSnap) => {
                 setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
-            }, (error) => {
-                 if(error.code === 'permission-denied') {
-                    console.warn("Permission denied fetching favorites. This might be expected for new users.");
-                    setFavorites(getLocalFavorites());
-                } else {
-                    const permissionError = new FirestorePermissionError({
-                        path: favoritesRef.path,
-                        operation: 'get',
-                    });
-                    errorEmitter.emit('permission-error', permissionError);
-                }
             });
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
-             setFavorites(getLocalFavorites());
+            setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         }
 
+        fetchAllData();
+
         return () => {
-          if (unsubscribe) unsubscribe();
+            if (unsubscribe) unsubscribe();
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
     }, [user, db, fetchAllData]);
 
@@ -377,14 +373,29 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         const itemId = isLeague ? item.leagueId : item.id;
         const itemType: 'leagues' | 'teams' = isLeague ? 'leagues' : 'teams';
 
+        // Optimistically update UI
+        setFavorites(prev => {
+            const newFavs = { ...prev };
+            if (!newFavs[itemType]) newFavs[itemType] = {};
+            
+            if (newFavs[itemType]?.[itemId]) {
+                delete newFavs[itemType]![itemId];
+            } else {
+                const favData = isLeague
+                    ? { name: item.name, leagueId: itemId, logo: item.logo }
+                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                newFavs[itemType]![itemId] = favData as any;
+            }
+            return newFavs;
+        });
+
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
             const fieldPath = `${itemType}.${itemId}`;
             
             let updateData: { [key: string]: any };
 
-            if (isCurrentlyFavorited) {
+            if (favorites[itemType]?.[itemId]) { // Check previous state
                 updateData = { [fieldPath]: deleteField() };
             } else {
                 const favData = isLeague
@@ -397,21 +408,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
             });
         } else {
-            const currentFavorites = getLocalFavorites();
-            if (!currentFavorites[itemType]) {
-                currentFavorites[itemType] = {};
-            }
-
-            if (currentFavorites[itemType]?.[itemId]) {
-                delete currentFavorites[itemType]![itemId];
-            } else {
-                 const favData = isLeague 
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                currentFavorites[itemType]![itemId] = favData as any;
-            }
-            setLocalFavorites(currentFavorites);
-            setFavorites(currentFavorites);
+            setLocalFavorites(favorites);
         }
     }, [user, db, favorites]);
     
@@ -663,3 +660,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
+    

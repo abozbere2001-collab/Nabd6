@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import type { ScreenProps } from '@/app/page';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
+import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteField, writeBatch, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -446,276 +446,287 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
 
 
 export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: ScreenProps & { teamId: number }) {
-  const { user, db } = useAuth();
-  const { isAdmin } = useAdmin();
-  const { toast } = useToast();
-  const [displayTitle, setDisplayTitle] = useState<string | undefined>(undefined);
-  const [teamData, setTeamData] = useState<TeamData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [renameItem, setRenameItem] = useState<{ id: number; name: string; note?: string; type: 'team' | 'crown'; purpose: 'rename' | 'crown' | 'note'; originalData: any; } | null>(null);
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
-  const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
+    const { user, db } = useAuth();
+    const { isAdmin } = useAdmin();
+    const { toast } = useToast();
+    const [displayTitle, setDisplayTitle] = useState<string | undefined>(undefined);
+    const [teamData, setTeamData] = useState<TeamData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [renameItem, setRenameItem] = useState<{ id: number; name: string; note?: string; type: 'team' | 'crown'; purpose: 'rename' | 'crown' | 'note'; originalData: any; } | null>(null);
+    const [favorites, setFavorites] = useState<Partial<Favorites>>({});
+    const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
 
-  const [activeTab, setActiveTab] = useState('details');
+    const [activeTab, setActiveTab] = useState('details');
 
-  useEffect(() => {
-    if (!db) return;
-    const q = collection(db, "predictionFixtures");
-    const unsub = onSnapshot(q, (snapshot) => {
-        const newPinnedSet = new Set<number>();
-        snapshot.forEach(doc => newPinnedSet.add(Number(doc.id)));
-        setPinnedPredictionMatches(newPinnedSet);
-    });
-    return () => unsub();
-  }, [db]);
-
-  const handlePinToggle = useCallback((fixture: Fixture) => {
-    if (!db) return;
-    const fixtureId = fixture.fixture.id;
-    const isPinned = pinnedPredictionMatches.has(fixtureId);
-    const docRef = doc(db, 'predictionFixtures', String(fixtureId));
-
-    if (isPinned) {
-        deleteDoc(docRef).then(() => {
-            toast({ title: "تم إلغاء التثبيت", description: "تمت إزالة المباراة من التوقعات." });
-        }).catch(err => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
-        });
-    } else {
-        const data: PredictionMatch = { fixtureData: fixture };
-        setDoc(docRef, data).then(() => {
-            toast({ title: "تم التثبيت", description: "أصبحت المباراة متاحة الآن للتوقع." });
-        }).catch(err => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'create', requestResourceData: data }));
-        });
-    }
-  }, [db, pinnedPredictionMatches, toast]);
-
-
-  useEffect(() => {
-    if (!teamId) return;
-
-    const getTeamInfo = async () => {
-        setLoading(true);
-        try {
-            const teamRes = await fetch(`/api/football/teams?id=${teamId}`);
-            if (!teamRes.ok) throw new Error("Team API fetch failed");
-            
-            const data = await teamRes.json();
-            if (data.response?.[0]) {
-                const teamInfo = data.response[0];
-                setTeamData(teamInfo);
-                const name = teamInfo.team.name;
-                
-                let finalName = hardcodedTranslations.teams[teamId as any] || name;
-
-                if (db) {
-                    const customNameDocRef = doc(db, "teamCustomizations", String(teamId));
-                    try {
-                        const customNameDocSnap = await getDoc(customNameDocRef);
-                        if (customNameDocSnap.exists()) {
-                            finalName = customNameDocSnap.data().customName;
-                        }
-                    } catch (error) {
-                        // Non-admin may not have access, that's fine.
-                    }
-                }
-                setDisplayTitle(finalName);
-            } else {
-                 throw new Error("Team not found in API response");
-            }
-        } catch (error) {
-            console.error("Error fetching team info:", error);
-            toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    getTeamInfo();
-    
-  }, [db, teamId, toast]);
-  
-  useEffect(() => {
-    if (user && !user.isAnonymous && db) {
-        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const unsub = onSnapshot(favRef, (docSnap) => {
-            setFavorites(docSnap.exists() ? docSnap.data() as Favorites : {});
+    useEffect(() => {
+        if (!db) return;
+        const q = collection(db, "predictionFixtures");
+        const unsub = onSnapshot(q, (snapshot) => {
+            const newPinnedSet = new Set<number>();
+            snapshot.forEach(doc => newPinnedSet.add(Number(doc.id)));
+            setPinnedPredictionMatches(newPinnedSet);
         });
         return () => unsub();
-    } else {
+    }, [db]);
+
+    const handlePinToggle = useCallback((fixture: Fixture) => {
+        if (!db) return;
+        const fixtureId = fixture.fixture.id;
+        const isPinned = pinnedPredictionMatches.has(fixtureId);
+        const docRef = doc(db, 'predictionFixtures', String(fixtureId));
+
+        if (isPinned) {
+            deleteDoc(docRef).then(() => {
+                toast({ title: "تم إلغاء التثبيت", description: "تمت إزالة المباراة من التوقعات." });
+            }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
+            });
+        } else {
+            const data: PredictionMatch = { fixtureData: fixture };
+            setDoc(docRef, data).then(() => {
+                toast({ title: "تم التثبيت", description: "أصبحت المباراة متاحة الآن للتوقع." });
+            }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'create', requestResourceData: data }));
+            });
+        }
+    }, [db, pinnedPredictionMatches, toast]);
+
+
+    useEffect(() => {
+        if (!teamId) return;
+
+        const getTeamInfo = async () => {
+            setLoading(true);
+            try {
+                const teamRes = await fetch(`/api/football/teams?id=${teamId}`);
+                if (!teamRes.ok) throw new Error("Team API fetch failed");
+                
+                const data = await teamRes.json();
+                if (data.response?.[0]) {
+                    const teamInfo = data.response[0];
+                    setTeamData(teamInfo);
+                    const name = teamInfo.team.name;
+                    
+                    let finalName = hardcodedTranslations.teams[teamId as any] || name;
+
+                    if (db) {
+                        const customNameDocRef = doc(db, "teamCustomizations", String(teamId));
+                        try {
+                            const customNameDocSnap = await getDoc(customNameDocRef);
+                            if (customNameDocSnap.exists()) {
+                                finalName = customNameDocSnap.data().customName;
+                            }
+                        } catch (error) {
+                            // Non-admin may not have access, that's fine.
+                        }
+                    }
+                    setDisplayTitle(finalName);
+                } else {
+                     throw new Error("Team not found in API response");
+                }
+            } catch (error) {
+                console.error("Error fetching team info:", error);
+                toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        getTeamInfo();
+        
+    }, [db, teamId, toast]);
+      
+    useEffect(() => {
+        let unsubscribe: (() => void) | null = null;
         const handleLocalFavoritesChange = () => {
             setFavorites(getLocalFavorites());
         };
-        setFavorites(getLocalFavorites());
-        window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        return () => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-    }
-  }, [user, db]);
 
-  const handleFavoriteToggle = () => {
-    if (!teamData) return;
-    const { team } = teamData;
-    const isFavorited = !!favorites.teams?.[team.id];
-    const teamNameForFavorite = teamData.team.name;
-
-    if (!user || user.isAnonymous) {
-        const currentFavorites = getLocalFavorites();
-        if (isFavorited) {
-            delete currentFavorites.teams?.[team.id];
+        if (user && db && !user.isAnonymous) {
+            const favoritesRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            unsubscribe = onSnapshot(favoritesRef, (docSnap) => {
+                setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
+            });
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
-            if (!currentFavorites.teams) currentFavorites.teams = {};
-            currentFavorites.teams[team.id] = { teamId: team.id, name: teamNameForFavorite, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         }
-        setLocalFavorites(currentFavorites);
-        return;
-    }
-    
-    if (!db) return;
 
-    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const fieldPath = `teams.${team.id}`;
-    
-    const updateData = isFavorited 
-        ? { [fieldPath]: deleteField() } 
-        : { [fieldPath]: { teamId: team.id, name: teamNameForFavorite, logo: team.logo, type: team.national ? 'National' : 'Club' } };
-
-    // Use setDoc with merge to ensure the document is created if it doesn't exist
-    setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-    });
-  };
-
-  const handleOpenCrownDialog = () => {
-    if (!teamData) return;
-    if (!user || user.isAnonymous) {
-        toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
-        return;
-    }
-    const { team } = teamData;
-    const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
-    setRenameItem({
-        id: team.id,
-        name: displayTitle || team.name,
-        type: 'crown',
-        purpose: 'crown',
-        originalData: team,
-        note: currentNote,
-    });
-  };
-
-  const handleRename = () => {
-    if (!teamData) return;
-    const { team } = teamData;
-    setRenameItem({
-        id: team.id,
-        name: displayTitle || team.name,
-        type: 'team',
-        purpose: 'rename',
-        originalData: team,
-    });
-  };
-
-  const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
-    if (!teamData || !db) return;
-    const { team } = teamData;
-    
-    if (type === 'crown' && user) {
-        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const fieldPath = `crownedTeams.${id}`;
-        const crownedTeamData: CrownedTeam = {
-            teamId: id,
-            name: team.name,
-            logo: team.logo,
-            note: newNote,
+        return () => {
+            if (unsubscribe) unsubscribe();
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
-        const updateData = { [fieldPath]: crownedTeamData };
+    }, [user, db]);
 
-        updateDoc(favRef, updateData).then(() => {
-            toast({ title: 'نجاح', description: `تم تتويج فريق ${team.name}.` });
-        }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
+    const handleFavoriteToggle = () => {
+        if (!teamData) return;
+        const { team } = teamData;
+        const teamNameForFavorite = teamData.team.name;
+        
+        setFavorites(prev => {
+            const newFavs = JSON.parse(JSON.stringify(prev));
+            if (!newFavs.teams) newFavs.teams = {};
+            if (newFavs.teams[team.id]) {
+                delete newFavs.teams[team.id];
+            } else {
+                newFavs.teams[team.id] = { teamId: team.id, name: teamNameForFavorite, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
+            
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavs);
+            }
+            
+            return newFavs;
         });
-    } else if (type === 'team' && isAdmin) {
-        const customNameRef = doc(db, 'teamCustomizations', String(id));
-        if (newName && newName !== team.name) {
-            await setDoc(customNameRef, { customName: newName });
-        } else {
-            await deleteDoc(customNameRef);
+
+        if (user && !user.isAnonymous && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const fieldPath = `teams.${team.id}`;
+            const isFavorited = !!favorites.teams?.[team.id];
+            
+            const updateData = isFavorited 
+                ? { [fieldPath]: deleteField() } 
+                : { [fieldPath]: { teamId: team.id, name: teamNameForFavorite, logo: team.logo, type: team.national ? 'National' : 'Club' } };
+        
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+            });
         }
-        setDisplayTitle(newName || team.name);
-        toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
+    };
+
+    const handleOpenCrownDialog = () => {
+        if (!teamData) return;
+        if (!user || user.isAnonymous) {
+            toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
+            return;
+        }
+        const { team } = teamData;
+        const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
+        setRenameItem({
+            id: team.id,
+            name: displayTitle || team.name,
+            type: 'crown',
+            purpose: 'crown',
+            originalData: team,
+            note: currentNote,
+        });
+    };
+
+    const handleRename = () => {
+        if (!teamData) return;
+        const { team } = teamData;
+        setRenameItem({
+            id: team.id,
+            name: displayTitle || team.name,
+            type: 'team',
+            purpose: 'rename',
+            originalData: team,
+        });
+    };
+
+    const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
+        if (!teamData || !db) return;
+        const { team } = teamData;
+        
+        if (type === 'crown' && user) {
+            const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const fieldPath = `crownedTeams.${id}`;
+            const crownedTeamData: CrownedTeam = {
+                teamId: id,
+                name: team.name,
+                logo: team.logo,
+                note: newNote,
+            };
+            const updateData = { [fieldPath]: crownedTeamData };
+
+            updateDoc(favRef, updateData).then(() => {
+                toast({ title: 'نجاح', description: `تم تتويج فريق ${team.name}.` });
+            }).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
+            });
+        } else if (type === 'team' && isAdmin) {
+            const customNameRef = doc(db, 'teamCustomizations', String(id));
+            if (newName && newName !== team.name) {
+                await setDoc(customNameRef, { customName: newName });
+            } else {
+                await deleteDoc(customNameRef);
+            }
+            setDisplayTitle(newName || team.name);
+            toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
+        }
+
+        setRenameItem(null);
+    };
+
+    if(loading) {
+        return (
+            <div className="flex h-full flex-col bg-background">
+                <ScreenHeader title="جاري التحميل..." onBack={goBack} canGoBack={canGoBack} />
+                <div className="flex-1 overflow-y-auto p-1">
+                    <Skeleton className="h-48 w-full mb-4" />
+                    <Skeleton className="h-10 w-full" />
+                    <div className="mt-4 p-4">
+                        <Skeleton className="h-64 w-full" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    if(!teamData) {
+         return (
+            <div className="flex h-full flex-col bg-background">
+                <ScreenHeader title="خطأ" onBack={goBack} canGoBack={canGoBack} />
+                <p className="text-center p-8">لم يتم العثور على بيانات الفريق.</p>
+            </div>
+        );
     }
 
-    setRenameItem(null);
-  };
+    const isStarred = !!favorites.teams?.[teamId];
+    const isCrowned = !!favorites.crownedTeams?.[teamId];
 
-  if(loading) {
     return (
-        <div className="flex h-full flex-col bg-background">
-            <ScreenHeader title="جاري التحميل..." onBack={goBack} canGoBack={canGoBack} />
-            <div className="flex-1 overflow-y-auto p-1">
-                <Skeleton className="h-48 w-full mb-4" />
-                <Skeleton className="h-10 w-full" />
-                <div className="mt-4 p-4">
-                    <Skeleton className="h-64 w-full" />
-                </div>
+        <div className="flex flex-col bg-background h-full">
+            <ScreenHeader 
+                title={displayTitle}
+                onBack={goBack} 
+                canGoBack={canGoBack} 
+            />
+            {renameItem && (
+                <RenameDialog
+                    isOpen={!!renameItem}
+                    onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
+                    item={renameItem}
+                    onSave={(type, id, name, note) => handleSaveRenameOrNote(type as 'team' | 'crown', Number(id), name, note)}
+                />
+            )}
+            <div className="flex-1 overflow-y-auto p-1 min-h-0">
+                <TeamHeader 
+                    team={{...teamData.team, name: displayTitle || teamData.team.name}}
+                    venue={teamData.venue} 
+                    onStar={handleFavoriteToggle}
+                    isStarred={isStarred}
+                    onCrown={handleOpenCrownDialog}
+                    isCrowned={isCrowned}
+                    isAdmin={isAdmin}
+                    onRename={handleRename}
+                />
+                 <Tabs defaultValue="details" onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="details">التفاصيل</TabsTrigger>
+                    <TabsTrigger value="players">اللاعبون</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
+                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} />
+                  </TabsContent>
+                  <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
+                    <TeamPlayersTab teamId={teamId} navigate={navigate} />
+                  </TabsContent>
+                </Tabs>
             </div>
         </div>
     );
-  }
-  
-  if(!teamData) {
-     return (
-        <div className="flex h-full flex-col bg-background">
-            <ScreenHeader title="خطأ" onBack={goBack} canGoBack={canGoBack} />
-            <p className="text-center p-8">لم يتم العثور على بيانات الفريق.</p>
-        </div>
-    );
-  }
-
-  const isStarred = !!favorites.teams?.[teamId];
-  const isCrowned = !!favorites.crownedTeams?.[teamId];
-
-  return (
-    <div className="flex flex-col bg-background h-full">
-      <ScreenHeader 
-        title={displayTitle}
-        onBack={goBack} 
-        canGoBack={canGoBack} 
-      />
-      {renameItem && (
-          <RenameDialog
-              isOpen={!!renameItem}
-              onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
-              item={renameItem}
-              onSave={(type, id, name, note) => handleSaveRenameOrNote(type as 'team' | 'crown', Number(id), name, note)}
-          />
-      )}
-      <div className="flex-1 overflow-y-auto p-1 min-h-0">
-        <TeamHeader 
-            team={{...teamData.team, name: displayTitle || teamData.team.name}}
-            venue={teamData.venue} 
-            onStar={handleFavoriteToggle}
-            isStarred={isStarred}
-            onCrown={handleOpenCrownDialog}
-            isCrowned={isCrowned}
-            isAdmin={isAdmin}
-            onRename={handleRename}
-        />
-         <Tabs defaultValue="details" onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details">التفاصيل</TabsTrigger>
-            <TabsTrigger value="players">اللاعبون</TabsTrigger>
-          </TabsList>
-          <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-            <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} />
-          </TabsContent>
-          <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
-            <TeamPlayersTab teamId={teamId} navigate={navigate} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
-  );
 }
+
+    
