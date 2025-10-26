@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -93,26 +92,21 @@ const PredictionCard = ({
   // 🎨 تحديد ألوان البطاقة حسب دقة التوقع
   const getPredictionStatusColors = useCallback(() => {
     if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
-    
-    // CORRECTED: Ensure direct comparison without inverting
-    const actualHome = liveFixture.goals.home;
-    const actualAway = liveFixture.goals.away;
 
+    // This is the fix: we re-invert the actual goals to match the inverted data source
+    const actualHome = liveFixture.goals.away;
+    const actualAway = liveFixture.goals.home;
     const predHome = userPrediction.homeGoals;
     const predAway = userPrediction.awayGoals;
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
 
-    if (actualHome === predHome && actualAway === predAway) {
-      return 'bg-green-500/80 text-white';
-    }
+    if (actualHome === predHome && actualAway === predAway) return 'bg-green-500/80 text-white';
 
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
 
-    if (actualWinner === predWinner) {
-      return 'bg-yellow-500/80 text-white';
-    }
+    if (actualWinner === predWinner) return 'bg-yellow-500/80 text-white';
 
     return 'bg-destructive/80 text-white';
   }, [isMatchLiveOrFinished, userPrediction, liveFixture.goals]);
@@ -158,7 +152,7 @@ const PredictionCard = ({
     <Card className={cn('transition-colors', cardColors)}>
       <CardContent className="p-3">
         <main dir="rtl" className="flex items-start justify-between gap-1">
-          {/* ✅ ترتيب صحيح: المستضيف أولاً ثم الضيف */}
+          {/* ✅ Correct visual order: home team is on the right */}
           <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
@@ -177,7 +171,6 @@ const PredictionCard = ({
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
                 {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                {/* ✅ النتيجة الفعلية الآن بالاتجاه الصحيح */}
                 <LiveMatchStatus fixture={liveFixture} />
               </div>
               <Input

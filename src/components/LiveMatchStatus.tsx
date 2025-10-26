@@ -73,7 +73,7 @@ export const LiveMatchStatus = ({ fixture, large = false, customStatus }: { fixt
             };
         }
 
-        // CORRECTED: Ensure score is always home - away
+        // The correct, non-inverted score display.
         const score = `${goals.home} - ${goals.away}`;
 
         if (live) {

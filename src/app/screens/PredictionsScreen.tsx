@@ -28,16 +28,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // CRITICAL FIX: Ensure correct data is compared
-    if (!fixture.goals || fixture.goals.home === null || fixture.goals.away === null) {
-      return 0; // Match not finished or score unavailable, no points.
-    }
-  
-    // CORRECTED: No inversion needed. Direct mapping.
-    const actualHome = fixture.goals.home;
-    const actualAway = fixture.goals.away;
+    // CRITICAL FIX: The data source for the prediction card seems to be inverted.
+    // To compensate, we must invert the ACTUAL goals here to match.
+    const actualHome = fixture.goals.away;
+    const actualAway = fixture.goals.home;
     const predHome = prediction.homeGoals;
     const predAway = prediction.awayGoals;
+  
+    if (actualHome === null || actualAway === null) {
+      return 0; // Match not finished or score unavailable, no points.
+    }
   
     // Exact score prediction: 5 points
     if (actualHome === predHome && actualAway === predAway) {
@@ -483,3 +483,4 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
 };
 
     
+
