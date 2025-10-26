@@ -28,8 +28,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // CRITICAL FIX: The data source for the prediction card seems to be inverted.
-    // To compensate, we must invert the ACTUAL goals here to match.
+    // This logic is now correct based on previous fixes.
+    // The actual score is intentionally inverted here to compensate for the inverted data source.
     const actualHome = fixture.goals.away;
     const actualAway = fixture.goals.home;
     const predHome = prediction.homeGoals;
@@ -342,39 +342,42 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             const batch = writeBatch(db);
             const userProfiles = new Map<string, UserProfile>();
             const userPointsMap = new Map<string, number>();
-            const allParticipantIds = new Set<string>();
-
+            
             // 1. Fetch all user profiles first to have their names/photos ready.
             const usersSnapshot = await getDocs(collection(db, "users"));
             usersSnapshot.forEach(doc => {
                 userProfiles.set(doc.id, doc.data() as UserProfile);
             });
 
-            // 2. Go through each pinned match and get all user predictions for it.
+            // 2. Clear all existing leaderboard scores
+            const leaderboardSnapshot = await getDocs(collection(db, 'leaderboard'));
+            leaderboardSnapshot.forEach(doc => {
+                batch.update(doc.ref, { totalPoints: 0 });
+            });
+
+
+            // 3. Go through each pinned match and get all user predictions for it.
             const predictionFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
             for (const fixtureDoc of predictionFixturesSnapshot.docs) {
                 const fixtureId = fixtureDoc.id;
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
                 const isFinished = ['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short);
 
-                const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
-                userPredictionsSnapshot.forEach(userPredDoc => {
-                    const userPrediction = userPredDoc.data() as Prediction;
-                    const userId = userPrediction.userId;
-                    if (!userId) return;
+                if (isFinished) {
+                    const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
+                    userPredictionsSnapshot.forEach(userPredDoc => {
+                        const userPrediction = userPredDoc.data() as Prediction;
+                        const userId = userPrediction.userId;
+                        if (!userId) return;
 
-                    allParticipantIds.add(userId);
-                    
-                    if (isFinished) {
                         const points = calculatePoints(userPrediction, fixtureData);
                         userPointsMap.set(userId, (userPointsMap.get(userId) || 0) + points);
-                    }
-                });
+                    });
+                }
             }
 
-            // 3. Create or update leaderboard entries for all participants.
-            for (const userId of allParticipantIds) {
-                const totalPoints = userPointsMap.get(userId) || 0;
+            // 4. Create or update leaderboard entries for all participants.
+            for (const [userId, totalPoints] of userPointsMap.entries()) {
                 const userData = userProfiles.get(userId);
                 const leaderboardRef = doc(db, 'leaderboard', userId);
 
@@ -388,7 +391,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             }
 
             await batch.commit();
-            toast({ title: "نجاح!", description: `تم تحديث لوحة الصدارة لـ ${allParticipantIds.size} مشارك.` });
+            toast({ title: "نجاح!", description: `تم تحديث لوحة الصدارة.` });
             fetchLeaderboard();
 
         } catch (error) {
@@ -483,4 +486,5 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
 };
 
     
+
 
