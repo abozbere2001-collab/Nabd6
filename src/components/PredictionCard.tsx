@@ -45,7 +45,7 @@ const PredictionCard = ({
     [liveFixture]
   );
 
-  // 🔁 تحديث بيانات المباراة الحية
+  // 🔁 Update live match data
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
 
@@ -55,10 +55,7 @@ const PredictionCard = ({
         const res = await fetch(`/api/football/fixtures?id=${liveFixture.fixture.id}`);
         const data = await res.json();
         if (data.response && data.response.length > 0) {
-          setLiveFixture((prevFixture) => ({
-            ...prevFixture,
-            ...data.response[0],
-          }));
+          setLiveFixture(data.response[0]);
         }
       } catch (error) {
         console.error('Failed to fetch live fixture data:', error);
@@ -90,7 +87,7 @@ const PredictionCard = ({
     predictionMatch.fixtureData.fixture.timestamp,
   ]);
 
-  // 🎨 تحديد ألوان البطاقة حسب دقة التوقع
+  // 🎨 Determine card colors based on prediction accuracy
   const getPredictionStatusColors = useCallback(() => {
     if (!isMatchFinished || !userPrediction) return 'bg-card text-foreground';
 
@@ -163,34 +160,34 @@ const PredictionCard = ({
 
           <div className="flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-1 min-w-[120px] justify-center" dir="ltr">
-              <Input
-                type="number"
-                className={cn(
-                  'w-10 h-9 text-center text-md font-bold',
-                  isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
-                )}
-                min="0"
-                value={homeValue}
-                onChange={(e) => setHomeValue(e.target.value)}
-                id={`home-${liveFixture.fixture.id}`}
-                disabled={isPredictionDisabled}
-              />
-              <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
-                {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                <LiveMatchStatus fixture={liveFixture} />
-              </div>
-              <Input
-                type="number"
-                className={cn(
-                  'w-10 h-9 text-center text-md font-bold',
-                  isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
-                )}
-                min="0"
-                value={awayValue}
-                onChange={(e) => setAwayValue(e.target.value)}
-                id={`away-${liveFixture.fixture.id}`}
-                disabled={isPredictionDisabled}
-              />
+                <Input
+                    type="number"
+                    className={cn(
+                    'w-10 h-9 text-center text-md font-bold',
+                    isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
+                    )}
+                    min="0"
+                    value={awayValue}
+                    onChange={(e) => setAwayValue(e.target.value)}
+                    id={`away-${liveFixture.fixture.id}`}
+                    disabled={isPredictionDisabled}
+                />
+                <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
+                    {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
+                    <LiveMatchStatus fixture={liveFixture} />
+                </div>
+                <Input
+                    type="number"
+                    className={cn(
+                    'w-10 h-9 text-center text-md font-bold',
+                    isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
+                    )}
+                    min="0"
+                    value={homeValue}
+                    onChange={(e) => setHomeValue(e.target.value)}
+                    id={`home-${liveFixture.fixture.id}`}
+                    disabled={isPredictionDisabled}
+                />
             </div>
           </div>
 

@@ -336,40 +336,45 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         }
     }, [user, db, allUserPredictions]);
 
-    const handleCalculateAllPoints = useCallback(async () => {
+   const handleCalculateAllPoints = useCallback(async () => {
         if (!db || !isAdmin) return;
         setIsUpdatingPoints(true);
-        toast({ title: "بدء تحديث النقاط...", description: "قد تستغرق هذه العملية لحظات." });
+        toast({ title: "بدء تحديث النقاط...", description: "قد تستغرق هذه العملية بضع لحظات." });
 
         try {
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            const batch = writeBatch(db);
+            const pointsUpdateBatch = writeBatch(db);
             const locallyUpdatedPredictions: { [key: string]: Prediction } = {};
 
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
-                if (!fixtureData || !fixtureData.fixture) continue;
-
-                if (!['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short)) continue;
+                if (!fixtureData || !fixtureData.fixture || !['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short)) {
+                    continue;
+                }
 
                 const userPredictionsSnapshot = await getDocs(collection(db, "predictionFixtures", fixtureDoc.id, "userPredictions"));
                 userPredictionsSnapshot.forEach(predDoc => {
                     const pred = predDoc.data() as Prediction;
                     const newPoints = calculatePoints(pred, fixtureData);
+                    
                     if (pred.points !== newPoints) {
-                        batch.update(predDoc.ref, { points: newPoints });
-                        if(pred.userId === user?.uid) {
-                             locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
+                        pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
+                        if (pred.userId === user?.uid) {
+                            locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
                         }
                     }
                 });
             }
 
-            await batch.commit();
+            await pointsUpdateBatch.commit();
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
-            setAllUserPredictions(prev => ({...prev, ...locallyUpdatedPredictions}));
+            
+            // Update local state immediately for the current user
+            if (Object.keys(locallyUpdatedPredictions).length > 0) {
+                setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
+            }
 
-
+            // Leaderboard Calculation
             const userPoints = new Map<string, number>();
             const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
             for (const fixtureDoc of allFixturesForLeaderboard.docs) {
@@ -385,9 +390,9 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             const userProfiles = new Map<string, UserProfile>();
             if (userPoints.size > 0) {
                 const allUserIds = Array.from(userPoints.keys());
-                for (let i = 0; i < allUserIds.length; i += 30) {
+                 for (let i = 0; i < allUserIds.length; i += 30) {
                     const batchIds = allUserIds.slice(i, i + 30);
-                    if(batchIds.length > 0) {
+                    if (batchIds.length > 0) {
                         const usersQuery = query(collection(db, "users"), where('__name__', 'in', batchIds));
                         const usersSnapshot = await getDocs(usersQuery);
                         usersSnapshot.forEach(doc => userProfiles.set(doc.id, doc.data() as UserProfile));
@@ -416,12 +421,13 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                         totalPoints,
                         userName: userData.displayName || `مستخدم_${userId.substring(0, 4)}`,
                         userPhoto: userData.photoURL || '',
-                        rank: rank++
+                        rank,
                     },
                     { merge: true }
                 );
+                rank++;
             }
-
+            
             await leaderboardBatch.commit();
             toast({ title: "نجاح!", description: "تم تحديث لوحة الصدارة بنجاح." });
             await fetchLeaderboard();
