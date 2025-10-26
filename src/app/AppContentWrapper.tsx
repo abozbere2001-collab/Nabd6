@@ -172,7 +172,6 @@ export function AppContentWrapper() {
                 }
             };
         }
-        // If not a main tab and stack is 1, go back to Matches.
         if (!mainTabs.includes(prevState.activeTab)) {
             return { ...prevState, activeTab: 'Matches' };
         }
@@ -186,7 +185,6 @@ export function AppContentWrapper() {
 
       setNavigationState(prevState => {
           if (mainTabs.includes(screen)) {
-              // If it's a main tab, just switch to it. Don't reset its stack.
               return {
                   ...prevState,
                   activeTab: screen,

@@ -11,7 +11,7 @@ import { doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
-import { WelcomeScreen } from './screens/WelcomeScreen';
+import { WelcomeScreen, GUEST_MODE_KEY } from './screens/WelcomeScreen';
 import { handleNewUser } from '@/lib/firebase-client';
 import { type User } from 'firebase/auth';
 
@@ -34,24 +34,25 @@ const LoadingSplashScreen = () => (
 );
 
 
-const OnboardingFlow = ({ user }: { user: User }) => {
+const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean }) => {
     const { db } = useFirestore();
     const [onboardingComplete, setOnboardingComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const checkOnboarding = async () => {
-            if (!user || !db) {
-                setIsLoading(false);
-                return;
-            };
-
-            if (user.isAnonymous) {
+            setIsLoading(true);
+            if (isGuest) {
                 const guestOnboardingComplete = localStorage.getItem(GUEST_ONBOARDING_COMPLETE_KEY) === 'true';
                 setOnboardingComplete(guestOnboardingComplete);
                 setIsLoading(false);
                 return;
             }
+
+            if (!user || !db) {
+                setIsLoading(false);
+                return;
+            };
 
             const userDocRef = doc(db, 'users', user.uid);
             try {
@@ -59,37 +60,29 @@ const OnboardingFlow = ({ user }: { user: User }) => {
                 setOnboardingComplete(userDoc.exists() && userDoc.data().onboardingComplete);
             } catch (error) {
                 console.error("Error checking onboarding status:", error);
-                // Assume onboarding is not complete if there's an error,
-                // which is safer than getting stuck.
                 setOnboardingComplete(false);
             } finally {
                 setIsLoading(false);
             }
         };
         checkOnboarding();
-    }, [user, db]);
+    }, [user, db, isGuest]);
 
     const handleOnboardingComplete = async () => {
-        if (!user || !db) {
-            // Handle case for guest users when db might not be ready
-             if (user?.isAnonymous) {
-                localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');
-                setOnboardingComplete(true);
-            }
+        if (isGuest) {
+            localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');
+            setOnboardingComplete(true);
             return;
         }
+
+        if (!user || !db) return;
         
-        if (user.isAnonymous) {
-            localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');
-        } else {
-            const userDocRef = doc(db, 'users', user.uid);
-            try {
-                // Set onboarding as complete in the user's document
-                await setDoc(userDocRef, { onboardingComplete: true }, { merge: true });
-            } catch (error) {
-                const permissionError = new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { onboardingComplete: true } });
-                errorEmitter.emit('permission-error', permissionError);
-            }
+        const userDocRef = doc(db, 'users', user.uid);
+        try {
+            await setDoc(userDocRef, { onboardingComplete: true }, { merge: true });
+        } catch (error) {
+            const permissionError = new FirestorePermissionError({ path: userDocRef.path, operation: 'update', requestResourceData: { onboardingComplete: true } });
+            errorEmitter.emit('permission-error', permissionError);
         }
         setOnboardingComplete(true);
     };
@@ -112,14 +105,25 @@ const OnboardingFlow = ({ user }: { user: User }) => {
 
 export default function Home() {
     const { user, isUserLoading } = useAuth();
+    const [isGuest, setIsGuest] = useState(false);
+    const [isCheckingGuest, setIsCheckingGuest] = useState(true);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const guestMode = localStorage.getItem(GUEST_MODE_KEY) === 'true';
+            setIsGuest(guestMode);
+        }
+        setIsCheckingGuest(false);
+    }, []);
     
-    if (isUserLoading) {
+    if (isUserLoading || isCheckingGuest) {
         return <LoadingSplashScreen />;
     }
 
-    if (!user) {
+    if (!user && !isGuest) {
         return <WelcomeScreen />;
     }
 
-    return <OnboardingFlow user={user} />;
+    // Pass isGuest flag to OnboardingFlow
+    return <OnboardingFlow user={user} isGuest={isGuest} />;
 }

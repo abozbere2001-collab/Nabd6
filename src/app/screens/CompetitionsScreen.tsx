@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -75,7 +74,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
             setFavorites(getLocalFavorites());
         };
 
-        if (user && db && !user.isAnonymous) {
+        if (user && db) {
             const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
             unsubscribe = onSnapshot(docRef, (doc) => {
                 const favs = (doc.data() as Favorites) || { userId: user.uid };
@@ -92,7 +91,6 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
             });
              window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
-            // Guest user: read from local storage and listen for changes
             setFavorites(getLocalFavorites());
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
             setLoading(false);
@@ -245,7 +243,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                                 </div>
                             </TabsContent>
                         </Tabs>
-                         {user?.isAnonymous && (
+                         {!user && (
                             <div className="px-4 pt-4 text-center">
                                  <p className="text-sm text-muted-foreground mb-4">للحفاظ على مفضلاتك ومزامنتها عبر الأجهزة، قم بإنشاء حساب دائم.</p>
                                 <Button onClick={handleLoginClick} className="w-full max-w-sm mx-auto">تسجيل الدخول أو إنشاء حساب</Button>
@@ -257,5 +255,3 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         </div>
     );
 }
-
-    

@@ -57,8 +57,6 @@ export function FavoriteSelectionScreen({ onOnboardingComplete }: FavoriteSelect
   const AL_NASSR_ID = 605;
 
   useEffect(() => {
-    // This component is used for both guests and new registered users.
-    // We check local storage for any favorites selected during a guest session.
     const localFavs = getLocalFavorites();
     const initialTeams = new Set<number>([AL_NASSR_ID]);
     
@@ -115,12 +113,10 @@ export function FavoriteSelectionScreen({ onOnboardingComplete }: FavoriteSelect
         }
     });
     
-    if (user && db && !user.isAnonymous) {
-        // Registered user: save to Firestore, merging with any existing data.
+    if (user && db) {
         const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
         try {
             await setDoc(favRef, { ...favoritesToSave, userId: user.uid }, { merge: true });
-            // Now that favorites are saved to the cloud, clear the local ones.
             clearLocalFavorites();
         } catch (error) {
              const permissionError = new FirestorePermissionError({
@@ -131,7 +127,6 @@ export function FavoriteSelectionScreen({ onOnboardingComplete }: FavoriteSelect
             errorEmitter.emit('permission-error', permissionError);
         }
     } else {
-        // Guest user or user not yet available: save to localStorage
         setLocalFavorites(favoritesToSave);
     }
     

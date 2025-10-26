@@ -4,11 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
 import { GoogleIcon } from '@/components/icons/GoogleIcon';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { handleNewUser } from '@/lib/firebase-client';
+
+export const GUEST_MODE_KEY = 'goalstack_guest_mode_active';
+
 
 export function WelcomeScreen() {
   const { toast } = useToast();
@@ -17,6 +20,8 @@ export function WelcomeScreen() {
   
   const handleGoogleLogin = async () => {
     if (!db) return;
+    // Clear guest mode when logging in with a real account
+    localStorage.removeItem(GUEST_MODE_KEY);
     setIsLoading('google');
     const auth = getAuth();
     const provider = new GoogleAuthProvider();
@@ -25,7 +30,6 @@ export function WelcomeScreen() {
       await handleNewUser(result.user, db);
       // onAuthStateChanged will handle the rest
     } catch (error: any) {
-      // Handle known user-cancellable errors gracefully
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error("Google Sign-In Error:", error);
         toast({
@@ -39,20 +43,19 @@ export function WelcomeScreen() {
     }
   };
 
-  const handleGuestLogin = async () => {
+  const handleGuestLogin = () => {
     setIsLoading('guest');
-    const auth = getAuth();
     try {
-        await signInAnonymously(auth);
-        // onAuthStateChanged will handle the rest.
+        // Set a flag in localStorage to indicate guest mode
+        localStorage.setItem(GUEST_MODE_KEY, 'true');
+        // Force a page reload to re-evaluate the auth state in the root component
+        window.location.reload();
     } catch(e: any) {
-        console.error("Anonymous login error:", e);
+        console.error("Guest mode error:", e);
         toast({
             variant: 'destructive',
             title: 'خطأ',
-            description: e.code === 'auth/admin-restricted-operation' 
-                ? 'تسجيل الدخول المجهول غير مفعّل. يرجى التواصل مع الدعم.'
-                : 'فشل تسجيل الدخول كزائر. يرجى المحاولة مرة أخرى.',
+            description: 'فشل تفعيل وضع الزائر. يرجى المحاولة مرة أخرى.',
         });
     } finally {
         setIsLoading(false);
