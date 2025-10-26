@@ -267,19 +267,16 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         setLoadingLeaderboard(true);
         
         try {
-            const q = query(collection(db, 'leaderboard'), orderBy('totalPoints', 'desc'), limit(100));
+            const q = query(collection(db, 'leaderboard'), orderBy('rank', 'asc'), limit(100));
             const top100Snapshot = await getDocs(q);
-            let rank = 1;
-            const top100Scores = top100Snapshot.docs.map(doc => ({ userId: doc.id, ...(doc.data() as Omit<UserScore, 'userId'>), rank: rank++ }));
+            const top100Scores = top100Snapshot.docs.map(doc => ({ userId: doc.id, ...(doc.data() as Omit<UserScore, 'userId'>) }));
             setLeaderboard(top100Scores);
             
             if (user) {
                 const userScoreRef = doc(db, 'leaderboard', user.uid);
                 const userScoreSnap = await getDoc(userScoreRef);
                 if (userScoreSnap.exists()) {
-                    const data = userScoreSnap.data();
-                    const userRank = top100Scores.find(s => s.userId === user.uid)?.rank;
-                    setCurrentUserScore({ userId: user.uid, ...data, rank: userRank || data.rank } as UserScore);
+                    setCurrentUserScore({ userId: user.uid, ...userScoreSnap.data() } as UserScore);
                 } else {
                     setCurrentUserScore(null);
                 }
@@ -338,7 +335,6 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             // Step 1: Update points for individual predictions
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
             const pointsUpdateBatch = writeBatch(db);
-            const userNewPoints = new Map<string, { fixtureId: string, points: number }[]>();
     
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
@@ -350,14 +346,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     const newPoints = calculatePoints(pred, fixtureData);
                     
                     if (pred.points !== newPoints) {
-                        pointsUpdateBatch.set(doc(db, "predictionFixtures", fixtureDoc.id, "userPredictions", predDoc.id), { points: newPoints }, { merge: true });
-                    }
-
-                    if (pred.userId) {
-                        if (!userNewPoints.has(pred.userId)) {
-                            userNewPoints.set(pred.userId, []);
-                        }
-                        userNewPoints.get(pred.userId)?.push({ fixtureId: fixtureDoc.id, points: newPoints });
+                        pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
                     }
                 });
             }
@@ -365,22 +354,8 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             await pointsUpdateBatch.commit();
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
     
-            // Update local state for current user
-            if (user && userNewPoints.has(user.uid)) {
-                const newPredictionsForUser: { [key: string]: Prediction } = {};
-                userNewPoints.get(user.uid)?.forEach(p => {
-                    const existingPred = allUserPredictions[p.fixtureId];
-                    if (existingPred) {
-                        newPredictionsForUser[p.fixtureId] = { ...existingPred, points: p.points };
-                    }
-                });
-                setAllUserPredictions(prev => ({ ...prev, ...newPredictionsForUser }));
-            }
-
-            // Step 2 & 3: Aggregate all points and update leaderboard
+            // Step 2: Aggregate all points for leaderboard
             const userTotalPoints = new Map<string, number>();
-            const userProfiles = new Map<string, UserProfile>();
-    
             const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
             for (const fixtureDoc of allFixturesForLeaderboard.docs) {
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
@@ -392,8 +367,11 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                 });
             }
     
+            // Step 3: Fetch user profiles for aggregation
+            const userProfiles = new Map<string, UserProfile>();
             if (userTotalPoints.size > 0) {
                 const allUserIds = Array.from(userTotalPoints.keys());
+                // Firestore 'in' query supports up to 30 items
                 for (let i = 0; i < allUserIds.length; i += 30) {
                     const batchIds = allUserIds.slice(i, i + 30);
                     const usersQuery = query(collection(db, "users"), where('__name__', 'in', batchIds));
@@ -402,17 +380,18 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                 }
             }
     
-            // Step 4: Atomically update the leaderboard
+            // Step 4: Atomically update the leaderboard collection
             const leaderboardBatch = writeBatch(db);
             const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
             oldLeaderboardSnapshot.forEach(doc => {
+                // Remove users who are no longer in the points map or have no profile
                 if (!userTotalPoints.has(doc.id) || !userProfiles.has(doc.id)) {
                     leaderboardBatch.delete(doc.ref);
                 }
             });
     
             const sortedUsers = Array.from(userTotalPoints.entries())
-                .filter(([userId]) => userProfiles.has(userId))
+                .filter(([userId]) => userProfiles.has(userId)) // Ensure user has a profile
                 .sort((a, b) => b[1] - a[1]);
     
             let rank = 1;
@@ -444,7 +423,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         } finally {
             setIsUpdatingPoints(false);
         }
-    }, [db, isAdmin, toast, fetchLeaderboard, user, allUserPredictions]);
+    }, [db, isAdmin, toast, fetchLeaderboard]);
 
 
     const filteredMatches = useMemo(() => {
