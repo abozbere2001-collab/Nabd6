@@ -336,55 +336,63 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         if (!db || !isAdmin) return;
         setIsUpdatingPoints(true);
         toast({ title: "بدء تحديث النقاط...", description: "جاري حساب النقاط لجميع المستخدمين." });
-
+    
         try {
             const batch = writeBatch(db);
-            const userPointsMap = new Map<string, number>();
-
-            const predictionsSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            
-            for (const pinnedMatchDoc of predictionsSnapshot.docs) {
-                const pinnedMatch = { id: pinnedMatchDoc.id, ...pinnedMatchDoc.data() as PredictionMatch };
-                if (!pinnedMatch?.fixtureData?.fixture) continue;
-                
-                const fixture = pinnedMatch.fixtureData;
-                const isFinished = ['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short);
-
-                if (isFinished) {
-                    const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', pinnedMatch.id, 'userPredictions'));
-                    userPredictionsSnapshot.forEach(userPredDoc => {
-                        const userPrediction = userPredDoc.data() as Prediction;
-                        const userId = userPrediction.userId;
-                        if (!userId) return;
-
-                        const points = calculatePoints(userPrediction, fixture);
-                        userPointsMap.set(userId, (userPointsMap.get(userId) || 0) + points);
-                    });
-                }
-            }
-            
+    
+            // 1. Fetch all user profiles first to have their names/photos ready.
             const usersSnapshot = await getDocs(collection(db, "users"));
             const userProfiles = new Map<string, UserProfile>();
             usersSnapshot.forEach(doc => {
                 userProfiles.set(doc.id, doc.data() as UserProfile);
             });
-
-            for (const [userId, totalPoints] of userPointsMap.entries()) {
+    
+            // 2. Go through each pinned match and get all user predictions for it.
+            const userPointsMap = new Map<string, number>();
+            const participatingUserIds = new Set<string>();
+    
+            const predictionFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
+    
+            for (const fixtureDoc of predictionFixturesSnapshot.docs) {
+                const fixtureId = fixtureDoc.id;
+                const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
+                const isFinished = ['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short);
+    
+                const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
+    
+                userPredictionsSnapshot.forEach(userPredDoc => {
+                    const userPrediction = userPredDoc.data() as Prediction;
+                    const userId = userPrediction.userId;
+                    if (!userId) return;
+    
+                    participatingUserIds.add(userId); // Add user to participants list
+    
+                    if (isFinished) {
+                        const points = calculatePoints(userPrediction, fixtureData);
+                        userPointsMap.set(userId, (userPointsMap.get(userId) || 0) + points);
+                    }
+                });
+            }
+    
+            // 3. Create or update leaderboard entries for all participants.
+            for (const userId of participatingUserIds) {
+                const totalPoints = userPointsMap.get(userId) || 0;
                 const userData = userProfiles.get(userId);
+    
                 if (userData) {
                     const leaderboardRef = doc(db, 'leaderboard', userId);
                     batch.set(leaderboardRef, {
                         totalPoints,
-                        userName: userData.displayName || 'مستخدم',
+                        userName: userData.displayName || `مستخدم_${userId.substring(0, 4)}`,
                         userPhoto: userData.photoURL || '',
                     }, { merge: true });
                 }
             }
-            
+    
             await batch.commit();
             toast({ title: "نجاح!", description: `تم تحديث لوحة الصدارة بنجاح.` });
             fetchLeaderboard();
-
+    
         } catch (error) {
             console.error("Error calculating all points:", error);
             if (error instanceof Error) {
