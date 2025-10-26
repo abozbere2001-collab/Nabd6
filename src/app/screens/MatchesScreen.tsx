@@ -50,13 +50,14 @@ const FixturesList = React.memo((props: {
     pinnedPredictionMatches: Set<number>,
     onPinToggle: (fixture: FixtureType) => void,
     isAdmin: boolean,
+    showOdds: boolean,
 }) => {
     
     const { favoriteTeamMatches, otherFixtures } = useMemo(() => {
         let favoriteTeamMatches: FixtureType[] = [];
         let otherFixturesList: FixtureType[] = [];
 
-        if (props.activeTab === 'my-results') {
+         if (props.activeTab === 'my-results' && props.hasAnyFavorites) {
              props.fixtures.forEach(f => {
                 if (props.favoritedTeamIds.includes(f.teams.home.id) || props.favoritedTeamIds.includes(f.teams.away.id)) {
                     favoriteTeamMatches.push(f);
@@ -65,13 +66,13 @@ const FixturesList = React.memo((props: {
                 }
             });
         } else {
-            // For 'all-matches' tab
+            // For 'all-matches' tab or when no favorites exist
             otherFixturesList = props.fixtures;
         }
 
         return { favoriteTeamMatches, otherFixtures: otherFixturesList };
 
-    }, [props.fixtures, props.activeTab, props.favoritedTeamIds, props.favoritedLeagueIds]);
+    }, [props.fixtures, props.activeTab, props.favoritedTeamIds, props.favoritedLeagueIds, props.hasAnyFavorites]);
 
 
     const groupedOtherFixtures = useMemo(() => {
@@ -136,6 +137,7 @@ const FixturesList = React.memo((props: {
                                 isPinnedForPrediction={props.pinnedPredictionMatches.has(f.fixture.id)}
                                 onPinToggle={props.onPinToggle}
                                 isAdmin={props.isAdmin}
+                                showOdds={props.showOdds}
                             />
                         ))}
                     </div>
@@ -159,6 +161,7 @@ const FixturesList = React.memo((props: {
                                     isPinnedForPrediction={props.pinnedPredictionMatches.has(f.fixture.id)}
                                     onPinToggle={props.onPinToggle}
                                     isAdmin={props.isAdmin}
+                                    showOdds={props.showOdds}
                                 />
                             ))}
                         </div>
@@ -254,6 +257,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   const [favorites, setFavorites] = useState<Partial<Favorites>>({});
   const [activeTab, setActiveTab] = useState<TabName>('my-results');
   const [renameItem, setRenameItem] = useState<{ type: RenameType, id: number, name: string, originalName?: string } | null>(null);
+  const [showOdds, setShowOdds] = useState(false);
 
   
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -464,7 +468,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             canGoBack={false}
             onBack={() => {}} 
             actions={
-               <div className="flex items-center gap-2">
+               <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" className="h-7 text-xs font-mono" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
                   <SearchSheet navigate={navigate}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
@@ -512,6 +517,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
                     pinnedPredictionMatches={pinnedPredictionMatches}
                     onPinToggle={handlePinToggle}
                     isAdmin={isAdmin}
+                    showOdds={showOdds}
                 />
             </TabsContent>
             
@@ -527,6 +533,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
                     pinnedPredictionMatches={pinnedPredictionMatches}
                     onPinToggle={handlePinToggle}
                     isAdmin={isAdmin}
+                    showOdds={showOdds}
                 />
             </TabsContent>
 

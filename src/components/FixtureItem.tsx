@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React from 'react';
@@ -12,10 +13,10 @@ import { Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PredictionOdds } from './PredictionOdds';
 
-export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinnedForPrediction, onPinToggle, isAdmin }: { fixture: FixtureType, navigate: ScreenProps['navigate'], customStatus?: string | null, isPinnedForPrediction?: boolean, onPinToggle?: (fixture: FixtureType) => void, isAdmin?: boolean }) => {
+export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinnedForPrediction, onPinToggle, isAdmin, showOdds }: { fixture: FixtureType, navigate: ScreenProps['navigate'], customStatus?: string | null, isPinnedForPrediction?: boolean, onPinToggle?: (fixture: FixtureType) => void, isAdmin?: boolean, showOdds?: boolean }) => {
 
     const TeamDisplay = ({ team }: { team: FixtureType['teams']['home'] }) => (
-        <div className="flex flex-col items-center gap-1 flex-1 truncate">
+        <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
             <Avatar className="h-8 w-8 flex-shrink-0">
                 <AvatarImage src={team.logo} alt={team.name} />
                 <AvatarFallback>{team.name?.charAt(0) || ''}</AvatarFallback>
@@ -52,6 +53,11 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
                     <TeamDisplay team={fixture.teams.away} />
                 </main>
             </div>
+             {showOdds && (
+                <div className="px-3 pb-3">
+                    <PredictionOdds fixtureId={fixture.fixture.id} />
+                </div>
+            )}
         </div>
     );
 });
