@@ -26,9 +26,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // This logic now correctly compares the prediction to the actual (reversed) score data
-    const actualHome = fixture.goals.away; // reversed
-    const actualAway = fixture.goals.home; // reversed
+    // This is the fix: we re-invert the actual goals to match the inverted data source
+    const actualHome = fixture.goals.away;
+    const actualAway = fixture.goals.home;
     const predHome = prediction.homeGoals;
     const predAway = prediction.awayGoals;
   
@@ -331,7 +331,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         try {
             // Step 1: Update points for individual predictions
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            const predictionUpdatesBatch = writeBatch(db);
+            const predictionUpdateBatch = writeBatch(db);
 
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureId = fixtureDoc.id;
@@ -346,27 +346,18 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
 
                         if (userPrediction.points !== newPoints) {
                             const userPredRef = doc(db, 'predictionFixtures', fixtureId, 'userPredictions', userPredDoc.id);
-                            predictionUpdatesBatch.update(userPredRef, { points: newPoints });
+                            predictionUpdateBatch.update(userPredRef, { points: newPoints });
                         }
                     });
                 }
             }
-            await predictionUpdatesBatch.commit();
+            await predictionUpdateBatch.commit();
             toast({ title: "مرحلة 1/2", description: "تم تحديث نقاط التوقعات الفردية." });
 
-            // Step 2: Recalculate leaderboard
+            // Step 2: Aggregate points for all users
             const userPoints = new Map<string, number>();
-            const allUsers = new Map<string, UserProfile>();
-
-            // Pre-fetch all user profiles
-            const usersSnapshot = await getDocs(collection(db, "users"));
-            usersSnapshot.forEach(doc => {
-                allUsers.set(doc.id, doc.data() as UserProfile);
-            });
-
-            // Aggregate points from all predictions
-            const updatedFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            for (const fixtureDoc of updatedFixturesSnapshot.docs) {
+            const allFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
+            for (const fixtureDoc of allFixturesSnapshot.docs) {
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
                 userPredictionsSnapshot.forEach(predDoc => {
                     const pred = predDoc.data() as Prediction;
@@ -376,13 +367,20 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                 });
             }
             
-            // Step 3: Clear and update the leaderboard collection
+            // Step 3: Fetch user profiles
+            const userProfiles = new Map<string, UserProfile>();
+            const usersSnapshot = await getDocs(collection(db, "users"));
+            usersSnapshot.forEach(doc => {
+                userProfiles.set(doc.id, doc.data() as UserProfile);
+            });
+
+            // Step 4: Update the leaderboard collection
             const leaderboardBatch = writeBatch(db);
             const oldLeaderboardSnapshot = await getDocs(collection(db, 'leaderboard'));
-            oldLeaderboardSnapshot.forEach(doc => leaderboardBatch.delete(doc.ref));
+            oldLeaderboardSnapshot.forEach(doc => leaderboardBatch.delete(doc.ref)); // Clear old leaderboard
 
             for (const [userId, totalPoints] of userPoints.entries()) {
-                const userData = allUsers.get(userId);
+                const userData = userProfiles.get(userId);
                 const leaderboardRef = doc(db, 'leaderboard', userId);
                 const leaderboardData: Omit<UserScore, 'userId' | 'rank'> = {
                     totalPoints,

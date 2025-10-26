@@ -147,12 +147,20 @@ const PredictionCard = ({
       </span>
     </div>
   );
+  
+  // Create a temporarily inverted fixture for the LiveMatchStatus component
+  const invertedFixtureForDisplay = {
+      ...liveFixture,
+      goals: {
+          home: liveFixture.goals.away,
+          away: liveFixture.goals.home,
+      }
+  };
 
   return (
     <Card className={cn('transition-colors', cardColors)}>
       <CardContent className="p-3">
         <main dir="rtl" className="flex items-start justify-between gap-1">
-          {/* ✅ Correct visual order: home team is on the right */}
           <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
@@ -171,7 +179,7 @@ const PredictionCard = ({
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
                 {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                <LiveMatchStatus fixture={liveFixture} />
+                <LiveMatchStatus fixture={invertedFixtureForDisplay} />
               </div>
               <Input
                 type="number"
