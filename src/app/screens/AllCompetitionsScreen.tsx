@@ -219,42 +219,44 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     const sortedGroupedCompetitions = useMemo(() => {
-        if (!managedCompetitions) return null;
-
-        const grouped = managedCompetitions.reduce((acc, comp) => {
+        if (!managedCompetitions || managedCompetitions.length === 0) return null;
+    
+        const grouped: NestedGroupedCompetitions = {};
+    
+        managedCompetitions.forEach(comp => {
             const isWorld = WORLD_LEAGUES_KEYWORDS.some(k => comp.name.toLowerCase().includes(k)) || comp.countryName === 'World' || comp.countryName === 'International';
-            const continent = isWorld ? 'World' : countryToContinent[comp.countryName] || 'Other';
+            const continent = isWorld ? 'World' : (countryToContinent[comp.countryName] || 'Other');
             const country = comp.countryName;
-
-            if (!acc[continent]) {
-                acc[continent] = {};
+    
+            if (!grouped[continent]) {
+                grouped[continent] = {};
             }
-            if (!acc[continent][country]) {
-                acc[continent][country] = [];
+            if (!grouped[continent][country]) {
+                grouped[continent][country] = [];
             }
-            acc[continent][country].push(comp);
-            return acc;
-        }, {} as NestedGroupedCompetitions);
-
+            grouped[continent][country].push(comp);
+        });
+    
         const sortedStructure: NestedGroupedCompetitions = {};
         
-        continentOrder.forEach(continent => {
-            if (grouped[continent]) {
-                sortedStructure[continent] = {};
-                const countryKeys = Object.keys(grouped[continent]);
-
-                countryKeys.sort((a, b) => getName('country', a, a).localeCompare(getName('country', b, b), 'ar'));
-
-                countryKeys.forEach(country => {
-                    sortedStructure[continent][country] = grouped[continent][country].sort((a, b) =>
+        continentOrder.forEach(continentKey => {
+            if (grouped[continentKey]) {
+                sortedStructure[continentKey] = {};
+                const countryKeys = Object.keys(grouped[continentKey]).sort((a, b) => 
+                    getName('country', a, a).localeCompare(getName('country', b, b), 'ar')
+                );
+    
+                countryKeys.forEach(countryKey => {
+                    const sortedLeagues = grouped[continentKey][countryKey].sort((a, b) =>
                         getName('league', a.leagueId, a.name).localeCompare(getName('league', b.leagueId, b.name), 'ar')
                     );
+                    sortedStructure[continentKey][countryKey] = sortedLeagues;
                 });
             }
         });
-
+    
         return sortedStructure;
-
+    
     }, [managedCompetitions, getName]);
     
     const groupedNationalTeams = useMemo(() => {
@@ -473,33 +475,33 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const renderClubCompetitions = () => {
         if (!sortedGroupedCompetitions) return null;
-
+    
         return Object.entries(sortedGroupedCompetitions).map(([continent, countries]) => (
             <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                    <div className="flex items-center justify-between w-full">
+                <div className="flex items-center justify-between px-4 py-3">
+                    <AccordionTrigger className="flex-1 p-0 hover:no-underline">
                         <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
-                         {isAdmin && (
-                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent), continent); }}>
-                                <Pencil className="h-4 w-4 text-muted-foreground/80" />
-                            </Button>
-                        )}
-                    </div>
-                </AccordionTrigger>
+                    </AccordionTrigger>
+                    {isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent), continent); }}>
+                            <Pencil className="h-4 w-4 text-muted-foreground/80" />
+                        </Button>
+                    )}
+                </div>
                 <AccordionContent className="p-2">
                     <Accordion type="multiple" className="w-full space-y-2">
                         {Object.entries(countries).map(([countryName, leagues]) => (
                             <AccordionItem value={`country-${countryName}`} key={`country-${countryName}`} className="rounded-lg border bg-card/50">
-                                <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                                    <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center justify-between px-4 py-3">
+                                    <AccordionTrigger className="flex-1 p-0 hover:no-underline">
                                         <h4 className="text-md font-semibold">{getName('country', countryName, countryName)}</h4>
-                                        {isAdmin && (
-                                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', countryName, getName('country', countryName, countryName), countryName); }}>
-                                                <Pencil className="h-4 w-4 text-muted-foreground/80" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                </AccordionTrigger>
+                                    </AccordionTrigger>
+                                    {isAdmin && (
+                                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', countryName, getName('country', countryName, countryName), countryName); }}>
+                                            <Pencil className="h-4 w-4 text-muted-foreground/80" />
+                                        </Button>
+                                    )}
+                                </div>
                                 <AccordionContent className="p-1">
                                     <div className="space-y-2">
                                         {leagues.map(comp => {
@@ -616,7 +618,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-    
-
-    
