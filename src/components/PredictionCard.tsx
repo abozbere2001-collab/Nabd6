@@ -132,7 +132,7 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
 
                     {/* Score Area */}
                     <div className="flex items-center gap-1" dir="ltr">
-                        <Input 
+                         <Input 
                             type="number" 
                             className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
                             min="0"

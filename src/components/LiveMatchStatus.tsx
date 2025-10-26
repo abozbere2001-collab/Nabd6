@@ -73,9 +73,7 @@ export const LiveMatchStatus = ({ fixture, large = false, customStatus }: { fixt
             };
         }
 
-        const score = large 
-          ? `${goals.home} - ${goals.away}` 
-          : `${goals.home} - ${goals.away}`;
+        const score = `${goals.home} - ${goals.away}`;
 
         if (live) {
             return {
@@ -114,19 +112,10 @@ export const LiveMatchStatus = ({ fixture, large = false, customStatus }: { fixt
             </div>
         );
     }
-
-    // This is the correct order for RTL layout (Home on right, Away on left)
-    const scoreParts = main.split('-').map(s => s.trim());
-    const homeScore = scoreParts[0];
-    const awayScore = scoreParts[1];
     
-    // In RTL, the first element is on the right.
-    const displayMain = (goals.home !== null && goals.away !== null) ? `${homeScore} - ${awayScore}` : main;
-
-
     return (
         <>
-            <div className={cn("font-bold", isLive ? "text-base" : "text-sm")}>{displayMain}</div>
+            <div className={cn("font-bold", isLive ? "text-base" : "text-sm")}>{main}</div>
             {sub && (
                  <div className={cn("text-[10px] mt-1", isLive ? "text-red-500 font-bold animate-pulse" : "text-muted-foreground")}>
                     {sub}
