@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -26,9 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    // This is the fix: we re-invert the actual goals to match the inverted data source
-    const actualHome = fixture.goals.away;
-    const actualAway = fixture.goals.home;
+    const actualHome = fixture.goals.home;
+    const actualAway = fixture.goals.away;
     const predHome = prediction.homeGoals;
     const predAway = prediction.awayGoals;
   
@@ -241,6 +241,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             return;
         };
         setLoadingUserPredictions(true);
+        
         const predictionRefs = pinnedMatches.map(match => doc(db, 'predictionFixtures', match.id, 'userPredictions', user.uid));
         
         const unsubscribes = predictionRefs.map((ref, index) => {
@@ -261,10 +262,9 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
     const fetchLeaderboard = useCallback(async () => {
         if (!db) return;
         setLoadingLeaderboard(true);
-        const leaderboardRef = collection(db, 'leaderboard');
         
         try {
-            const q = query(leaderboardRef, orderBy('totalPoints', 'desc'), limit(100));
+            const q = query(collection(db, 'leaderboard'), orderBy('totalPoints', 'desc'), limit(100));
             const top100Snapshot = await getDocs(q);
             let rank = 1;
             const top100Scores = top100Snapshot.docs.map(doc => ({ userId: doc.id, ...(doc.data() as Omit<UserScore, 'userId'>), rank: rank++ }));
@@ -276,7 +276,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                 if (userScoreSnap.exists()) {
                     const data = userScoreSnap.data();
                     const userRank = top100Scores.find(s => s.userId === user.uid)?.rank;
-                    setCurrentUserScore({ userId: user.uid, ...data, rank: userRank } as UserScore);
+                    setCurrentUserScore({ userId: user.uid, ...data, rank: userRank || data.rank } as UserScore);
                 } else {
                     setCurrentUserScore(null);
                 }
@@ -327,23 +327,24 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         if (!db || !isAdmin) return;
         setIsUpdatingPoints(true);
         toast({ title: "بدء تحديث النقاط...", description: "جاري حساب النقاط لجميع المستخدمين." });
-
+    
         try {
             // Step 1: Update points for individual predictions
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
             const predictionUpdateBatch = writeBatch(db);
-
+    
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureId = fixtureDoc.id;
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
-                
+    
+                // Only process finished matches
                 if (['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short)) {
                     const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureId, 'userPredictions'));
-                    
                     userPredictionsSnapshot.forEach(userPredDoc => {
                         const userPrediction = userPredDoc.data() as Prediction;
                         const newPoints = calculatePoints(userPrediction, fixtureData);
-
+                        
+                        // Only update if points have changed
                         if (userPrediction.points !== newPoints) {
                             const userPredRef = doc(db, 'predictionFixtures', fixtureId, 'userPredictions', userPredDoc.id);
                             predictionUpdateBatch.update(userPredRef, { points: newPoints });
@@ -353,11 +354,12 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             }
             await predictionUpdateBatch.commit();
             toast({ title: "مرحلة 1/2", description: "تم تحديث نقاط التوقعات الفردية." });
-
-            // Step 2: Aggregate points for all users
+    
+            // Step 2: Aggregate all points for the leaderboard
             const userPoints = new Map<string, number>();
-            const allFixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
-            for (const fixtureDoc of allFixturesSnapshot.docs) {
+            const allFixturesSnapshotForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
+    
+            for (const fixtureDoc of allFixturesSnapshotForLeaderboard.docs) {
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
                 userPredictionsSnapshot.forEach(predDoc => {
                     const pred = predDoc.data() as Prediction;
@@ -366,39 +368,39 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     }
                 });
             }
-            
+    
             // Step 3: Fetch user profiles
             const userProfiles = new Map<string, UserProfile>();
             const usersSnapshot = await getDocs(collection(db, "users"));
             usersSnapshot.forEach(doc => {
                 userProfiles.set(doc.id, doc.data() as UserProfile);
             });
-
+    
             // Step 4: Update the leaderboard collection
             const leaderboardBatch = writeBatch(db);
-            const oldLeaderboardSnapshot = await getDocs(collection(db, 'leaderboard'));
-            oldLeaderboardSnapshot.forEach(doc => leaderboardBatch.delete(doc.ref)); // Clear old leaderboard
-
+            // We'll update docs, not clear and rewrite, to be safer
             for (const [userId, totalPoints] of userPoints.entries()) {
                 const userData = userProfiles.get(userId);
-                const leaderboardRef = doc(db, 'leaderboard', userId);
-                const leaderboardData: Omit<UserScore, 'userId' | 'rank'> = {
-                    totalPoints,
-                    userName: userData?.displayName || `مستخدم_${userId.substring(0, 4)}`,
-                    userPhoto: userData?.photoURL || '',
-                };
-                leaderboardBatch.set(leaderboardRef, leaderboardData);
+                if (userData) {
+                    const leaderboardRef = doc(db, 'leaderboard', userId);
+                    const leaderboardData: Omit<UserScore, 'userId' | 'rank'> = {
+                        totalPoints,
+                        userName: userData.displayName || `مستخدم_${userId.substring(0, 4)}`,
+                        userPhoto: userData.photoURL || '',
+                    };
+                    leaderboardBatch.set(leaderboardRef, leaderboardData, { merge: true });
+                }
             }
-
+    
             await leaderboardBatch.commit();
-
+    
             toast({ title: "نجاح!", description: "تم تحديث لوحة الصدارة بنجاح." });
             fetchLeaderboard();
-
+    
         } catch (error) {
             console.error("Error calculating all points:", error);
             if (error instanceof Error) {
-                 toast({ variant: 'destructive', title: "خطأ", description: error.message || "حدث خطأ أثناء تحديث لوحة الصدارة." });
+                toast({ variant: 'destructive', title: "خطأ", description: error.message || "حدث خطأ أثناء تحديث لوحة الصدارة." });
             }
         } finally {
             setIsUpdatingPoints(false);

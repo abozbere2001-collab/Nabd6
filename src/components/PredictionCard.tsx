@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -93,9 +94,9 @@ const PredictionCard = ({
   const getPredictionStatusColors = useCallback(() => {
     if (!isMatchLiveOrFinished || !userPrediction) return 'bg-card text-foreground';
 
-    // This is the fix: we re-invert the actual goals to match the inverted data source
-    const actualHome = liveFixture.goals.away;
-    const actualAway = liveFixture.goals.home;
+    // This is the fix: we use the actual goals from the live fixture data
+    const actualHome = liveFixture.goals.home;
+    const actualAway = liveFixture.goals.away;
     const predHome = userPrediction.homeGoals;
     const predAway = userPrediction.awayGoals;
 
@@ -148,15 +149,6 @@ const PredictionCard = ({
     </div>
   );
   
-  // Create a temporarily inverted fixture for the LiveMatchStatus component
-  const invertedFixtureForDisplay = {
-      ...liveFixture,
-      goals: {
-          home: liveFixture.goals.away,
-          away: liveFixture.goals.home,
-      }
-  };
-
   return (
     <Card className={cn('transition-colors', cardColors)}>
       <CardContent className="p-3">
@@ -179,7 +171,7 @@ const PredictionCard = ({
               />
               <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
                 {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
-                <LiveMatchStatus fixture={invertedFixtureForDisplay} />
+                <LiveMatchStatus fixture={liveFixture} />
               </div>
               <Input
                 type="number"
