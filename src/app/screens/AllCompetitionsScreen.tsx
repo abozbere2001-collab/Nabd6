@@ -89,7 +89,7 @@ const countryToContinent: { [key: string]: string } = {
 };
 
 const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "North America", "Oceania", "Other"];
-const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab"];
+const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab", "club world cup", "nations league"];
 
 const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya"];
 
@@ -463,7 +463,14 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         return continentOrder.filter(c => groupedNationalTeams[c]).map(continent => (
             <AccordionItem value={`national-${continent}`} key={`national-${continent}`} className="rounded-lg border bg-card/50">
               <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold">{getName('continent', continent, continent)}</h3>
+                    {isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => { e.stopPropagation(); handleOpenRename('continent', continent, getName('continent', continent, continent)); }}>
+                            <Pencil className="h-4 w-4"/>
+                        </Button>
+                    )}
+                </div>
               </AccordionTrigger>
               <AccordionContent className="p-1">
                 <ul className="flex flex-col">{
@@ -521,7 +528,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                            return getName('country', a, a).localeCompare(getName('country', b, b), 'ar');
                         }).map(country => (
                             <AccordionItem value={`country-${country}`} key={country} className="rounded-lg border bg-background/50">
-                                 <AccordionTrigger className="px-3 py-2.5 hover:no-underline text-base">
+                                <AccordionTrigger className="px-3 py-2.5 hover:no-underline text-base">
                                      <div className="flex items-center gap-2">
                                         <span className="font-semibold">{getName('country', country, country)}</span>
                                         {isAdmin && (
@@ -625,9 +632,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-    
-
-    
-
-    
