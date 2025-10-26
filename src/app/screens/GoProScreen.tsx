@@ -10,7 +10,7 @@ import { Check, Gem, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { purchaseSubscription } from '@/lib/revenuecat-client';
-import { useAuth } from '@/firebase/provider';
+import { useAuth } from '@/firebase';
 
 const proFeatures = [
     "تجربة خالية من الإعلانات تمامًا",

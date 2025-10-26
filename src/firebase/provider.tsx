@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -137,15 +138,43 @@ export const useFirebase = (): FirebaseServicesAndUser => {
 };
 
 /** Hook to access Firebase Auth instance. */
-export const useAuth = (): Auth => {
-  const { auth } = useFirebase();
-  return auth;
+export const useAuth = () => {
+    const { user, isUserLoading, auth, firestore } = useFirebase();
+    
+    // Pro status could also be derived from custom claims
+    const [isProUser, setProUser] = useState(false);
+
+    useEffect(() => {
+        if (user && firestore) {
+            const userDocRef = doc(firestore, 'users', user.uid);
+            const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                 if (user) {
+                     const docSnap = await getDoc(userDocRef);
+                     if (docSnap.exists() && docSnap.data().isProUser) {
+                         setProUser(true);
+                     } else {
+                         setProUser(false);
+                     }
+                 } else {
+                    setProUser(false);
+                 }
+            });
+            return () => unsubscribe();
+        } else {
+            setProUser(false);
+        }
+    }, [user, firestore, auth]);
+
+    return { user, isUserLoading, isProUser, setProUser };
 };
 
 /** Hook to access Firestore instance. */
-export const useFirestore = (): Firestore => {
-  const { firestore } = useFirebase();
-  return firestore;
+export const useFirestore = (): { db: Firestore | null } => {
+    const context = useContext(FirebaseContext);
+    if (context === undefined) {
+        return { db: null };
+    }
+    return { db: context.firestore };
 };
 
 /** Hook to access Firebase App instance. */
@@ -173,4 +202,35 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | 
 export const useUser = (): UserHookResult => { // Renamed from useAuthUser
   const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
   return { user, isUserLoading, userError };
+};
+
+export const useAdmin = () => {
+    const { user } = useAuth();
+    const { db } = useFirestore();
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
+
+    useEffect(() => {
+        if (user && db) {
+            const adminDocRef = doc(db, 'admins', user.uid);
+            getDoc(adminDocRef).then(docSnap => {
+                setIsAdmin(docSnap.exists());
+            }).finally(() => {
+                setIsCheckingAdmin(false);
+            });
+        } else {
+            setIsAdmin(false);
+            setIsCheckingAdmin(false);
+        }
+    }, [user, db]);
+
+    const makeAdmin = async () => {
+        if (user && db) {
+            const adminDocRef = doc(db, 'admins', user.uid);
+            await setDoc(adminDocRef, { isAdmin: true });
+            setIsAdmin(true);
+        }
+    };
+
+    return { isAdmin, isCheckingAdmin, makeAdmin, db };
 };

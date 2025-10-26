@@ -7,7 +7,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { Star, Pencil, Plus, Search, Users, Trophy, Loader2, RefreshCw } from 'lucide-react';
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
-import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
+import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, collection, onSnapshot, getDocs, writeBatch, getDoc, deleteDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { AddCompetitionDialog } from '@/components/AddCompetitionDialog';

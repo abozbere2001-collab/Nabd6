@@ -9,7 +9,7 @@ import { ProfileButton } from '../AppContentWrapper';
 import { Button } from '@/components/ui/button';
 import { Crown, Search, X, Loader2, Trophy, BarChart, Users as UsersIcon, RefreshCw, CalendarDays, ThumbsUp } from 'lucide-react';
 import { SearchSheet } from '@/components/SearchSheet';
-import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
+import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import type { CrownedTeam, Favorites, Fixture, Standing, TopScorer, Prediction, Team, Player, UserScore, PredictionMatch, UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';

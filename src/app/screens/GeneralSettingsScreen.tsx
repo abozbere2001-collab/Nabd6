@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Sun, Moon, Laptop, Gem, UserCog, Globe } from 'lucide-react';
-import { useAuth, useAdmin } from '@/firebase/provider';
+import { useAuth, useAdmin } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 

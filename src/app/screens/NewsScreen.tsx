@@ -9,7 +9,7 @@ import type { ScreenProps } from '@/app/page';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit, Trash2, Loader2, Search } from 'lucide-react';
-import { useAdmin, useFirestore } from '@/firebase/provider';
+import { useAdmin, useFirestore } from '@/firebase';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, getDocs } from 'firebase/firestore';
 import type { NewsArticle } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';

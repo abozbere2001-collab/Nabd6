@@ -5,12 +5,12 @@ import {
   signOut as firebaseSignOut, 
   updateProfile,
   type User, 
+  getAuth,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, Firestore, writeBatch } from 'firebase/firestore';
 import type { UserProfile, UserScore, Favorites } from './types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { auth } from "@/firebase";
 import { getLocalFavorites, clearLocalFavorites } from './local-favorites';
 import { getDatabase, ref, set } from 'firebase/database';
 
@@ -77,6 +77,7 @@ export const handleNewUser = async (user: User, firestore: Firestore) => {
 
 
 export const signOut = (): Promise<void> => {
+    const auth = getAuth();
     clearLocalFavorites();
     return firebaseSignOut(auth);
 };
@@ -86,7 +87,8 @@ export const updateUserDisplayName = async (user: User, newDisplayName: string):
     if (!user) throw new Error("User not authenticated.");
 
     // The db object is imported directly from the firebase barrel file now
-    const db = (await import('@/firebase')).firestore;
+    const { firestore } = await import('@/firebase');
+    const db = firestore;
 
     await updateProfile(user, { displayName: newDisplayName });
 

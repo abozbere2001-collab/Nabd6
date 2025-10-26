@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
 import { GoogleIcon } from '@/components/icons/GoogleIcon';
-import { GoogleAuthProvider, signInWithPopup, signInAnonymously } from "firebase/auth";
-import { auth, useFirestore } from '@/firebase';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "firebase/auth";
+import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { handleNewUser } from '@/lib/firebase-client';
@@ -18,6 +18,7 @@ export function WelcomeScreen() {
   
   const handleGoogleLogin = async () => {
     if (!db) return;
+    const auth = getAuth();
     setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
     try {
@@ -41,6 +42,7 @@ export function WelcomeScreen() {
   };
 
   const handleGuestLogin = async () => {
+    const auth = getAuth();
     setIsGuestLoading(true);
     try {
         await signInAnonymously(auth);

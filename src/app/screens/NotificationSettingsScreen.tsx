@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { ScreenProps } from '@/app/page';
-import { useAuth, useFirestore } from '@/firebase/provider';
+import { useAuth, useFirestore } from '@/firebase';
 import { collection, doc, onSnapshot, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import type { Favorites } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';

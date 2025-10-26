@@ -16,7 +16,7 @@ import { Search, Star, Pencil, Loader2, Crown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { ScreenProps } from '@/app/page';
-import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
+import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
@@ -493,4 +493,5 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
+
 

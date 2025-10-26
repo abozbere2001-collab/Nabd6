@@ -1,173 +1,180 @@
 /**
- * @fileoverview Firestore Security Rules for Goal Stack application.
- *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and restricts
- * administrative actions to designated admin users. Top-level collections
- * like 'matches', 'competitions', 'teams', and 'news' allow public read access
- * but restrict write access based on user roles or ownership.
- *
- * Data Structure:
- * - /users/{userId}: Stores individual user profiles.
- * - /matches/{matchId}: Stores match data. Publicly readable.
- * - /competitions/{competitionId}: Stores competition data. Publicly readable.
- * - /teams/{teamId}: Stores team data. Publicly readable.
- * - /news/{newsId}: Stores news articles. Publicly readable, admin-owned writes.
- * - /admins/{adminId}: Stores admin user data. Existence grants admin privileges.
- *
- * Key Security Decisions:
- * - User listing is disabled.
- * - Public read access is granted for matches, competitions, teams, and news.
- * - Write access to news is restricted to authorized admins.
- * - Existence of document in `/admins/{adminId}` collection grants admin privileges.
- *
- * Denormalization for Authorization:
- * - The `favoriteTeamIds`, `favoriteCompetitionIds`, and `favoriteMatchIds` arrays
- *   within the `/users/{userId}` document denormalize user preferences, avoiding
- *   the need for `get()` calls in security rules.
+ * @description This ruleset enforces a strict user-ownership model for user profiles and admin-based control for content management.
+ * @dataStructure User data is stored under /users/{userId}, while Matches, Competitions, Teams, and News are stored in top-level collections. Admin users are managed under the `/admins/{adminId}` collection.
+ * @keySecurityDecisions
+ *   - Users can only read/write their own profiles.
+ *   - Only admins can create/update/delete Matches, Competitions, Teams, and News.
+ *   - Listing of user documents is disallowed.
+ *   - The existence of a document in `/admins/{adminId}` grants admin privileges.
+ * @denormalization User profiles denormalize favoriteTeamIds, favoriteCompetitionIds, and favoriteMatchIds to avoid extra reads during authorization.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    /** ===== HELPER FUNCTIONS ===== */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
     /**
-     * @description Enforces ownership for user profiles. Only the authenticated user can read or write their own profile.
+     * @description Manages user profiles. Users can only access their own profile data.
      * @path /users/{userId}
-     * @allow (create) - User with ID 'user123' creates their profile.
-     *   - request.auth.uid: 'user123'
-     *   - request.resource.data.id: 'user123'
-     * @allow (get, update, delete) - User with ID 'user123' reads/updates/deletes their profile.
-     *   - request.auth.uid: 'user123'
-     *   - resource.data.id: 'user123'
-     * @deny (create) - User with ID 'user123' attempts to create a profile for 'user456'.
-     *   - request.auth.uid: 'user123'
-     *   - request.resource.data.id: 'user456'
-     * @deny (get, update, delete) - User with ID 'user123' attempts to read/update/delete the profile of 'user456'.
-     *   - request.auth.uid: 'user123'
-     *   - resource.data.id: 'user456'
-     * @principle Enforces strict user-ownership for data access and modification.
+     * @allow (get) User A with UID 'user_abc' can read their own profile document.
+     * @allow (create) User A with UID 'user_abc' can create their own profile document.
+     * @allow (update) User A with UID 'user_abc' can update their own profile document.
+     * @allow (delete) User A with UID 'user_abc' can delete their own profile document.
+     * @deny (get) User B with UID 'user_xyz' cannot read User A's profile.
+     * @deny (list) No one can list user profiles.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      // Allow the user to read their own profile.
       allow get: if isOwner(userId);
-      // Allow the user to list their own profile (disabled in this case).
       allow list: if false;
-
-      // Allow the user to create their own profile, enforcing the ID to match.
-      allow create: if isSignedIn() && request.auth.uid == userId && request.resource.data.id == userId;
-
-      // Allow the user to update their own profile, ensuring the ID remains consistent.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-
-      // Allow the user to delete their own profile.
       allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Allows a user to manage their own favorites.
+       * @path /users/{userId}/favorites/{favId}
+       * @allow (read) User A with UID 'user_abc' can read their favorites
+       * @allow (write) User A with UID 'user_abc' can modify their favorites
+       * @allow (list) User A with UID 'user_abc' can list their favorites
+       * @deny (read) User B with UID 'user_xyz' cannot read User A's favorites.
+       * @deny (write) User B with UID 'user_xyz' cannot modify User A's favorites.
+       * @principle Enforces document ownership for all operations.
+       */
+      match /favorites/{favId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Allows a user to manage data document inside their favorites.
+       * @path /users/{userId}/favorites/data
+       * @allow (read) User A with UID 'user_abc' can read their favorites data
+       * @allow (write) User A with UID 'user_abc' can modify their favorites data
+       * @deny (read) User B with UID 'user_xyz' cannot read User A's favorites data.
+       * @deny (write) User B with UID 'user_xyz' cannot modify User A's favorites data.
+       * @principle Enforces document ownership for all operations.
+       */
+      match /favorites/data {
+        allow get: if isOwner(userId);
+        allow list: if false;
+        allow create: if isOwner(userId);
+        allow update: if isExistingOwner(userId);
+        allow delete: if isExistingOwner(userId);
+      }
     }
 
     /**
-     * @description Allows public read access to match data. Writes are not permitted.
-     * @path /matches/{matchId}
-     * @allow (get, list) - Any user can read match data.
-     * @deny (create, update, delete) - No user can create, update, or delete match data.
-     * @principle Enables public data consumption while preventing unauthorized modifications.
+     * @description Manages admin user profiles.
+     * @path /admins/{adminId}
+     * @allow (get) Any signed-in user can get an admin profile.
+     * @allow (create) A user can create their own admin profile (likely for initial setup, then managed via backend).
+     * @deny (list) No one can list admin profiles.
+     * @deny (update) No one can update admin profiles through the client.
+     * @deny (delete) No one can delete admin profiles through the client.
+     * @principle Restricts modification of admin profiles.
      */
-    match /matches/{matchId} {
-      // Allow anyone to read match data.
-      allow get, list: if true;
-
-      // No one can create, update, or delete match data.
-      allow create: if false;
+    match /admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isOwner(adminId);
       allow update: if false;
       allow delete: if false;
     }
 
     /**
-     * @description Allows public read access to competition data. Writes are not permitted.
+     * @description Manages competition data. Only admins can create, update, or delete competitions.
      * @path /competitions/{competitionId}
-     * @allow (get, list) - Any user can read competition data.
-     * @deny (create, update, delete) - No user can create, update, or delete competition data.
-     * @principle Enables public data consumption while preventing unauthorized modifications.
+     * @allow (get) Any user can read competition data.
+     * @allow (list) Any user can list competitions.
+     * @allow (create) Admins can create new competitions.
+     * @allow (update) Admins can update existing competitions.
+     * @allow (delete) Admins can delete competitions.
+     * @deny (create) Non-admins cannot create competitions.
+     * @principle Restricts write access to admins only.
      */
     match /competitions/{competitionId} {
-      // Allow anyone to read competition data.
-      allow get, list: if true;
-
-      // No one can create, update, or delete competition data.
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Allows public read access to team data. Writes are not permitted.
-     * @path /teams/{teamId}
-     * @allow (get, list) - Any user can read team data.
-     * @deny (create, update, delete) - No user can create, update, or delete team data.
-     * @principle Enables public data consumption while preventing unauthorized modifications.
-     */
-    match /teams/{teamId} {
-      // Allow anyone to read team data.
-      allow get, list: if true;
-
-      // No one can create, update, or delete team data.
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Allows public read access to news articles. Writes are restricted to admins.
-     * @path /news/{newsId}
-     * @allow (get, list) - Any user can read news articles.
-     * @allow (create, update, delete) - Only admins can create, update, or delete news articles.
-     * @principle Enables public data consumption with restricted administrative control.
-     */
-    match /news/{newsId} {
-      // Allow anyone to read news articles.
-      allow get, list: if true;
-
-      // Only admins can create, update, or delete news articles.
+      allow get: if true;
+      allow list: if true;
       allow create: if isAdmin();
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Controls access to admin user data. Only admins themselves can read their data. Creation is allowed to set initial permissions.
-     * @path /admins/{adminId}
-     * @allow (create) - Allow creation
-     * @allow (get) - Only admin can get their data
-     * @allow (list) - Nobody can list
-     * @allow (update, delete) - No one can update or delete an admin profile.
-     * @principle Limits access to admin data.
+     * @description Manages match data. Only admins can create, update, or delete matches.
+     * @path /matches/{matchId}
+     * @allow (get) Any user can read match data.
+     * @allow (list) Any user can list matches.
+     * @allow (create) Admins can create new matches.
+     * @allow (update) Admins can update existing matches.
+     * @allow (delete) Admins can delete matches.
+     * @deny (create) Non-admins cannot create matches.
+     * @principle Restricts write access to admins only.
      */
-    match /admins/{adminId} {
-      allow create: if true;
-      allow get: if isAdmin();
-      allow list: if false;
-      allow update: if false;
-      allow delete: if false;
+    match /matches/{matchId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
-    // --- Helper Functions ---
-
-    // Checks if the user is signed in.
-    function isSignedIn() {
-      return request.auth != null;
+    /**
+     * @description Manages team data. Only admins can create, update, or delete teams.
+     * @path /teams/{teamId}
+     * @allow (get) Any user can read team data.
+     * @allow (list) Any user can list teams.
+     * @allow (create) Admins can create new teams.
+     * @allow (update) Admins can update existing teams.
+     * @allow (delete) Admins can delete teams.
+     * @deny (create) Non-admins cannot create teams.
+     * @principle Restricts write access to admins only.
+     */
+    match /teams/{teamId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
 
-    // Checks if the user is the owner of the document based on the userId.
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Checks if the user is the owner of the existing document.
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    // Checks if the user is an admin (exists in the /admins collection).
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    /**
+     * @description Manages news articles. Only admins can create, update, or delete news.
+     * @path /news/{newsId}
+     * @allow (get) Any user can read news articles.
+     * @allow (list) Any user can list news articles.
+     * @allow (create) Admins can create new news articles.
+     * @allow (update) Admins can update existing news articles.
+     * @allow (delete) Admins can delete news articles.
+     * @deny (create) Non-admins cannot create news articles.
+     * @principle Restricts write access to admins only.
+     */
+    match /news/{newsId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
     }
   }
 }
