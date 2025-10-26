@@ -60,14 +60,8 @@ const setCachedData = <T>(key: string, data: T) => {
 
 
 // --- TYPE DEFINITIONS ---
-interface CompetitionsByCountry {
-    [country: string]: {
-        flag: string | null;
-        leagues: ManagedCompetitionType[];
-    };
-}
 interface GroupedClubCompetitions {
-  [continent: string]: CompetitionsByCountry | { leagues: ManagedCompetitionType[] };
+  [continent: string]: ManagedCompetitionType[];
 }
 interface TeamsByContinent {
     [continent: string]: Team[]
@@ -259,45 +253,23 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             const countryName = comp.countryName;
             const continent = countryToContinent[countryName] || "Other";
             const isWorldLeague = WORLD_LEAGUES_KEYWORDS.some(keyword => comp.name.toLowerCase().includes(keyword)) || continent === 'World';
-
             const targetContinent = isWorldLeague ? "World" : continent;
 
             if (!grouped[targetContinent]) {
-                grouped[targetContinent] = targetContinent === "World" ? { leagues: [] } : {};
+                grouped[targetContinent] = [];
             }
-
-            if (targetContinent === "World") {
-                (grouped.World as { leagues: ManagedCompetitionType[] }).leagues.push(comp);
-            } else {
-                const continentGroup = grouped[targetContinent] as CompetitionsByCountry;
-                if (!continentGroup[countryName]) {
-                    continentGroup[countryName] = { flag: comp.countryFlag, leagues: [] };
-                }
-                continentGroup[countryName].leagues.push(comp);
-            }
+            grouped[targetContinent].push(comp);
         });
 
-        const sortedGrouped: GroupedClubCompetitions = {};
+        // Sort competitions within each continent group
+        for (const continent in grouped) {
+            grouped[continent].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+        }
         
+        const sortedGrouped: GroupedClubCompetitions = {};
         continentOrder.forEach(continent => {
             if (grouped[continent]) {
-                if (continent === "World") {
-                    const worldGroup = grouped.World as { leagues: ManagedCompetitionType[] };
-                    worldGroup.leagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-                    sortedGrouped.World = worldGroup;
-                } else {
-                    const countries = grouped[continent] as CompetitionsByCountry;
-                    const sortedCountries = Object.keys(countries).sort((a, b) => 
-                        getName('country', a, a).localeCompare(getName('country', b, b), 'ar')
-                    );
-                    
-                    const sortedCountriesObj: CompetitionsByCountry = {};
-                    for (const country of sortedCountries) {
-                        countries[country].leagues.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-                        sortedCountriesObj[country] = countries[country];
-                    }
-                    sortedGrouped[continent] = sortedCountriesObj;
-                }
+                sortedGrouped[continent] = grouped[continent];
             }
         });
 
@@ -401,8 +373,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             const fieldPath = `${itemType}.${itemId}`;
             
             const updateData = newFavorites[itemType]?.[itemId] 
-                ? { [fieldPath]: newFavorites[itemType]?.[itemId] }
-                : { [fieldPath]: deleteField() };
+                ? { [fieldPath]: deleteField() }
+                : { [fieldPath]: newFavorites[itemType]?.[itemId] };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
@@ -515,7 +487,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     const renderClubCompetitions = () => {
         if (!sortedGroupedCompetitions) return null;
         
-        return Object.entries(sortedGroupedCompetitions).map(([continent, content]) => (
+        return Object.entries(sortedGroupedCompetitions).map(([continent, leagues]) => (
             <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
                <div className="flex items-center px-4 py-3 h-12">
                    <AccordionTrigger className="hover:no-underline flex-1">
@@ -526,52 +498,19 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                    </Button>)}
                </div>
                <AccordionContent className="p-2">
-                    {"leagues" in content ? (
-                       <div className="p-1">
-                           <ul className="flex flex-col">{
-                               (content.leagues as ManagedCompetitionType[]).map(comp => (
-                                   <LeagueHeaderItem 
-                                       key={comp.leagueId}
-                                       league={comp}
-                                       isFavorited={!!favorites.leagues?.[comp.leagueId]}
-                                       onFavoriteToggle={() => handleFavoriteToggle(comp)}
-                                       onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions?.find(c => c.leagueId === comp.leagueId)?.name)}
-                                       onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
-                                       isAdmin={isAdmin}
-                                   />
-                               ))
-                           }</ul>
-                       </div>
-                   ) : (
-                       <Accordion type="multiple" className="w-full space-y-2">
-                           {Object.entries(content as CompetitionsByCountry).map(([country, { flag, leagues }]) => (
-                                <AccordionItem value={country} key={country} className="rounded-lg border bg-card/50">
-                                   <div className="flex items-center px-4 py-3 h-12">
-                                       <AccordionTrigger className="hover:no-underline flex-1">
-                                         <div className="flex items-center gap-3">
-                                             {flag && <img src={flag} alt={country} className="h-5 w-7 object-contain" />}
-                                             <span className="font-semibold">{getName('country', country, country)}</span>
-                                         </div>
-                                       </AccordionTrigger>
-                                       {isAdmin && <Button variant="ghost" size="icon" className="h-9 w-9 mr-2" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', country, getName('country', country, country), country); }}><Pencil className="h-4 w-4 text-muted-foreground/80" /></Button>}
-                                     </div>
-                                   <AccordionContent className="p-1">
-                                       <ul className="flex flex-col">{leagues.map(comp => (
-                                            <LeagueHeaderItem 
-                                               key={comp.leagueId}
-                                               league={comp}
-                                               isFavorited={!!favorites.leagues?.[comp.leagueId]}
-                                               onFavoriteToggle={() => handleFavoriteToggle(comp)}
-                                               onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions?.find(c => c.leagueId === comp.leagueId)?.name)}
-                                               onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
-                                               isAdmin={isAdmin}
-                                           />
-                                       ))}</ul>
-                                   </AccordionContent>
-                               </AccordionItem>
-                           ))}
-                       </Accordion>
-                   )}
+                   <div className="p-1 space-y-2">
+                       {leagues.map(comp => (
+                           <LeagueHeaderItem 
+                               key={comp.leagueId}
+                               league={comp}
+                               isFavorited={!!favorites.leagues?.[comp.leagueId]}
+                               onFavoriteToggle={() => handleFavoriteToggle(comp)}
+                               onRename={() => handleOpenRename('league', comp.leagueId, comp.name, managedCompetitions?.find(c => c.leagueId === comp.leagueId)?.name)}
+                               onClick={() => navigate('CompetitionDetails', { title: comp.name, leagueId: comp.leagueId, logo: comp.logo })}
+                               isAdmin={isAdmin}
+                           />
+                       ))}
+                   </div>
                </AccordionContent>
            </AccordionItem>
        ));
