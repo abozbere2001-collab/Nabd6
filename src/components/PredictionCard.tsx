@@ -128,7 +128,7 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
 
                     {/* Score Inputs and Live Status */}
                     <div className="flex items-center gap-1" dir="ltr">
-                        {/* Home Score Input */}
+                        {/* Home Score Input (Right) */}
                         <Input 
                             type="number" 
                             className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
@@ -143,7 +143,7 @@ const PredictionCard = ({ predictionMatch, userPrediction, onSave }: { predictio
                             {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute top-0"/>}
                             <LiveMatchStatus fixture={liveFixture} />
                          </div>
-                        {/* Away Score Input */}
+                        {/* Away Score Input (Left) */}
                         <Input 
                             type="number" 
                             className={cn("w-10 h-9 text-center text-md font-bold", isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70')}
