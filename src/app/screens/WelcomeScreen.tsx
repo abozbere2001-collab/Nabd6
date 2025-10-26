@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { NabdAlMalaebLogo } from '@/components/icons/NabdAlMalaebLogo';
 import { GoogleIcon } from '@/components/icons/GoogleIcon';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, signInAnonymously, getRedirectResult } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "firebase/auth";
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -13,43 +13,35 @@ import { handleNewUser } from '@/lib/firebase-client';
 export function WelcomeScreen() {
   const { toast } = useToast();
   const { db } = useFirestore();
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isGuestLoading, setIsGuestLoading] = useState(false);
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
-
-  const auth = getAuth();
-
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result && result.user && db) {
-          await handleNewUser(result.user, db);
-          // onAuthStateChanged will handle the rest
-        }
-      })
-      .catch((error) => {
-        console.error("Google redirect result error:", error);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const handleGoogleLogin = async () => {
+    if (!db) return;
+    setIsLoading(true);
+    const auth = getAuth();
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await handleNewUser(result.user, db);
+      // onAuthStateChanged will handle the rest
+    } catch (error: any) {
+      // Handle known user-cancellable errors gracefully
+      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+        console.error("Google Sign-In Error:", error);
         toast({
           variant: 'destructive',
           title: 'خطأ في تسجيل الدخول',
           description: 'حدث خطأ أثناء محاولة تسجيل الدخول باستخدام جوجل.',
         });
-      })
-      .finally(() => {
-        setIsProcessingRedirect(false);
-      });
-  }, [auth, db, toast]);
-  
-  const handleGoogleLogin = async () => {
-    if (!db) return;
-    setIsGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    // We don't need a try-catch here because errors will be handled by getRedirectResult
-    await signInWithRedirect(auth, provider);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGuestLogin = async () => {
-    setIsGuestLoading(true);
+    setIsLoading(true);
+    const auth = getAuth();
     try {
         await signInAnonymously(auth);
         // onAuthStateChanged will handle the rest.
@@ -60,19 +52,9 @@ export function WelcomeScreen() {
             title: 'خطأ',
             description: 'فشل تسجيل الدخول كزائر. يرجى المحاولة مرة أخرى.',
         });
-        setIsGuestLoading(false);
+    } finally {
+        setIsLoading(false);
     }
-  }
-
-  const isLoading = isGoogleLoading || isGuestLoading || isProcessingRedirect;
-
-  if (isProcessingRedirect) {
-    return (
-        <div className="flex h-full flex-col items-center justify-center bg-background">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">جاري استكمال تسجيل الدخول...</p>
-        </div>
-    );
   }
 
   return (
@@ -89,7 +71,7 @@ export function WelcomeScreen() {
               size="lg"
               disabled={isLoading}
             >
-              {isGoogleLoading ? (
+              {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
@@ -104,7 +86,7 @@ export function WelcomeScreen() {
                 className="w-full"
                 disabled={isLoading}
             >
-               {isGuestLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : 'تصفح كزائر'}
+               {isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : 'تصفح كزائر'}
             </Button>
         </div>
 
