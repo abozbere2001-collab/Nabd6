@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -775,3 +776,4 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
         </div>
     );
 }
+
