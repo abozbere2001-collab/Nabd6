@@ -252,11 +252,14 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
         }
     }, [db]);
     
-    useEffect(() => {
+   useEffect(() => {
         const fetchData = async () => {
+            if (!teamId) return;
             setLoading(true);
             await fetchAllCustomNames();
+
             try {
+                // Fetch fixtures and stats in parallel
                 const [fixturesRes, statsRes] = await Promise.all([
                     fetch(`/api/football/fixtures?team=${teamId}&season=${CURRENT_SEASON}`),
                     fetch(`/api/football/teams/statistics?team=${teamId}&season=${CURRENT_SEASON}${leagueId ? `&league=${leagueId}` : ''}`)
@@ -264,18 +267,22 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 
                 const fixturesData = await fixturesRes.json();
                 const statsData = await statsRes.json();
-                
+
                 const sortedFixtures = (fixturesData.response || []).sort((a: Fixture, b: Fixture) => a.fixture.timestamp - b.fixture.timestamp);
-                
+                const teamStats = statsData.response || null;
+
                 setFixtures(sortedFixtures);
-                setStats(statsData.response);
-                
-                const effectiveLeagueId = leagueId || statsData?.response?.league?.id;
+                setStats(teamStats);
+
+                // Now, determine the league ID and fetch standings
+                const effectiveLeagueId = leagueId || teamStats?.league?.id;
 
                 if (effectiveLeagueId) {
                     const standingsRes = await fetch(`/api/football/standings?league=${effectiveLeagueId}&season=${CURRENT_SEASON}`);
                     const standingsData = await standingsRes.json();
                     setStandings(standingsData.response?.[0]?.league?.standings?.[0] || []);
+                } else {
+                    setStandings([]); // No league context, so no standings
                 }
 
             } catch (error) {
@@ -284,6 +291,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
                 setLoading(false);
             }
         };
+
         fetchData();
     }, [teamId, leagueId, fetchAllCustomNames]);
 
@@ -427,7 +435,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
                             )})}
                         </TableBody>
                     </Table>
-                ) : <p className="text-center text-muted-foreground p-8">الترتيب غير متاح.</p>}
+                ) : <p className="text-center text-muted-foreground p-8">الترتيب غير متاح لهذه البطولة.</p>}
             </TabsContent>
             <TabsContent value="stats" className="mt-4">
                  {stats && stats.league ? (
@@ -480,7 +488,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const [activeTab, setActiveTab] = useState('details');
     
-    // REFS FOR SCROLLING, MOVED TO PARENT
     const listRef = useRef<HTMLDivElement>(null);
     const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
