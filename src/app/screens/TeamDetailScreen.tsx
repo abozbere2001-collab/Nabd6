@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { ScreenProps } from '@/app/page';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
@@ -272,7 +272,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                 setFixtures(sortedFixtures);
                 setStats(statsData.response);
 
-                const leagueId = sortedFixtures[0]?.league?.id || statsData?.response?.league?.id;
+                const leagueId = statsData?.response?.league?.id;
 
                 if (leagueId) {
                     const standingsRes = await fetch(`/api/football/standings?league=${leagueId}&season=${CURRENT_SEASON}`);
@@ -303,7 +303,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
         return defaultName;
     }, [customNames]);
 
-    const { processedFixtures, groupedFixtures } = useMemo(() => {
+    const { groupedFixtures } = useMemo(() => {
         const processed = fixtures.map(fixture => ({
             ...fixture,
             league: { ...fixture.league, name: getDisplayName('league', fixture.league.id, fixture.league.name) },
@@ -320,7 +320,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             return acc;
         }, {} as Record<string, Fixture[]>);
 
-        return { processedFixtures: processed, groupedFixtures: grouped };
+        return { groupedFixtures: grouped };
     }, [fixtures, getDisplayName]);
 
     useEffect(() => {
@@ -338,9 +338,11 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             const list = listRef.current;
             const element = dateRefs.current[targetDate];
             if(element) {
-                const listTop = list.offsetTop;
-                const elementTop = element.offsetTop;
-                list.scrollTop = elementTop - listTop;
+                setTimeout(() => {
+                  const listTop = list.offsetTop;
+                  const elementTop = element.offsetTop;
+                  list.scrollTop = elementTop - listTop;
+                }, 100);
             }
         }
     }, [loading, groupedFixtures]);
