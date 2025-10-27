@@ -74,9 +74,9 @@
   
   .national {
     --background: 220 15% 96%; /* Very Light Grey */
-    --foreground: 0 0% 8%; /* Black for text */
+    --foreground: 0 0% 8%; /* Black for text on light background */
     --card: 0 70% 35%; /* Deeper, less saturated red (Maroon) */
-    --card-foreground: 0 0% 98%; /* White text on cards */
+    --card-foreground: 0 0% 98%; /* White text on red cards */
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 8%;
     --primary: 0 0% 8%; /* Black for indicators and app name */
@@ -84,7 +84,7 @@
     --secondary: 220 10% 90%;
     --secondary-foreground: 0 0% 8%;
     --muted: 220 10% 92%;
-    --muted-foreground: 0 0% 40%;
+    --muted-foreground: 0 0% 40%; /* Darker grey for muted text */
     --accent: 0 80% 55%; /* A slightly brighter red for accents */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
