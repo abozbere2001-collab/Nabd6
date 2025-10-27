@@ -348,44 +348,57 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   }, [customNamesCache, db]);
 
 
-  const fetchAndProcessData = useCallback(async (dateKey: string, abortSignal: AbortSignal) => {
+  const fetchAndProcessData = useCallback(async (dateKey: string, currentFavorites: Partial<Favorites>, abortSignal: AbortSignal) => {
     setLoading(true);
       
     try {
         await fetchAllCustomNames(abortSignal);
 
-        const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
         const favTeamIds = currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [];
         const favLeagueIds = currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [];
         const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
         
         let url = activeTab === 'all-matches' ? '/api/football/fixtures?live=all' : `/api/football/fixtures?date=${dateKey}`;
         
+        // This logic was flawed. When 'my-results' is active, we should fetch for *user's teams* first,
+        // and if there are none, then fetch for popular leagues.
+        let teamFixtures: FixtureType[] = [];
         if (activeTab === 'my-results' && hasFavs) {
-            const leagueParams = favLeagueIds.join('-');
-            url = `/api/football/fixtures?date=${dateKey}&leagues=${leagueParams}`;
+            // API doesn't support multiple teams, so we fetch one by one.
+            const teamFixturePromises = favTeamIds.map(id => fetch(`/api/football/fixtures?team=${id}&season=${CURRENT_SEASON}&date=${dateKey}`, { signal: abortSignal }).then(res => res.json()));
+            const teamFixtureResults = await Promise.all(teamFixturePromises);
+            teamFixtures = teamFixtureResults.map(r => r.response || []).flat();
         }
 
-        const response = await fetch(url, { signal: abortSignal });
-        if (!response.ok) throw new Error(`Failed to fetch fixtures`);
+        let leagueFixtures: FixtureType[] = [];
+        const leaguesToFetch = activeTab === 'my-results' 
+            ? (hasFavs ? favLeagueIds : Array.from(popularLeagueIds))
+            : [];
         
-        const data = await response.json();
-        if (abortSignal.aborted) return;
-
-        let rawFixtures: FixtureType[] = data.response || [];
-
-        let finalFixtures = rawFixtures;
-
-        if (activeTab === 'my-results') {
-            if (hasFavs) {
-                // Filter by teams client-side since API doesn't support teams AND leagues
-                finalFixtures = rawFixtures.filter(f => favLeagueIds.includes(f.league.id) || favTeamIds.includes(f.teams.home.id) || favTeamIds.includes(f.teams.away.id));
-            } else {
-                finalFixtures = rawFixtures.filter(f => popularLeagueIds.has(f.league.id));
+        if (activeTab === 'my-results' && leaguesToFetch.length > 0) {
+            const leagueParams = leaguesToFetch.join('-');
+            const leagueRes = await fetch(`/api/football/fixtures?date=${dateKey}&leagues=${leagueParams}`, { signal: abortSignal });
+            if (leagueRes.ok) {
+                const leagueData = await leagueRes.json();
+                leagueFixtures = leagueData.response || [];
+            }
+        }
+        
+        let liveFixtures: FixtureType[] = [];
+        if (activeTab === 'all-matches') {
+            const liveRes = await fetch('/api/football/fixtures?live=all', { signal: abortSignal });
+            if(liveRes.ok) {
+                const liveData = await liveRes.json();
+                liveFixtures = liveData.response || [];
             }
         }
 
-        const processedFixtures = finalFixtures.map(fixture => ({
+        if (abortSignal.aborted) return;
+        
+        const combinedFixtures = [...teamFixtures, ...leagueFixtures, ...liveFixtures];
+        const uniqueFixtures = Array.from(new Map(combinedFixtures.map(f => [f.fixture.id, f])).values());
+
+        const processedFixtures = uniqueFixtures.map(fixture => ({
             ...fixture,
             league: {
                 ...fixture.league,
@@ -415,7 +428,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             setLoading(false);
           }
       }
-  }, [db, activeTab, user, favorites, customNamesCache, fetchAllCustomNames, getDisplayName]);
+  }, [db, activeTab, fetchAllCustomNames, getDisplayName]);
 
 
   useEffect(() => {
@@ -428,7 +441,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             setFavorites(doc.data() as Favorites || { userId: user.uid });
         }, (error) => {
             if (error.code === 'permission-denied') {
-                console.warn("Permission denied for favorites, user might be new or rules are restrictive.");
                 setFavorites(getLocalFavorites());
             } else {
                 const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'get' });
@@ -448,17 +460,15 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   
   
   useEffect(() => {
+      const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+      
       if (isVisible && selectedDateKey) {
           const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
-          if (matchesCache.has(cacheKey)) {
-              setLoading(false);
-              return;
-          }
           const controller = new AbortController();
-          fetchAndProcessData(cacheKey, controller.signal);
+          fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
           return () => controller.abort();
       }
-  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, matchesCache]);
+  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -468,13 +478,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   const handleTabChange = (value: string) => {
     const tabValue = value as TabName;
     setActiveTab(tabValue);
-    const cacheKey = tabValue === 'all-matches' ? 'live' : selectedDateKey;
-
-    if (cacheKey && !matchesCache.has(cacheKey)) {
-        const controller = new AbortController();
-        fetchAndProcessData(cacheKey, controller.signal);
-        return () => controller.abort();
-    }
   };
   
   const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();

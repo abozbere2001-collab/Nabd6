@@ -147,10 +147,11 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     // Centralized useEffect for fetching initial data and setting up listeners
     useEffect(() => {
         let favoritesUnsubscribe: (() => void) | null = null;
+        let isMounted = true;
 
         const fetchInitialData = async () => {
              if (!db) { 
-                setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
+                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
                 return;
             };
             
@@ -161,6 +162,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     getDocs(collection(db, 'continentCustomizations')),
                     getDocs(collection(db, 'teamCustomizations')),
                 ]);
+
+                if (!isMounted) return;
 
                 const fetchedCustomNames = {
                     leagues: new Map<number, string>(),
@@ -177,12 +180,12 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 setCustomNames(fetchedCustomNames);
             } catch (error) {
                 console.warn("Could not fetch custom names, likely due to permissions.");
-                setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
+                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
             }
         };
 
         const handleLocalFavoritesChange = () => {
-            setFavorites(getLocalFavorites());
+            if (isMounted) setFavorites(getLocalFavorites());
         };
 
         fetchInitialData();
@@ -190,10 +193,10 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         if (user && db && !user.isAnonymous) {
             const favoritesRef = doc(db, 'users', user.uid, 'favorites', 'data');
             favoritesUnsubscribe = onSnapshot(favoritesRef, (docSnap) => {
-                setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
+                if (isMounted) setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
             }, (error) => {
                  if (error.code === 'permission-denied') {
-                    setFavorites(getLocalFavorites());
+                    if (isMounted) setFavorites(getLocalFavorites());
                 } else {
                   const permissionError = new FirestorePermissionError({ path: favoritesRef.path, operation: 'get' });
                   errorEmitter.emit('permission-error', permissionError);
@@ -201,11 +204,12 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             });
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
-            setFavorites(getLocalFavorites());
+            if (isMounted) setFavorites(getLocalFavorites());
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         }
 
         return () => {
+            isMounted = false;
             if (favoritesUnsubscribe) favoritesUnsubscribe();
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
@@ -463,6 +467,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
             const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {

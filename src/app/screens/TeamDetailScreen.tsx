@@ -491,13 +491,13 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     // Centralized useEffect for fetching and subscriptions
     useEffect(() => {
         if (!teamId) return;
-
+        let isMounted = true;
         let teamDataUnsub: (() => void) | null = null;
         let favsUnsub: (() => void) | null = null;
         let predictionsUnsub: (() => void) | null = null;
 
         const handleLocalFavoritesChange = () => {
-            setFavorites(getLocalFavorites());
+           if (isMounted) setFavorites(getLocalFavorites());
         };
 
         const getTeamInfo = async () => {
@@ -506,7 +506,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             const cached = getCachedData(cacheKey);
 
             if(cached) {
-                setTeamData(cached);
+                if (isMounted) setTeamData(cached);
                 setLoading(false);
             }
 
@@ -515,18 +515,20 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 if (!teamRes.ok) throw new Error("Team API fetch failed");
                 
                 const data = await teamRes.json();
-                if (data.response?.[0]) {
-                    const teamInfo = data.response[0];
-                    setTeamData(teamInfo);
-                    setCachedData(cacheKey, teamInfo);
-                } else {
-                     throw new Error("Team not found in API response");
+                if (isMounted) {
+                    if (data.response?.[0]) {
+                        const teamInfo = data.response[0];
+                        setTeamData(teamInfo);
+                        setCachedData(cacheKey, teamInfo);
+                    } else {
+                         throw new Error("Team not found in API response");
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching team info:", error);
-                if (!cached) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
+                if (!cached && isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
             } finally {
-                if (!cached) setLoading(false);
+                if (!cached && isMounted) setLoading(false);
             }
         };
 
@@ -534,21 +536,23 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
         if(db) {
             teamDataUnsub = onSnapshot(doc(db, "teamCustomizations", String(teamId)), (doc) => {
-                if(doc.exists()) {
-                    setDisplayTitle(doc.data().customName);
-                } else if (teamData) {
-                    setDisplayTitle(hardcodedTranslations.teams[teamId] || teamData.team.name);
+                if (isMounted) {
+                    if(doc.exists()) {
+                        setDisplayTitle(doc.data().customName);
+                    } else {
+                        setDisplayTitle(hardcodedTranslations.teams[teamId] || teamData?.team.name);
+                    }
                 }
             });
 
             if (user && !user.isAnonymous) {
                 const favoritesRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 favsUnsub = onSnapshot(favoritesRef, (docSnap) => {
-                    setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
+                    if (isMounted) setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
                 });
                 window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
             } else {
-                setFavorites(getLocalFavorites());
+                if (isMounted) setFavorites(getLocalFavorites());
                 window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
             }
 
@@ -556,19 +560,20 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             predictionsUnsub = onSnapshot(q, (snapshot) => {
                 const newPinnedSet = new Set<number>();
                 snapshot.forEach(doc => newPinnedSet.add(Number(doc.id)));
-                setPinnedPredictionMatches(newPinnedSet);
+                if(isMounted) setPinnedPredictionMatches(newPinnedSet);
             });
         } else {
-            setFavorites(getLocalFavorites());
+            if (isMounted) setFavorites(getLocalFavorites());
         }
 
         return () => {
+            isMounted = false;
             if(teamDataUnsub) teamDataUnsub();
             if(favsUnsub) favsUnsub();
             if(predictionsUnsub) predictionsUnsub();
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
-    }, [teamId, db, user, toast]);
+    }, [teamId, db, user, toast, teamData?.team.name]);
 
 
     const handlePinToggle = useCallback((fixture: Fixture) => {
@@ -593,34 +598,34 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         }
     }, [db, pinnedPredictionMatches, toast]);
 
-const handleFavoriteToggle = useCallback(() => {
-    if (!teamData) return;
-    const { team } = teamData;
-    const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
-    const isCurrentlyFavorited = !!currentFavorites.teams?.[team.id];
+    const handleFavoriteToggle = useCallback(() => {
+        if (!teamData) return;
+        const { team } = teamData;
+        const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+        const isCurrentlyFavorited = !!currentFavorites.teams?.[team.id];
 
-    const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-    if (!newFavorites.teams) newFavorites.teams = {};
+        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        if (!newFavorites.teams) newFavorites.teams = {};
 
-    if (isCurrentlyFavorited) {
-        delete newFavorites.teams[team.id];
-    } else {
-        newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-    }
+        if (isCurrentlyFavorited) {
+            delete newFavorites.teams[team.id];
+        } else {
+            newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+        }
 
-    setFavorites(newFavorites);
+        setFavorites(newFavorites);
 
-    if (user && !user.isAnonymous && db) {
-        const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
-        setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-            setFavorites(currentFavorites); // Revert optimistic update on error
-        });
-    } else {
-        setLocalFavorites(newFavorites);
-    }
-}, [user, db, favorites, teamData]);
+        if (user && !user.isAnonymous && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                setFavorites(currentFavorites);
+            });
+        } else {
+            setLocalFavorites(newFavorites);
+        }
+    }, [user, db, favorites, teamData]);
 
 
     const handleOpenCrownDialog = () => {
@@ -695,7 +700,7 @@ const handleFavoriteToggle = useCallback(() => {
                 const updateData = { [`crownedTeams.${teamId}`]: !isCurrentlyCrowned ? newFavorites.crownedTeams[teamId] : deleteField() };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(currentFavorites); // Revert on error
+                    setFavorites(currentFavorites);
                 });
             } else {
                 setLocalFavorites(newFavorites);
