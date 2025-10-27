@@ -330,9 +330,10 @@ export function AppContentWrapper() {
                                 goBack,
                                 canGoBack: stack.length > 1,
                                 isVisible,
-                                // Pass global data down
+                                // Pass global data and a setter down
                                 favorites,
                                 customNames,
+                                setFavorites, // Pass the setter function down
                             };
 
                             return (
@@ -358,3 +359,4 @@ export function AppContentWrapper() {
         </main>
   );
 }
+

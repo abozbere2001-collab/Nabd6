@@ -112,7 +112,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 }
 
 
-export function SearchSheet({ children, navigate, initialItemType, favorites, customNames }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any }) {
+export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
@@ -270,32 +270,36 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
         const itemId = item.id;
-        const currentFavorites = (user && !user.isAnonymous && db) ? favorites : getLocalFavorites();
+        const currentFavorites = favorites;
         const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
-
-        const favData = itemType === 'leagues'
-            ? { name: item.name, leagueId: itemId, logo: item.logo }
-            : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-
+    
+        // Optimistic UI update
+        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        if (!newFavorites[itemType]) newFavorites[itemType] = {};
+        if (isCurrentlyFavorited) {
+            delete newFavorites[itemType]![itemId];
+        } else {
+            const favData = itemType === 'leagues'
+                ? { name: item.name, leagueId: itemId, logo: item.logo }
+                : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+            newFavorites[itemType]![itemId] = favData as any;
+        }
+        setFavorites(newFavorites);
+    
+        // Permanent storage
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : favData };
+            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
+                 // Revert optimistic update on failure
+                setFavorites(currentFavorites);
             });
         } else {
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
-            
-            if (isCurrentlyFavorited) {
-                delete newFavorites[itemType]![itemId];
-            } else {
-                newFavorites[itemType]![itemId] = favData as any;
-            }
             setLocalFavorites(newFavorites);
         }
-    }, [user, db, favorites]);
+    }, [user, db, favorites, setFavorites]);
 
   const handleOpenCrownDialog = (team: Item) => {
     if (!user) {
@@ -341,27 +345,26 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             }
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+            const currentFavorites = favorites;
             const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            if (isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[teamId];
+            } else {
+                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+            }
+            setFavorites(newFavorites);
 
             if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = {
-                    [`crownedTeams.${teamId}`]: !isCurrentlyCrowned
-                        ? { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
-                        : deleteField()
-                };
+                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setFavorites(currentFavorites); // Revert on failure
                 });
             } else {
-                const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                if (isCurrentlyCrowned) {
-                    delete newFavorites.crownedTeams[teamId];
-                } else {
-                    newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-                }
                 setLocalFavorites(newFavorites);
             }
         }

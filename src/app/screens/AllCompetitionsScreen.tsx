@@ -126,7 +126,7 @@ const getLeagueImportance = (leagueName: string): number => {
 
 
 // --- MAIN SCREEN COMPONENT ---
-export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames }: ScreenProps) {
+export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>}) {
     const { isAdmin } = useAdmin();
     const { user, db } = useAuth();
     const { toast } = useToast();
@@ -306,28 +306,33 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const handleFavoriteToggle = (item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        const currentFavorites = (user && !user.isAnonymous && db) ? favorites : getLocalFavorites();
+        const currentFavorites = favorites;
         const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
-
-        const favData = itemType === 'leagues'
-            ? { name: item.name, leagueId: itemId, logo: item.logo }
-            : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-
+    
+        // Optimistic UI update
+        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        if (!newFavorites[itemType]) newFavorites[itemType] = {};
+        if (isCurrentlyFavorited) {
+            delete newFavorites[itemType]![itemId];
+        } else {
+            const favData = itemType === 'leagues'
+                ? { name: item.name, leagueId: itemId, logo: item.logo }
+                : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+            newFavorites[itemType]![itemId] = favData as any;
+        }
+        setFavorites(newFavorites);
+    
+        // Permanent storage
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : favData };
+            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
+                // Revert optimistic update on failure
+                setFavorites(currentFavorites);
             });
         } else {
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
-            if (isCurrentlyFavorited) {
-                delete newFavorites[itemType]![itemId];
-            } else {
-                newFavorites[itemType]![itemId] = favData as any;
-            }
             setLocalFavorites(newFavorites);
         }
     };
@@ -366,27 +371,26 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+            const currentFavorites = favorites;
             const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            if(isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[teamId];
+            } else {
+                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+            }
+            setFavorites(newFavorites);
 
             if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = {
-                    [`crownedTeams.${teamId}`]: !isCurrentlyCrowned
-                        ? { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
-                        : deleteField()
-                };
+                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                  setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setFavorites(currentFavorites); // Revert on failure
                 });
             } else {
-                const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                if(isCurrentlyCrowned) {
-                    delete newFavorites.crownedTeams[teamId];
-                } else {
-                    newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-                }
                 setLocalFavorites(newFavorites);
             }
         }
@@ -546,7 +550,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 canGoBack={canGoBack} 
                 actions={
                   <div className="flex items-center gap-1">
-                      <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames}>
+                      <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
                           <Button variant="ghost" size="icon">
                               <Search className="h-5 w-5" />
                           </Button>
@@ -614,3 +618,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+

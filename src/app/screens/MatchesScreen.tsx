@@ -250,7 +250,7 @@ const tabs: {id: TabName, label: string}[] = [
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status';
 
 // Main Screen Component
-export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames }: ScreenProps & { isVisible: boolean }) {
+export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames, setFavorites }: ScreenProps & { isVisible: boolean, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
   const { user } = useAuth();
   const { db, isAdmin } = useAdmin();
   const { toast } = useToast();
@@ -322,7 +322,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     }
   }, [db, pinnedPredictionMatches, toast]);
 
-
   const fetchAndProcessData = useCallback(async (dateKey: string, currentFavorites: Partial<Favorites>, abortSignal: AbortSignal) => {
     setLoading(true);
       
@@ -346,12 +345,12 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             : [];
         
         if (activeTab === 'my-results' && leaguesToFetch.length > 0) {
-            const leagueParams = leaguesToFetch.join('-');
-            const leagueRes = await fetch(`/api/football/fixtures?date=${dateKey}&leagues=${leagueParams}`, { signal: abortSignal });
-            if (leagueRes.ok) {
-                const leagueData = await leagueRes.json();
-                leagueFixtures = leagueData.response || [];
-            }
+            // API-Football seems to handle `leagues` param better with a single ID
+            const leagueFixturePromises = leaguesToFetch.map(id =>
+                fetch(`/api/football/fixtures?date=${dateKey}&league=${id}&season=${CURRENT_SEASON}`, { signal: abortSignal }).then(res => res.ok ? res.json() : { response: [] })
+            );
+            const leagueFixtureResults = await Promise.all(leagueFixturePromises);
+            leagueFixtures = leagueFixtureResults.map(r => r.response || []).flat();
         }
         
         let liveFixtures: FixtureType[] = [];
@@ -403,7 +402,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   
   
   useEffect(() => {
-      const currentFavorites = (user && db) ? favorites : getLocalFavorites();
+      const currentFavorites = favorites;
       
       if (isVisible && selectedDateKey && customNames) {
           const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
@@ -411,7 +410,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
           fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
           return () => controller.abort();
       }
-  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user, db, customNames]);
+  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, customNames]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -439,7 +438,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             actions={
                <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs font-mono px-2" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
-                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames}>
+                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
                       </Button>
