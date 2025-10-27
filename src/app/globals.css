@@ -33,25 +33,25 @@
   }
 
   .dark {
-    --background: 40 10% 8%; /* Very dark, almost black with a hint of gold/brown */
+    --background: 40 30% 15%; /* A richer, more present golden-brown background */
     --foreground: 40 10% 95%; /* Light, creamy off-white */
-    --card: 38 70% 25%; /* A deep, rich gold for cards, not too bright */
+    --card: 40 40% 18%; /* Slightly lighter card color for subtle contrast */
     --card-foreground: 40 10% 95%; /* Light text on the dark gold cards */
-    --popover: 40 15% 5%;
+    --popover: 40 15% 10%;
     --popover-foreground: 40 10% 95%;
-    --primary: 40 85% 50%; /* The main interactive gold, vibrant but not neon */
-    --primary-foreground: 40 15% 5%; /* Dark text for primary buttons */
-    --secondary: 38 50% 18%; /* A darker, less saturated gold */
+    --primary: 40 90% 55%; /* Rich, deep gold for primary actions */
+    --primary-foreground: 40 15% 10%; /* Dark text for primary buttons */
+    --secondary: 40 40% 22%; /* A secondary gold shade */
     --secondary-foreground: 40 10% 95%;
-    --muted: 38 50% 18%;
-    --muted-foreground: 40 10% 55%;
-    --accent: 40 85% 50%; /* Accent is the same as primary for consistency */
-    --accent-foreground: 40 15% 5%;
+    --muted: 40 40% 22%;
+    --muted-foreground: 40 10% 60%;
+    --accent: 40 90% 55%; /* Accent is the same as primary for consistency */
+    --accent-foreground: 40 15% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 40 10% 95%;
-    --border: 38 70% 20%; /* A slightly darker shade of the card color */
-    --input: 38% 50% 22%;
-    --ring: 40 85% 55%;
+    --border: 40 40% 25%; /* Border is a bit lighter than the card */
+    --input: 40 40% 25%;
+    --ring: 40 90% 60%;
   }
  
   .light {
