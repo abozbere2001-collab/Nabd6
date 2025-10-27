@@ -52,7 +52,7 @@ interface SearchableItem {
 
 
 // --- Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_competitions_cache';
+const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
 const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
 interface Cache<T> {
     data: T;
@@ -133,21 +133,26 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
   
   const buildLocalIndex = useCallback(async () => {
+    if (!db) return;
     setLoading(true);
     const index: SearchableItem[] = [];
-    const competitionsCache = getCachedData<{managedCompetitions: ManagedCompetition[]}>(COMPETITIONS_CACHE_KEY);
+    const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
     const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
     
     let customTeamNames = new Map<number, string>();
     let customLeagueNames = new Map<number, string>();
 
     if(db) {
-        const [teamsSnap, leaguesSnap] = await Promise.all([
-            getDocs(collection(db, 'teamCustomizations')).catch(()=>null),
-            getDocs(collection(db, 'leagueCustomizations')).catch(()=>null)
-        ]);
-        teamsSnap?.forEach(doc => customTeamNames.set(Number(doc.id), doc.data().customName));
-        leaguesSnap?.forEach(doc => customLeagueNames.set(Number(doc.id), doc.data().customName));
+        try {
+            const [teamsSnap, leaguesSnap] = await Promise.all([
+                getDocs(collection(db, 'teamCustomizations')),
+                getDocs(collection(db, 'leagueCustomizations'))
+            ]);
+            teamsSnap?.forEach(doc => customTeamNames.set(Number(doc.id), doc.data().customName));
+            leaguesSnap?.forEach(doc => customLeagueNames.set(Number(doc.id), doc.data().customName));
+        } catch (e) {
+            // Non-admin may not have access, that's fine.
+        }
     }
 
     const getName = (type: 'team' | 'league', id: number, defaultName: string) => {
@@ -155,16 +160,17 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return customMap.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
     };
 
-    if (competitionsCache?.managedCompetitions) {
-        competitionsCache.managedCompetitions.forEach(comp => {
-            const name = getName('league', comp.leagueId, comp.name);
+    if (competitionsCache) {
+        competitionsCache.forEach(comp => {
+            const league = comp.league;
+            const name = getName('league', league.id, league.name);
             index.push({
-                id: comp.leagueId,
+                id: league.id,
                 type: 'leagues',
                 name,
                 normalizedName: normalizeArabic(name),
-                logo: comp.logo,
-                originalItem: { id: comp.leagueId, name: comp.name, logo: comp.logo }
+                logo: league.logo,
+                originalItem: { id: league.id, name: league.name, logo: league.logo }
             });
         });
     }
@@ -243,10 +249,13 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return;
     }
     
+    // Start with local search
     const localResults = localSearchIndex.filter(item => 
         item.name.toLowerCase().includes(query.toLowerCase()) || item.normalizedName.includes(normalizedQuery)
     );
+    const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
+    // Simultaneously fetch from API
     const apiSearchPromises = [
       fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
       fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
@@ -254,7 +263,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     
     try {
         const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
-        const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
         
         teamsData.response?.forEach((r: TeamResult) => {
             if(!existingIds.has(`teams-${r.team.id}`)) {
@@ -393,7 +401,7 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   };
   
   const handleSaveRenameOrNote = async (type: RenameType, id: string | number, newName: string, newNote?: string) => {
-    if (!renameItem) return;
+    if (!renameItem || !db) return;
     const { originalData, purpose } = renameItem;
 
     if (purpose === 'rename' && isAdmin && db) {
@@ -496,8 +504,3 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
-
-
-
-
-    

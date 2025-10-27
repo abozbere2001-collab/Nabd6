@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -24,10 +25,6 @@ const PredictionCard = ({
   const [liveFixture, setLiveFixture] = useState<Fixture>(predictionMatch.fixtureData);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // CORRECTED: The UI is RTL, so the "home" input is on the right, but it's for the away team.
-  // We must map the stored prediction to the correct visual input.
-  // prediction.homeGoals is the prediction for the AWAY team.
-  // prediction.awayGoals is the prediction for the HOME team.
   const [homeValue, setHomeValue] = useState(userPrediction?.awayGoals?.toString() ?? '');
   const [awayValue, setAwayValue] = useState(userPrediction?.homeGoals?.toString() ?? '');
 
@@ -99,19 +96,16 @@ const PredictionCard = ({
     const actualHome = liveFixture.goals.home;
     const actualAway = liveFixture.goals.away;
     
-    // As per the user, the DB is swapped.
     const predHome = userPrediction.awayGoals;
     const predAway = userPrediction.homeGoals;
 
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
     
-    // Exact score
     if (actualHome === predHome && actualAway === predAway) {
         return 'bg-green-500/80 text-white';
     }
 
-    // Correct outcome
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
 
@@ -135,19 +129,14 @@ const PredictionCard = ({
       !isPredictionDisabled &&
       debouncedHome !== '' &&
       debouncedAway !== '' &&
-      // Check if the staged values are different from the saved prediction
       (debouncedHome !== userPrediction?.awayGoals?.toString() ||
        debouncedAway !== userPrediction?.homeGoals?.toString())
     ) {
-      // The `onSave` function expects (fixtureId, homePrediction, awayPrediction).
-      // Since our UI is swapped, homeValue is the home team's prediction, and awayValue is the away team's.
-      // The function that receives this will handle swapping them for DB storage.
       onSave(liveFixture.fixture.id, debouncedHome, debouncedAway);
     }
   }, [debouncedHome, debouncedAway, onSave, userPrediction, liveFixture.fixture.id, isPredictionDisabled]);
 
   useEffect(() => {
-    // CORRECTED: Ensure the UI state is correctly set from the prop, reflecting the flipped logic.
     setHomeValue(userPrediction?.awayGoals?.toString() ?? '');
     setAwayValue(userPrediction?.homeGoals?.toString() ?? '');
   }, [userPrediction]);
@@ -156,11 +145,11 @@ const PredictionCard = ({
   const isColoredCard = cardColors !== 'bg-card text-foreground';
 
   const TeamDisplay = ({ team }: { team: Fixture['teams']['home'] }) => (
-    <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
-      <Avatar className="h-8 w-8">
+    <div className="flex flex-col items-center gap-0.5 flex-1 justify-start truncate">
+      <Avatar className="h-7 w-7">
         <AvatarImage src={team.logo} />
       </Avatar>
-      <span className={cn('font-semibold text-xs text-center truncate w-full', isColoredCard && 'text-white')}>
+      <span className={cn('font-semibold text-xs text-center truncate w-full', isColoredCard && 'text-white/90')}>
         {team.name}
       </span>
     </div>
@@ -168,17 +157,16 @@ const PredictionCard = ({
   
   return (
     <Card className={cn('transition-colors', cardColors)}>
-      <CardContent className="p-3">
-        <main dir="rtl" className="flex items-start justify-between gap-1">
+      <CardContent className="p-2">
+        <main dir="rtl" className="flex items-center justify-between gap-1">
           <TeamDisplay team={liveFixture.teams.home} />
 
           <div className="flex flex-col items-center justify-center text-center">
-             <div className="flex items-center gap-1 min-w-[120px] justify-center">
-                 {/* This is the home team's prediction input */}
+             <div className="flex items-center gap-1 min-w-[100px] justify-center">
                  <Input
                     type="number"
                     className={cn(
-                    'w-10 h-9 text-center text-md font-bold',
+                    'w-9 h-8 text-center text-sm font-bold',
                     isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                     )}
                     min="0"
@@ -188,14 +176,13 @@ const PredictionCard = ({
                     disabled={isPredictionDisabled}
                 />
                 <div className="flex flex-col items-center justify-center min-w-[50px] text-center relative">
-                    {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
+                    {isUpdating && <Loader2 className="h-3 w-3 animate-spin absolute -top-1" />}
                     <LiveMatchStatus fixture={liveFixture} />
                 </div>
-                {/* This is the away team's prediction input */}
                 <Input
                     type="number"
                     className={cn(
-                    'w-10 h-9 text-center text-md font-bold',
+                    'w-9 h-8 text-center text-sm font-bold',
                     isColoredCard && 'bg-black/20 border-white/30 text-white placeholder:text-white/70'
                     )}
                     min="0"
@@ -212,29 +199,29 @@ const PredictionCard = ({
 
         <div
           className={cn(
-            'text-center text-xs mt-2',
+            'text-center text-[10px] mt-1',
             isMatchLiveOrFinished ? (isColoredCard ? 'text-white/80' : 'text-muted-foreground') : 'text-muted-foreground'
           )}
         >
-          <span className={cn(isColoredCard && 'text-white')}>{liveFixture.league.name}</span>
+          <span className={cn(isColoredCard && 'text-white/90')}>{liveFixture.league.name}</span>
         </div>
 
-        <div className="mt-2">
+        <div className="mt-1">
           <PredictionOdds fixtureId={liveFixture.fixture.id} />
         </div>
 
         {isMatchFinished && userPrediction?.points !== undefined && userPrediction.points >= 0 && (
-          <p className={cn('text-center font-bold text-sm mt-2', getPointsColor())}>+{userPrediction.points} نقاط</p>
+          <p className={cn('text-center font-bold text-xs mt-1', getPointsColor())}>+{userPrediction.points} نقاط</p>
         )}
 
         {!isMatchFinished && userPrediction && !isPredictionDisabled && (
-          <p className={cn('text-center text-xs mt-2', isColoredCard ? 'text-green-300' : 'text-green-500')}>
+          <p className={cn('text-center text-[10px] mt-1', isColoredCard ? 'text-green-300' : 'text-green-500')}>
             تم حفظ توقعك
           </p>
         )}
 
         {isPredictionDisabled && !userPrediction && !isMatchFinished && (
-          <p className={cn('text-center text-xs mt-2', isColoredCard ? 'text-red-300' : 'text-red-500')}>
+          <p className={cn('text-center text-[10px] mt-1', isColoredCard ? 'text-red-300' : 'text-red-500')}>
             أغلق باب التوقع
           </p>
         )}

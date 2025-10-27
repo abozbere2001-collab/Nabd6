@@ -16,8 +16,8 @@ import { PredictionOdds } from './PredictionOdds';
 export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinnedForPrediction, onPinToggle, isAdmin, showOdds }: { fixture: FixtureType, navigate: ScreenProps['navigate'], customStatus?: string | null, isPinnedForPrediction?: boolean, onPinToggle?: (fixture: FixtureType) => void, isAdmin?: boolean, showOdds?: boolean }) => {
 
     const TeamDisplay = ({ team }: { team: FixtureType['teams']['home'] }) => (
-        <div className="flex flex-col items-center gap-1 flex-1 justify-end truncate">
-            <Avatar className="h-8 w-8 flex-shrink-0">
+        <div className="flex flex-col items-center gap-0.5 flex-1 justify-end truncate">
+            <Avatar className="h-7 w-7 flex-shrink-0">
                 <AvatarImage src={team.logo} alt={team.name} />
                 <AvatarFallback>{team.name?.charAt(0) || ''}</AvatarFallback>
             </Avatar>
@@ -34,7 +34,7 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-1 right-1 h-7 w-7 z-10"
+                    className="absolute top-0.5 right-0.5 h-7 w-7 z-10"
                     onClick={(e) => { e.stopPropagation(); onPinToggle(fixture); }}
                 >
                     <Crown className={cn("h-4 w-4 text-muted-foreground", isPinnedForPrediction && "text-yellow-400 fill-current")} />
@@ -42,10 +42,10 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
             )}
 
             <div
-                className="flex-1 p-3 cursor-pointer"
+                className="flex-1 p-2 cursor-pointer"
                 onClick={() => navigate('MatchDetails', { fixtureId: fixture.fixture.id, fixture })}
             >
-                <main dir="rtl" className="flex items-start justify-between gap-2">
+                <main dir="rtl" className="flex items-start justify-between gap-1">
                     <TeamDisplay team={fixture.teams.home} />
                     <div className="flex flex-col items-center justify-center min-w-[70px] pt-1 text-center">
                         <LiveMatchStatus fixture={fixture} customStatus={customStatus} />
@@ -54,7 +54,7 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
                 </main>
             </div>
              {showOdds && (
-                <div className="px-3 pb-3">
+                <div className="px-2 pb-2">
                     <PredictionOdds fixtureId={fixture.fixture.id} />
                 </div>
             )}

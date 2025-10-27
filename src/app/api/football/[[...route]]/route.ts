@@ -25,16 +25,15 @@ export async function GET(
   // Smart Caching Strategy:
   // - Fixtures by ID are volatile (results update), so always fetch fresh data (no-store).
   // - Other data (teams, leagues) is more static and can be cached longer.
-  const isFixtureById = routePath === 'fixtures' && searchParams.has('id');
-  const isVolatileRequest = isFixtureById || routePath.includes('odds') || routePath.includes('players/squads');
-  // Disable caching for fixture lists by date, as they can be very large.
-  const isLargeRequest = (routePath === 'fixtures' && searchParams.has('date')) || routePath.includes('players/squads');
+  const isVolatileRequest = routePath.includes('fixtures') || routePath.includes('odds') || routePath.includes('players/squads');
+  // Disable caching for large requests to avoid hitting cache size limits
+  const isLargeRequest = (routePath === 'leagues' && !searchParams.has('id')) || (routePath === 'teams' && !searchParams.has('id') && !searchParams.has('search')) || (routePath === 'players' && !searchParams.has('id'));
   
-  const cacheOptions = isFixtureById 
-    ? { cache: 'no-store' as RequestCache }
-    : isLargeRequest 
+  const cacheOptions = isLargeRequest
       ? { cache: 'no-store' as RequestCache }
-      : { next: { revalidate: isVolatileRequest ? 60 : 3600 } };
+      : isVolatileRequest 
+        ? { next: { revalidate: 60 } } // Revalidate volatile requests every 60 seconds
+        : { next: { revalidate: 3600 } }; // Revalidate static data every hour
   
 
   try {
