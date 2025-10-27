@@ -71,6 +71,29 @@
     --ring: 0 0% 8%;
     --radius: 1.5rem;
   }
+  
+  .national {
+    --background: 220 15% 96%; /* Very Light Grey */
+    --foreground: 0 0% 8%; /* Black for text */
+    --card: 0 70% 35%; /* Deeper, less saturated red (Maroon) */
+    --card-foreground: 0 0% 98%; /* White text on cards */
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+    --primary: 0 0% 8%; /* Black for indicators and app name */
+    --primary-foreground: 0 0% 98%; /* White text on primary buttons */
+    --secondary: 220 10% 90%;
+    --secondary-foreground: 0 0% 8%;
+    --muted: 220 10% 92%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 80% 55%; /* A slightly brighter red for accents */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 100%; /* White borders */
+    --input: 0 0% 93%;
+    --ring: 0 0% 8%;
+    --radius: 1.5rem;
+  }
 }
 
 @layer base {

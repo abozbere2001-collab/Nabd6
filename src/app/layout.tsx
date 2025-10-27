@@ -28,9 +28,10 @@ export default function RootLayout({
         <body className={`${cairo.variable} font-body antialiased`}>
             <ThemeProvider
                 attribute="class"
-                defaultTheme="light"
+                defaultTheme="national"
                 enableSystem
                 disableTransitionOnChange
+                themes={['light', 'dark', 'system', 'national']}
             >
               <FirebaseClientProvider>
                 {children}

@@ -8,7 +8,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Sun, Moon, Laptop, Gem, UserCog, Globe, Sparkles } from 'lucide-react';
+import { Sun, Moon, Laptop, Gem, UserCog, Globe, Sparkles, Flag } from 'lucide-react';
 import { useAuth, useAdmin } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -42,7 +42,7 @@ export function GeneralSettingsScreen({ navigate, goBack, canGoBack, headerActio
             </div>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={theme} onValueChange={setTheme} className="grid grid-cols-3 gap-2 sm:gap-4">
+            <RadioGroup value={theme} onValueChange={setTheme} className="grid grid-cols-4 gap-2 sm:gap-4">
                <Label htmlFor="dark" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                 <RadioGroupItem value="dark" id="dark" className="sr-only" />
                 <Moon className="mb-2 h-5 w-5" />
@@ -52,6 +52,11 @@ export function GeneralSettingsScreen({ navigate, goBack, canGoBack, headerActio
                 <RadioGroupItem value="light" id="light" className="sr-only" />
                 <Sun className="mb-2 h-5 w-5" />
                 {"فاتح"}
+              </Label>
+               <Label htmlFor="national" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                <RadioGroupItem value="national" id="national" className="sr-only" />
+                <Flag className="mb-2 h-5 w-5" />
+                {"الوطني"}
               </Label>
               <Label htmlFor="system" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                 <RadioGroupItem value="system" id="system" className="sr-only" />
