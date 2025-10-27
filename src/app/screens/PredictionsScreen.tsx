@@ -27,38 +27,43 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
-        return 0;
-    }
-
-    if (fixture.goals.home === null || fixture.goals.away === null) {
-      return 0;
-    }
-    
-    // IMPORTANT: The UI for prediction input is swapped (home on right, away on left).
-    // `prediction.homeGoals` holds the predicted away score.
-    // `prediction.awayGoals` holds the predicted home score.
-    // We must compare them against the actual scores in the correct order.
-    const predHome = prediction.awayGoals;
-    const predAway = prediction.homeGoals;
-
-    const actualHome = fixture.goals.home;
-    const actualAway = fixture.goals.away;
-
-    // Exact score: 3 points
-    if (actualHome === predHome && actualAway === predAway) {
-        return 3;
-    }
-
-    // Correct outcome: 1 point
-    const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
-    const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
-
-    if (actualWinner === predWinner) {
-        return 1;
-    }
-
+  if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
     return 0;
+  }
+
+  if (fixture.goals.home === null || fixture.goals.away === null) {
+    return 0;
+  }
+
+  // تصحيح اتجاه التوقعات (الواجهة بالعربية مقلوبة)
+  const predHome = prediction.awayGoals;
+  const predAway = prediction.homeGoals;
+
+  const actualHome = fixture.goals.home;
+  const actualAway = fixture.goals.away;
+
+  // ✅ النتيجة الدقيقة (3 نقاط)
+  if (actualHome === predHome && actualAway === predAway) {
+    return 3;
+  }
+
+  // ✅ الفائز الصحيح أو التعادل (1 نقطة)
+  const actualResult =
+    actualHome > actualAway ? 'home' :
+    actualHome < actualAway ? 'away' :
+    'draw';
+
+  const predictedResult =
+    predHome > predAway ? 'home' :
+    predHome < predAway ? 'away' :
+    'draw';
+
+  if (actualResult === predictedResult) {
+    return 1;
+  }
+
+  // ❌ التوقع الخاطئ (0 نقاط)
+  return 0;
 };
 
 const LeaderboardDisplay = React.memo(({ leaderboard, loadingLeaderboard, userScore, userId }: { leaderboard: UserScore[], loadingLeaderboard: boolean, userScore: UserScore | null, userId: string | undefined }) => {
@@ -323,8 +328,8 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         const predictionData: Prediction = {
             userId: user.uid,
             fixtureId,
-            homeGoals,
-            awayGoals,
+            homeGoals, // This is away score prediction due to UI swap
+            awayGoals, // This is home score prediction due to UI swap
             points: allUserPredictions[String(fixtureId)]?.points || 0,
             timestamp: new Date().toISOString()
         };
@@ -364,18 +369,18 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     
                     if (pred.points !== newPoints) {
                         pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
-                        if (pred.userId === user?.uid) {
-                            locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
-                        }
+                         if (pred.userId === user?.uid) {
+                             locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
+                         }
                     }
                 });
             }
             
             await pointsUpdateBatch.commit();
             
-            // This is the crucial fix: update the local state to re-render PredictionCards
-            if (Object.keys(locallyUpdatedPredictions).length > 0) {
-                setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions as { [key: string]: Prediction } }));
+            // **CRITICAL FIX**: This updates the local state to re-render PredictionCards with new points
+            if (user && Object.keys(locallyUpdatedPredictions).length > 0) {
+                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions as { [key: string]: Prediction } }));
             }
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
 
