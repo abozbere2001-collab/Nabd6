@@ -354,46 +354,43 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     }, [user, db, favorites]);
 
   const handleCrownToggle = useCallback((item: Item) => {
+    if (!user) {
+      toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
+      return;
+    }
     const team = item as Team;
     const teamId = team.id;
-    if (!user) {
-        toast({title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.'});
-        return;
-    }
-
     const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
 
-    // Optimistically update the UI
+    // Optimistically update UI
     setFavorites(prev => {
-        const newFavs = { ...prev };
-        if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
-        
-        if (isCurrentlyCrowned) {
-            delete newFavs.crownedTeams[teamId];
-        } else {
-            newFavs.crownedTeams[teamId] = { teamId, name: team.name, logo: team.logo, note: '' };
-        }
-
-        if (user.isAnonymous) {
-            setLocalFavorites(newFavs);
-        }
-        return newFavs;
+      const newFavs = { ...prev };
+      if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+      if (isCurrentlyCrowned) {
+        delete newFavs.crownedTeams[teamId];
+      } else {
+        newFavs.crownedTeams[teamId] = { teamId, name: team.name, logo: team.logo, note: '' };
+      }
+      if (user.isAnonymous) {
+        setLocalFavorites(newFavs);
+      }
+      return newFavs;
     });
-    
-    // Update Firestore
-    if (db && !user.isAnonymous) {
-        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const fieldPath = `crownedTeams.${teamId}`;
-        
-        const updateData = isCurrentlyCrowned 
-            ? { [fieldPath]: deleteField() }
-            : { [fieldPath]: { teamId, name: team.name, logo: team.logo, note: '' } };
 
-        setDoc(favRef, updateData, { merge: true }).catch(err => {
-            // Revert optimistic update on error
-            setFavorites(favorites); 
-            errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
-        });
+    // Update database
+    if (db && !user.isAnonymous) {
+      const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+      const updateData = {
+        crownedTeams: {
+          [teamId]: isCurrentlyCrowned ? deleteField() : { teamId, name: team.name, logo: team.logo, note: '' }
+        }
+      };
+
+      setDoc(favRef, updateData, { merge: true }).catch(err => {
+        // Revert UI on error
+        setFavorites(favorites);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
+      });
     }
   }, [user, db, favorites, toast]);
 
@@ -516,4 +513,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
+
+
 

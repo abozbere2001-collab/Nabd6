@@ -426,33 +426,29 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     }, [user, db, favorites]);
 
     const handleCrownToggle = useCallback((item: Team) => {
-        const teamId = item.id;
         if (!user) {
             toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
             return;
         }
 
-        // Determine the current state before any updates
+        const teamId = item.id;
         const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
 
-        // Optimistically update the UI
         setFavorites(prev => {
-            const newFavs = { ...prev };
+            const newFavs = JSON.parse(JSON.stringify(prev));
             if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
             
-            if (isCurrentlyCrowned) {
+            if (newFavs.crownedTeams[teamId]) {
                 delete newFavs.crownedTeams[teamId];
             } else {
                 newFavs.crownedTeams[teamId] = { teamId, name: item.name, logo: item.logo, note: '' };
             }
-
             if (user.isAnonymous) {
                 setLocalFavorites(newFavs);
             }
             return newFavs;
         });
         
-        // Update Firestore
         if (db && !user.isAnonymous) {
             const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${teamId}`;
@@ -461,10 +457,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 ? { [fieldPath]: deleteField() }
                 : { [fieldPath]: { teamId, name: item.name, logo: item.logo, note: '' } };
 
-            setDoc(favRef, updateData, { merge: true }).catch(err => {
-                // Revert optimistic update on error
+            setDoc(favRef, { crownedTeams: { [teamId]: isCurrentlyCrowned ? deleteField() : { teamId, name: item.name, logo: item.logo, note: '' } } }, { merge: true }).catch(err => {
                 setFavorites(favorites); 
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
+                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: { crownedTeams: { [teamId]: updateData[fieldPath] } }}));
             });
         }
     }, [user, db, favorites, toast]);
@@ -699,4 +694,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
 

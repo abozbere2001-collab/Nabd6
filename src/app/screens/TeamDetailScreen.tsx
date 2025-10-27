@@ -683,10 +683,11 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
         if (!teamData || !db) return;
         const { team } = teamData;
-        
+
         if (type === 'crown' && user) {
             const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${id}`;
+            const isCurrentlyCrowned = !!favorites?.crownedTeams?.[id];
             const crownedTeamData: CrownedTeam = {
                 teamId: id,
                 name: team.name,
