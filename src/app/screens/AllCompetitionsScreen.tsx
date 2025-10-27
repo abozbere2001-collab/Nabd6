@@ -380,46 +380,33 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
-        if (!db && !user) return setLocalFavorites(favorites); // Guest user fallback
         const itemId = item.id;
-        
-        // Decide whether to add or remove based on the current state.
-        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
+        const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+        const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
 
-        // Optimistically update the UI
-        setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
+        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
-            if (isCurrentlyFavorited) {
-                delete newFavorites[itemType]![itemId];
-            } else {
-                const favData = itemType === 'leagues'
-                    ? { name: item.name, leagueId: itemId, logo: item.logo }
-                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                newFavorites[itemType]![itemId] = favData as any;
-            }
-            if (!user || user.isAnonymous) {
-                setLocalFavorites(newFavorites);
-            }
-            return newFavorites;
-        });
+        if (isCurrentlyFavorited) {
+            delete newFavorites[itemType]![itemId];
+        } else {
+            const favData = itemType === 'leagues'
+                ? { name: item.name, leagueId: itemId, logo: item.logo }
+                : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+            newFavorites[itemType]![itemId] = favData as any;
+        }
 
-        // Persist to Firestore for logged-in users
+        setFavorites(newFavorites);
+
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const fieldPath = `${itemType}.${itemId}`;
-            
-            const updateData = isCurrentlyFavorited 
-                ? { [fieldPath]: deleteField() }
-                : { [fieldPath]: itemType === 'leagues'
-                    ? { name: item.name, leagueId: itemId, logo: item.logo } 
-                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' }
-                };
-            
+            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType][itemId] };
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                setFavorites(currentFavorites); // Revert optimistic update on error
             });
+        } else {
+            setLocalFavorites(newFavorites);
         }
     }, [user, db, favorites]);
 
@@ -437,7 +424,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             note: favorites?.crownedTeams?.[team.id]?.note || '',
         });
     };
-    
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
         if (!renameItem || !db) return;
@@ -453,44 +439,52 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 ? setDoc(docRef, data)
                 : deleteDoc(docRef);
 
-            op.catch(serverError => {
+            op.then(() => {
+                // Manually update the customNames state to reflect the change immediately
+                setCustomNames(prev => {
+                    if (!prev) return null;
+                    const newCustomNames = { ...prev };
+                    const mapKey = `${type}s` as 'leagues' | 'teams' | 'countries' | 'continents';
+                    if (newName && newName.trim() && newName !== renameItem.originalName) {
+                        newCustomNames[mapKey].set(Number(id), newName);
+                    } else {
+                        newCustomNames[mapKey].delete(Number(id));
+                    }
+                    return newCustomNames;
+                });
+            }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+            const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
 
-            const updateData = {
-                [`crownedTeams.${teamId}`]: !isCurrentlyCrowned ? {
-                    teamId: teamId,
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            if (isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[teamId];
+            } else {
+                newFavorites.crownedTeams[teamId] = {
+                    teamId,
                     name: (originalData as Team).name,
                     logo: (originalData as Team).logo,
                     note: newNote,
-                } : deleteField()
-            };
-
-            // Optimistic UI update
-            setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev));
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                if (!isCurrentlyCrowned) {
-                    newFavorites.crownedTeams[teamId] = updateData[`crownedTeams.${teamId}`] as CrownedTeam;
-                } else {
-                    delete newFavorites.crownedTeams[teamId];
-                }
-                if (!user || user.isAnonymous) {
-                   setLocalFavorites(newFavorites);
-                }
-                return newFavorites;
-            });
+                };
+            }
             
-            // Persist to Firestore
-            if (db && !user.isAnonymous) {
+            setFavorites(newFavorites);
+
+            if (user && !user.isAnonymous && db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                const updateData = { [`crownedTeams.${teamId}`]: !isCurrentlyCrowned ? newFavorites.crownedTeams[teamId] : deleteField() };
+                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setFavorites(currentFavorites); // Revert on error
                 });
+            } else {
+                setLocalFavorites(newFavorites);
             }
         }
         
@@ -696,7 +690,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             <AddCompetitionDialog isOpen={isAddOpen} onOpenChange={(isOpen) => {
                 setAddOpen(isOpen);
                 if(!isOpen) {
-                    setCustomNames(null); // Force refetch of custom names
                     fetchAllCompetitions();
                 }
             }} />

@@ -315,31 +315,14 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'delete' }));
         });
     } else {
-        const processedFixture = {
-            ...fixture,
-            league: {
-                ...fixture.league,
-                name: getDisplayName('league', fixture.league.id, fixture.league.name),
-            },
-            teams: {
-                home: {
-                    ...fixture.teams.home,
-                    name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name),
-                },
-                away: {
-                    ...fixture.teams.away,
-                    name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name),
-                },
-            },
-        };
-        const data: PredictionMatch = { fixtureData: processedFixture };
+        const data: PredictionMatch = { fixtureData: fixture };
         setDoc(docRef, data).then(() => {
             toast({ title: "تم التثبيت", description: "أصبحت المباراة متاحة الآن للتوقع." });
         }).catch(err => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'create', requestResourceData: data }));
         });
     }
-  }, [db, pinnedPredictionMatches, toast, getDisplayName]);
+  }, [db, pinnedPredictionMatches, toast]);
 
 
   const fetchAllCustomNames = useCallback(async (abortSignal: AbortSignal) => {
@@ -371,7 +354,18 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     try {
         await fetchAllCustomNames(abortSignal);
 
-        const url = activeTab === 'all-matches' ? '/api/football/fixtures?live=all' : `/api/football/fixtures?date=${dateKey}`;
+        const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+        const favTeamIds = currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [];
+        const favLeagueIds = currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [];
+        const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
+        
+        let url = activeTab === 'all-matches' ? '/api/football/fixtures?live=all' : `/api/football/fixtures?date=${dateKey}`;
+        
+        if (activeTab === 'my-results' && hasFavs) {
+            const leagueParams = favLeagueIds.join('-');
+            url = `/api/football/fixtures?date=${dateKey}&leagues=${leagueParams}`;
+        }
+
         const response = await fetch(url, { signal: abortSignal });
         if (!response.ok) throw new Error(`Failed to fetch fixtures`);
         
@@ -380,14 +374,18 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
 
         let rawFixtures: FixtureType[] = data.response || [];
 
-        const currentFavorites = user && !user.isAnonymous ? favorites : getLocalFavorites();
-        const hasFavs = (currentFavorites?.teams && Object.keys(currentFavorites.teams).length > 0) || (currentFavorites?.leagues && Object.keys(currentFavorites.leagues).length > 0);
-        
-        if (activeTab === 'my-results' && !hasFavs) {
-            rawFixtures = rawFixtures.filter(f => popularLeagueIds.has(f.league.id));
+        let finalFixtures = rawFixtures;
+
+        if (activeTab === 'my-results') {
+            if (hasFavs) {
+                // Filter by teams client-side since API doesn't support teams AND leagues
+                finalFixtures = rawFixtures.filter(f => favLeagueIds.includes(f.league.id) || favTeamIds.includes(f.teams.home.id) || favTeamIds.includes(f.teams.away.id));
+            } else {
+                finalFixtures = rawFixtures.filter(f => popularLeagueIds.has(f.league.id));
+            }
         }
 
-        const processedFixtures = rawFixtures.map(fixture => ({
+        const processedFixtures = finalFixtures.map(fixture => ({
             ...fixture,
             league: {
                 ...fixture.league,
@@ -421,9 +419,12 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
 
 
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    const handleLocalFavoritesChange = () => setFavorites(getLocalFavorites());
+
     if (user && db && !user.isAnonymous) {
         const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const unsubscribe = onSnapshot(docRef, (doc) => {
+        unsubscribe = onSnapshot(docRef, (doc) => {
             setFavorites(doc.data() as Favorites || { userId: user.uid });
         }, (error) => {
             if (error.code === 'permission-denied') {
@@ -434,10 +435,15 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
                 errorEmitter.emit('permission-error', permissionError);
             }
         });
-        return () => unsubscribe();
+        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
     } else {
         setFavorites(getLocalFavorites());
+        window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
     }
+    return () => {
+        if(unsubscribe) unsubscribe();
+        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+    };
   }, [user, db]);
   
   
