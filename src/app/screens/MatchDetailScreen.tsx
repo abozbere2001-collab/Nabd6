@@ -555,9 +555,10 @@ const StandingsTab = ({ standings, homeTeamId, awayTeamId, navigate, loading }: 
 
 interface MatchDetailScreenProps extends ScreenProps {
     fixtureId: string;
+    onCustomNameChange: () => Promise<void>;
 }
 
-export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, navigate }: MatchDetailScreenProps) {
+export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, navigate, onCustomNameChange }: MatchDetailScreenProps) {
     const [fixture, setFixture] = useState<Fixture | null>(null);
     const [standings, setStandings] = useState<Standing[] | null>(null);
     const [lineups, setLineups] = useState<LineupData[] | null>(null);
@@ -625,6 +626,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
 
         operation.then(() => {
             toast({ title: `تم تعديل الاسم`, description: 'قد تحتاج لإعادة التحميل لرؤية التغييرات فوراً.' });
+            onCustomNameChange();
             fetchAllCustomNames();
         }).catch((error) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -773,7 +775,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
     
     
     const processedFixture = useMemo(() => {
-        if (!fixture) return null;
+        if (!fixture || !customNames) return null;
         return {
             ...fixture,
             league: { ...fixture.league, name: getDisplayName('league', fixture.league.id, fixture.league.name) },
@@ -782,10 +784,10 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
                 away: { ...fixture.teams.away, name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name) }
             }
         };
-    }, [fixture, getDisplayName]);
+    }, [fixture, getDisplayName, customNames]);
 
     const processedStandings = useMemo(() => {
-        if (!standings) return null;
+        if (!standings || !customNames) return null;
         return standings.map(s => ({
             ...s,
             team: {
@@ -793,10 +795,10 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
                 name: getDisplayName('team', s.team.id, s.team.name),
             }
         }));
-    }, [standings, getDisplayName]);
+    }, [standings, getDisplayName, customNames]);
 
     const processedLineups = useMemo(() => {
-        if (!lineups) return null;
+        if (!lineups || !customNames) return null;
         return lineups.map(l => ({
             ...l,
             team: { ...l.team, name: getDisplayName('team', l.team.id, l.team.name) },
@@ -804,7 +806,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
             startXI: l.startXI.map(p => ({ ...p, player: { ...p.player, name: getDisplayName('player', p.player.id, p.player.name) }})),
             substitutes: l.substitutes.map(p => ({ ...p, player: { ...p.player, name: getDisplayName('player', p.player.id, p.player.name) }})),
         }));
-    }, [lineups, getDisplayName]);
+    }, [lineups, getDisplayName, customNames]);
     
     const handleOpenRename = (type: RenameType, id: number, originalName: string) => {
         const currentName = getDisplayName(type as 'player' | 'coach' | 'team' | 'league', id, originalName);
@@ -866,7 +868,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
               onOpenChange={() => setRenameItem(null)}
               item={{ ...renameItem, purpose: 'rename' }}
               onSave={(type, id, name) =>
-                handleSaveRename(type, Number(id), name)
+                handleSaveRename(type as RenameType, Number(id), name)
               }
             />
           )}

@@ -126,7 +126,7 @@ const getLeagueImportance = (leagueName: string): number => {
 
 
 // --- MAIN SCREEN COMPONENT ---
-export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>}) {
+export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void>}) {
     const { isAdmin } = useAdmin();
     const { user, db } = useAuth();
     const { toast } = useToast();
@@ -361,18 +361,20 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
             const op = (newName && newName.trim() && newName !== originalName) ? setDoc(docRef, data) : deleteDoc(docRef);
     
-            op.catch(serverError => {
+            op.then(() => onCustomNameChange())
+            .catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
     
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const updatePayload: { [key: string]: any } = {};
 
             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+                
+                const updatePayload: { [key: string]: any } = {};
 
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
@@ -550,7 +552,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 canGoBack={canGoBack} 
                 actions={
                   <div className="flex items-center gap-1">
-                      <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
+                      <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
                           <Button variant="ghost" size="icon">
                               <Search className="h-5 w-5" />
                           </Button>

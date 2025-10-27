@@ -169,6 +169,38 @@ export function AppContentWrapper() {
 
   const { showSplashAd, showBannerAd } = useAd();
   const keyCounter = useRef(1);
+
+  const fetchCustomNames = useCallback(async () => {
+    if (!db) {
+        setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+        return;
+    }
+    try {
+        const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap, playersSnap, coachesSnap] = await Promise.all([
+            getDocs(collection(db, 'leagueCustomizations')),
+            getDocs(collection(db, 'countryCustomizations')),
+            getDocs(collection(db, 'continentCustomizations')),
+            getDocs(collection(db, 'teamCustomizations')),
+            getDocs(collection(db, 'playerCustomizations')),
+            getDocs(collection(db, 'coachCustomizations')),
+        ]);
+
+        const names: { [key: string]: Map<number | string, string> } = {
+            leagues: new Map(), countries: new Map(), continents: new Map(),
+            teams: new Map(), players: new Map(), coaches: new Map()
+        };
+        leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
+        countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
+        continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
+        teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
+        playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
+        coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
+        setCustomNames(names);
+    } catch (error) {
+        console.warn("Failed to fetch custom names, using empty maps.", error);
+        setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+    }
+  }, [db]);
   
   useEffect(() => {
     let isMounted = true;
@@ -176,45 +208,16 @@ export function AppContentWrapper() {
 
     const loadInitialData = async () => {
         if (!db) {
-            setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
             setFavorites(getLocalFavorites());
-            return;
         }
 
-        // Fetch custom names once
-        try {
-            const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap, playersSnap, coachesSnap] = await Promise.all([
-                getDocs(collection(db, 'leagueCustomizations')),
-                getDocs(collection(db, 'countryCustomizations')),
-                getDocs(collection(db, 'continentCustomizations')),
-                getDocs(collection(db, 'teamCustomizations')),
-                getDocs(collection(db, 'playerCustomizations')),
-                getDocs(collection(db, 'coachCustomizations')),
-            ]);
-
-            if (isMounted) {
-                const names: { [key: string]: Map<number | string, string> } = {
-                    leagues: new Map(), countries: new Map(), continents: new Map(),
-                    teams: new Map(), players: new Map(), coaches: new Map()
-                };
-                leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
-                countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
-                continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
-                teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
-                playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
-                coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
-                setCustomNames(names);
-            }
-        } catch (error) {
-            console.warn("Failed to fetch custom names, using empty maps.", error);
-             if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
-        }
+        await fetchCustomNames();
 
         const handleLocalFavoritesChange = () => {
             if (isMounted) setFavorites(getLocalFavorites());
         };
 
-        if (user && !user.isAnonymous) {
+        if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
@@ -237,7 +240,7 @@ export function AppContentWrapper() {
         isMounted = false;
         unsubscribers.forEach(unsub => unsub());
     };
-}, [user, db]);
+}, [user, db, fetchCustomNames]);
 
 
   const goBack = useCallback(() => {
@@ -327,6 +330,7 @@ export function AppContentWrapper() {
                                 favorites,
                                 customNames,
                                 setFavorites,
+                                onCustomNameChange: fetchCustomNames,
                             };
 
                             return (

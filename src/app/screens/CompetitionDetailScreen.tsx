@@ -119,7 +119,7 @@ const CompetitionHeaderCard = ({ league, countryName, teamsCount }: { league: { 
 );
 
 
-export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: initialTitle, leagueId, logo, favorites, customNames, setFavorites }: ScreenProps & { title?: string, leagueId?: number, logo?: string, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: initialTitle, leagueId, logo, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & { title?: string, leagueId?: number, logo?: string, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
   const { isAdmin } = useAdmin();
   const { user } = useAuth();
   const { db } = useFirestore();
@@ -338,18 +338,20 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 ? setDoc(docRef, data)
                 : deleteDoc(docRef);
 
-            op.catch(serverError => {
+            op.then(() => onCustomNameChange())
+            .catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const updatePayload: { [key: string]: any } = {};
 
             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+
+                const updatePayload: { [key: string]: any } = {};
 
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];

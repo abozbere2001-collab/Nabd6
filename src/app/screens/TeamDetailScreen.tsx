@@ -101,7 +101,7 @@ const TeamHeader = ({ team, venue, onStar, isStarred, onCrown, isCrowned, isAdmi
     );
 };
 
-const TeamPlayersTab = ({ teamId, navigate, customNames }: { teamId: number, navigate: ScreenProps['navigate'], customNames: any }) => {
+const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: { teamId: number, navigate: ScreenProps['navigate'], customNames: any, onCustomNameChange: () => Promise<void> }) => {
     const [players, setPlayers] = useState<Player[]>([]);
     const [loading, setLoading] = useState(true);
     const { isAdmin } = useAdmin();
@@ -145,29 +145,25 @@ const TeamPlayersTab = ({ teamId, navigate, customNames }: { teamId: number, nav
         fetchPlayers();
     }, [teamId, toast]);
 
-    const handleSaveRename = (type: string, id: number, newName: string, originalName: string) => {
-        if (!renameItem || !db) return;
+    const handleSaveRename = (type: string, id: number, newName: string) => {
+        if (!renameItem || !db || !isAdmin) return;
         const docRef = doc(db, 'playerCustomizations', String(id));
+        const originalName = renameItem.originalName;
         
-        if (newName && newName !== originalName) {
-            const data = { customName: newName };
-            setDoc(docRef, data).then(() => {
-                toast({ title: "نجاح", description: "تم تحديث اسم اللاعب." });
-                // No need to fetch custom names, wrapper will do it.
-            }).catch(serverError => {
-                const permissionError = new FirestorePermissionError({
-                    path: docRef.path,
-                    operation: 'create',
-                    requestResourceData: data
-                });
-                errorEmitter.emit('permission-error', permissionError);
+        const op = (newName && newName.trim() !== originalName) ? setDoc(docRef, { customName: newName }) : deleteDoc(docRef);
+
+        op.then(() => {
+            toast({ title: "نجاح", description: "تم تحديث اسم اللاعب." });
+            onCustomNameChange(); // Trigger re-fetch
+        }).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: docRef.path,
+                operation: (newName && newName.trim() !== originalName) ? 'create' : 'delete',
+                requestResourceData: { customName: newName }
             });
-        } else {
-             deleteDoc(docRef).then(() => {
-                toast({ title: "نجاح", description: "تم إزالة الاسم المخصص." });
-            });
-        }
-         setRenameItem(null);
+            errorEmitter.emit('permission-error', permissionError);
+        });
+        setRenameItem(null);
     };
 
 
@@ -177,7 +173,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames }: { teamId: number, nav
     
     return (
         <div className="space-y-2">
-            {renameItem && <RenameDialog isOpen={!!renameItem} onOpenChange={(isOpen) => !isOpen && setRenameItem(null)} item={{...renameItem, type: 'player', purpose: 'rename'}} onSave={(type, id, name) => handleSaveRename(type as 'player', Number(id), name, renameItem.originalName)} />}
+            {renameItem && <RenameDialog isOpen={!!renameItem} onOpenChange={(isOpen) => !isOpen && setRenameItem(null)} item={{...renameItem, type: 'player', purpose: 'rename'}} onSave={(type, id, name) => handleSaveRename(type as 'player', Number(id), name)} />}
             {players.map(player => {
                 if (!player?.id) return null;
                 return (
@@ -446,7 +442,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 };
 
 
-export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
     const { user, db } = useAuth();
     const { isAdmin } = useAdmin();
     const { toast } = useToast();
@@ -606,20 +602,22 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             if (newName && newName !== originalName) {
                 setDoc(docRef, { customName: newName }).then(() => {
                     toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
+                    onCustomNameChange();
                 });
             } else {
                 deleteDoc(docRef).then(() => {
                     toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
+                     onCustomNameChange();
                 });
             }
         } else if (purpose === 'crown' && user) {
-             const teamId = Number(id);
-             const updatePayload: { [key: string]: any } = {};
-
-            setFavorites(prev => {
+            const teamId = Number(id);
+             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+
+                const updatePayload: { [key: string]: any } = {};
 
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
@@ -630,7 +628,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     updatePayload[`crownedTeams.${teamId}`] = crownedData;
                 }
 
-                if (db && user && !user.isAnonymous) {
+                if (user && db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                     setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
@@ -713,7 +711,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} favorites={favorites} setFavorites={setFavorites}/>
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
-                    <TeamPlayersTab teamId={teamId} navigate={navigate} customNames={customNames}/>
+                    <TeamPlayersTab teamId={teamId} navigate={navigate} customNames={customNames} onCustomNameChange={onCustomNameChange}/>
                   </TabsContent>
                 </Tabs>
             </div>
