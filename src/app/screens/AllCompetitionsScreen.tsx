@@ -430,35 +430,31 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
             return;
         }
-        const isCurrentlyCrowned = !!favorites?.crownedTeams?.[team.id];
-        if (isCurrentlyCrowned) {
-            // If already crowned, just remove it without dialog
-            handleSaveRenameOrNote('crown', team.id, team.name, '', true);
-        } else {
-            const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
-            setRenameItem({
-                id: team.id,
-                name: getName('team', team.id, team.name),
-                type: 'crown',
-                purpose: 'crown',
-                originalData: team,
-                note: currentNote,
-            });
-        }
+        setRenameItem({
+            id: team.id,
+            name: getName('team', team.id, team.name),
+            type: 'crown',
+            purpose: 'crown',
+            originalData: team,
+            note: favorites?.crownedTeams?.[team.id]?.note || '',
+        });
     };
     
 
-    const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '', isDelete: boolean = false) => {
-        if (!renameItem && !isDelete) return;
-        
-        const { originalData, purpose } = renameItem || { originalData: null, purpose: 'crown' };
-        
-        if (purpose === 'rename' && isAdmin && db) {
+    const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
+        if (!renameItem || !db) {
+            setRenameItem(null);
+            return;
+        }
+
+        const { purpose, originalData } = renameItem;
+
+        if (purpose === 'rename' && isAdmin) {
             const collectionName = `${type}Customizations`;
             const docRef = doc(db, collectionName, String(id));
             const data = { customName: newName };
 
-            const op = (newName && newName.trim() && newName !== renameItem?.originalName)
+            const op = (newName && newName.trim() && newName !== renameItem.originalName)
                 ? setDoc(docRef, data)
                 : deleteDoc(docRef);
 
@@ -466,25 +462,40 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 fetchCustomNames();
                 toast({ title: 'نجاح', description: 'تم حفظ التغييرات.' });
             }).catch(serverError => {
-                const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data });
-                errorEmitter.emit('permission-error', permissionError);
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
-        } else if (type === 'crown' && user && db && !user.isAnonymous) {
+
+        } else if (purpose === 'crown' && user && !user.isAnonymous) {
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[id as number];
+            
+            setFavorites(prev => {
+                const newFavs = { ...prev };
+                if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+                if (isCurrentlyCrowned) {
+                    delete newFavs.crownedTeams[id as number];
+                } else {
+                    newFavs.crownedTeams[id as number] = {
+                        teamId: Number(id),
+                        name: (originalData as Team).name,
+                        logo: (originalData as Team).logo,
+                        note: newNote,
+                    };
+                }
+                if (user.isAnonymous) setLocalFavorites(newFavs);
+                return newFavs;
+            });
+            
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${id}`;
-            let updateData;
-
-            if (isDelete) {
-                updateData = { [fieldPath]: deleteField() };
-            } else {
-                const crownedTeamData: CrownedTeam = {
-                    teamId: Number(id),
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
+            const updateData = isCurrentlyCrowned
+                ? { [fieldPath]: deleteField() }
+                : { [fieldPath]: {
+                        teamId: Number(id),
+                        name: (originalData as Team).name,
+                        logo: (originalData as Team).logo,
+                        note: newNote,
+                    }
                 };
-                updateData = { [fieldPath]: crownedTeamData };
-            }
 
             setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
@@ -697,6 +708,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
 
 
 
