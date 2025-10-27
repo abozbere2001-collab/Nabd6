@@ -369,8 +369,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const teamId = Number(id);
             
             setFavorites(prev => {
-                if (!prev) return null;
-                const newFavorites = JSON.parse(JSON.stringify(prev));
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};

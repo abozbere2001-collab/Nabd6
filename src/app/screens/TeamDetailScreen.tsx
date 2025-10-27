@@ -211,7 +211,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames }: { teamId: number, nav
     );
 };
 
-const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs, customNames }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}>, customNames: any }) => {
+const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs, customNames, favorites, setFavorites }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}>, customNames: any, favorites: Partial<Favorites>, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
@@ -537,11 +537,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     }, [db, pinnedPredictionMatches, toast]);
 
     const handleFavoriteToggle = useCallback(() => {
-        if (!teamData || !setFavorites) return;
-        const { team } = teamData;
-        
+        if (!teamData) return;
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            const { team } = teamData;
             const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -615,8 +614,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
              setFavorites(prev => {
-                if (!prev) return null;
-                const newFavorites = JSON.parse(JSON.stringify(prev));
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
@@ -708,7 +706,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} />
+                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} favorites={favorites} setFavorites={setFavorites}/>
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
                     <TeamPlayersTab teamId={teamId} navigate={navigate} customNames={customNames}/>
