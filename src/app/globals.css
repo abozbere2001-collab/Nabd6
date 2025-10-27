@@ -33,19 +33,19 @@
   }
 
   .dark {
-    --background: 200 50% 8%; /* Deep Petrol Blue background */
+    --background: 200 50% 8%;      /* Deep Petrol Blue background */
     --foreground: 210 20% 98%;
-    --card: 200 45% 12%;       /* Slightly lighter Petrol Blue for cards */
-    --card-foreground: 210 20% 98%;
+    --card: 38 92% 50%;             /* Rich Amber/Gold for cards */
+    --card-foreground: 210 20% 5%;  /* Dark text for contrast on gold cards */
     --popover: 200 50% 5%;
     --popover-foreground: 210 20% 98%;
-    --primary: 38 92% 50%;      /* Rich Amber/Gold */
+    --primary: 38 92% 50%;          /* Rich Amber/Gold */
     --primary-foreground: 210 20% 5%;
     --secondary: 200 30% 15%;
     --secondary-foreground: 210 20% 98%;
     --muted: 200 30% 15%;
     --muted-foreground: 200 10% 45%;
-    --accent: 38 92% 50%;       /* Accent is also Amber/Gold */
+    --accent: 38 92% 50%;           /* Accent is also Amber/Gold */
     --accent-foreground: 210 20% 5%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 20% 98%;
