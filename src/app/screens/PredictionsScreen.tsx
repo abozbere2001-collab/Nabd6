@@ -35,9 +35,10 @@ const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
       return 0;
     }
     
-    // As per user request, prediction fields are swapped in the UI
-    // prediction.homeGoals contains the away team's predicted score
-    // prediction.awayGoals contains the home team's predicted score
+    // IMPORTANT: The UI for prediction input is swapped (home on right, away on left).
+    // `prediction.homeGoals` holds the predicted away score.
+    // `prediction.awayGoals` holds the predicted home score.
+    // We must compare them against the actual scores in the correct order.
     const predHome = prediction.awayGoals;
     const predAway = prediction.homeGoals;
 
@@ -348,7 +349,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         try {
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
             const pointsUpdateBatch = writeBatch(db);
-            const locallyUpdatedPredictions: { [key: string]: Prediction } = {};
+            const locallyUpdatedPredictions: { [key: string]: Partial<Prediction> } = {};
 
             for (const fixtureDoc of fixturesSnapshot.docs) {
                 const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
@@ -363,7 +364,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     
                     if (pred.points !== newPoints) {
                         pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
-                         if (pred.userId === user?.uid) {
+                        if (pred.userId === user?.uid) {
                             locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
                         }
                     }
@@ -371,12 +372,12 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             }
             
             await pointsUpdateBatch.commit();
-            toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
             
             // This is the crucial fix: update the local state to re-render PredictionCards
             if (Object.keys(locallyUpdatedPredictions).length > 0) {
-                setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
+                setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions as { [key: string]: Prediction } }));
             }
+            toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
 
             // Leaderboard Calculation
             const userPoints = new Map<string, number>();
@@ -407,7 +408,6 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             const leaderboardBatch = writeBatch(db);
             const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
             oldLeaderboardSnapshot.forEach(doc => {
-                // Keep the document if the user still has points, otherwise delete
                 if (!userPoints.has(doc.id)) {
                     leaderboardBatch.delete(doc.ref);
                 }
