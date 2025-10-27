@@ -152,7 +152,7 @@ export const ProfileButton = () => {
 export function AppContentWrapper() {
   const { user } = useAuth();
   const { db } = useFirestore();
-  const [favorites, setFavorites] = useState<Partial<Favorites> | null>(null);
+  const [favorites, setFavorites] = useState<Partial<Favorites>>({ teams: {}, leagues: {}, crownedTeams: {}, players: {}});
   const [customNames, setCustomNames] = useState<{[key: string]: Map<number | string, string>;} | null>(null);
   
   const [navigationState, setNavigationState] = useState<{ activeTab: ScreenKey, stacks: Record<string, StackItem[]> }>({
@@ -173,53 +173,58 @@ export function AppContentWrapper() {
   useEffect(() => {
     let isMounted = true;
     let favsUnsub: (() => void) | undefined;
-    
+    let namesUnsub: (() => void)[] = [];
+
     const loadInitialData = async () => {
-        if (!isMounted) return;
+        if (!db) {
+            if (isMounted) {
+                setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+                setFavorites(getLocalFavorites());
+            }
+            return;
+        }
 
         // Fetch custom names once
-        if (db) {
-            try {
-                const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap, playersSnap, coachesSnap] = await Promise.all([
-                    getDocs(collection(db, 'leagueCustomizations')),
-                    getDocs(collection(db, 'countryCustomizations')),
-                    getDocs(collection(db, 'continentCustomizations')),
-                    getDocs(collection(db, 'teamCustomizations')),
-                    getDocs(collection(db, 'playerCustomizations')),
-                    getDocs(collection(db, 'coachCustomizations')),
-                ]);
+        try {
+            const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap, playersSnap, coachesSnap] = await Promise.all([
+                getDocs(collection(db, 'leagueCustomizations')),
+                getDocs(collection(db, 'countryCustomizations')),
+                getDocs(collection(db, 'continentCustomizations')),
+                getDocs(collection(db, 'teamCustomizations')),
+                getDocs(collection(db, 'playerCustomizations')),
+                getDocs(collection(db, 'coachCustomizations')),
+            ]);
 
-                if (isMounted) {
-                    const names: { [key: string]: Map<number | string, string> } = {
-                        leagues: new Map(), countries: new Map(), continents: new Map(),
-                        teams: new Map(), players: new Map(), coaches: new Map()
-                    };
-                    leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
-                    countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
-                    continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
-                    teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
-                    playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
-                    coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
-                    setCustomNames(names);
-                }
-            } catch (error) {
-                 if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+            if (isMounted) {
+                const names: { [key: string]: Map<number | string, string> } = {
+                    leagues: new Map(), countries: new Map(), continents: new Map(),
+                    teams: new Map(), players: new Map(), coaches: new Map()
+                };
+                leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
+                countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
+                continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
+                teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
+                playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
+                coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
+                setCustomNames(names);
             }
-        } else {
+        } catch (error) {
+            console.warn("Failed to fetch custom names, using empty maps.", error);
              if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
         }
+
 
         const handleLocalFavoritesChange = () => {
             if (isMounted) setFavorites(getLocalFavorites());
         };
 
-        if (user && db) {
+        if (user && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
             }, (error) => {
+                 console.error("Error listening to remote favorites:", error);
                 if (isMounted) setFavorites(getLocalFavorites());
-                console.error("Error listening to favorites:", error);
             });
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
@@ -233,6 +238,7 @@ export function AppContentWrapper() {
     return () => {
         isMounted = false;
         if (favsUnsub) favsUnsub();
+        namesUnsub.forEach(unsub => unsub());
         window.removeEventListener('localFavoritesChanged', () => {});
     };
 }, [user, db]);
@@ -286,7 +292,7 @@ export function AppContentWrapper() {
       }
   }, [navigate]);
   
-  if (favorites === null || customNames === null) {
+  if (customNames === null) {
       return (
           <div className="flex h-full w-full items-center justify-center bg-background">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -352,6 +358,4 @@ export function AppContentWrapper() {
         </main>
   );
 }
-
-
 
