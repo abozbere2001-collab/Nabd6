@@ -467,36 +467,34 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
         } else if (purpose === 'crown' && user && !user.isAnonymous) {
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[id as number];
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const fieldPath = `crownedTeams.${id}`;
+            let updateData;
             
+            if (isCurrentlyCrowned) {
+                 updateData = { [fieldPath]: deleteField() };
+            } else {
+                 updateData = { [fieldPath]: {
+                    teamId: Number(id),
+                    name: (originalData as Team).name,
+                    logo: (originalData as Team).logo,
+                    note: newNote,
+                }};
+            }
+            
+            // Optimistically update UI
             setFavorites(prev => {
-                const newFavs = { ...prev };
+                const newFavs = JSON.parse(JSON.stringify(prev));
                 if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
                 if (isCurrentlyCrowned) {
                     delete newFavs.crownedTeams[id as number];
                 } else {
-                    newFavs.crownedTeams[id as number] = {
-                        teamId: Number(id),
-                        name: (originalData as Team).name,
-                        logo: (originalData as Team).logo,
-                        note: newNote,
-                    };
+                    newFavs.crownedTeams[id as number] = updateData[fieldPath];
                 }
-                if (user.isAnonymous) setLocalFavorites(newFavs);
+                if (user?.isAnonymous) setLocalFavorites(newFavs);
                 return newFavs;
             });
             
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const fieldPath = `crownedTeams.${id}`;
-            const updateData = isCurrentlyCrowned
-                ? { [fieldPath]: deleteField() }
-                : { [fieldPath]: {
-                        teamId: Number(id),
-                        name: (originalData as Team).name,
-                        logo: (originalData as Team).logo,
-                        note: newNote,
-                    }
-                };
-
             setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
             });
@@ -663,7 +661,11 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 }
             />
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                 <Accordion type="multiple" className="w-full space-y-4" onValueChange={handleNationalTeamsAccordionOpen} defaultValue={["national-teams"]}>
+                 <Accordion type="single" collapsible className="w-full space-y-4" onValueChange={(value) => {
+                     if (value === 'national-teams') {
+                         handleNationalTeamsAccordionOpen([value]);
+                     }
+                 }}>
                     <AccordionItem value="national-teams" className="rounded-lg border bg-card/50">
                         <AccordionTrigger className="px-4 py-3 hover:no-underline">
                             <div className="flex items-center gap-3">
@@ -677,8 +679,15 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                              </Accordion>
                         </AccordionContent>
                     </AccordionItem>
+                 </Accordion>
+                 
+                 <Accordion type="single" collapsible className="w-full space-y-4" onValueChange={(value) => {
+                     if (value === 'club-competitions') {
+                         handleClubCompetitionsAccordionOpen([value]);
+                     }
+                 }}>
                     <AccordionItem value="club-competitions" className="rounded-lg border bg-card/50">
-                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => handleClubCompetitionsAccordionOpen(["club-competitions"])}>
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
                             <div className="flex items-center gap-3">
                                 <Trophy className="h-6 w-6 text-primary"/>
                                 <h3 className="text-lg font-bold">البطولات</h3>
@@ -708,6 +717,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+
 
 
 
