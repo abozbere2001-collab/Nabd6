@@ -45,11 +45,11 @@ export function RenameDialog({
   const { isAdmin } = useAdmin();
 
   useEffect(() => {
-    if (isOpen && item) {
+    if (item) {
       setNewName(item.name || '');
       setNewNote(item.note || '');
     }
-  }, [isOpen, item]);
+  }, [item]);
 
   const handleSave = () => {
     if (item) {

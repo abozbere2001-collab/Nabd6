@@ -113,7 +113,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 }
 
 
-export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: (updater: (prev: Partial<Favorites> | null) => Partial<Favorites> | null) => void; }) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
@@ -127,10 +127,16 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const { db } = useFirestore();
   const { toast } = useToast();
   
-  const [renameItem, setRenameItem] = useState<{ id: string | number; name: string; note?: string; type: RenameType; purpose: 'rename' | 'note' | 'crown'; originalData?: any; } | null>(null);
+  const [renameItem, setRenameItem] = useState<{ id: string | number; name: string; note?: string; type: RenameType; purpose: 'rename' | 'note' | 'crown'; originalData?: any; originalName?: string; } | null>(null);
 
   const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
   
+  const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
+    if (!customNames) return defaultName;
+    const customMap = type === 'team' ? customNames.teams : customNames.leagues;
+    return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
+  }, [customNames]);
+
   const buildLocalIndex = useCallback(async () => {
     if (!customNames) return;
     setLoading(true);
@@ -138,15 +144,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
     const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
     
-    const getName = (type: 'team' | 'league', id: number, defaultName: string) => {
-        const customMap = type === 'team' ? customNames.teams : customNames.leagues;
-        return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
-    };
-
     if (competitionsCache) {
         competitionsCache.forEach(comp => {
             const league = comp.league;
-            const name = getName('league', league.id, league.name);
+            const name = getDisplayName('league', league.id, league.name);
             index.push({
                 id: league.id,
                 type: 'leagues',
@@ -160,7 +161,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
     if (nationalTeamsCache) {
         nationalTeamsCache.forEach(team => {
-            const name = getName('team', team.id, team.name);
+            const name = getDisplayName('team', team.id, team.name);
             index.push({
                 id: team.id,
                 type: 'teams',
@@ -174,7 +175,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     setLocalSearchIndex(index);
     setLoading(false);
-  }, [customNames]);
+  }, [customNames, getDisplayName]);
 
 
   useEffect(() => {
@@ -205,13 +206,11 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         return;
     }
     
-    // Start with local search
     const localResults = localSearchIndex.filter(item => 
         item.name.toLowerCase().includes(query.toLowerCase()) || item.normalizedName.includes(normalizedQuery)
     );
     const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
-    // Simultaneously fetch from API
     const apiSearchPromises = [
       fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
       fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
@@ -222,11 +221,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         
         teamsData.response?.forEach((r: TeamResult) => {
             if(!existingIds.has(`teams-${r.team.id}`)) {
+                const name = getDisplayName('team', r.team.id, r.team.name);
                 localResults.push({
                     id: r.team.id,
                     type: 'teams',
-                    name: r.team.name,
-                    normalizedName: normalizeArabic(r.team.name),
+                    name: name,
+                    normalizedName: normalizeArabic(name),
                     logo: r.team.logo,
                     originalItem: r.team,
                 });
@@ -235,11 +235,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         });
         leaguesData.response?.forEach((r: LeagueResult) => {
              if(!existingIds.has(`leagues-${r.league.id}`)) {
+                const name = getDisplayName('league', r.league.id, r.league.name);
                 localResults.push({
                     id: r.league.id,
                     type: 'leagues',
-                    name: r.league.name,
-                    normalizedName: normalizeArabic(r.league.name),
+                    name: name,
+                    normalizedName: normalizeArabic(name),
                     logo: r.league.logo,
                     originalItem: r.league,
                 });
@@ -252,7 +253,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     setSearchResults(localResults);
     setLoading(false);
-  }, [localSearchIndex]);
+  }, [localSearchIndex, getDisplayName]);
 
 
   useEffect(() => {
@@ -263,45 +264,40 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   }, [debouncedSearchTerm, handleSearch, isOpen]);
 
- const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string): string => {
-    if (!customNames) return defaultName;
-    const item = localSearchIndex.find(i => i.id === id && i.type === `${type}s`);
-    return item?.name || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
-}, [localSearchIndex, customNames]);
 
+  const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
+    if (!favorites) return;
+    const itemId = item.id;
 
-    const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
-        if (!favorites) return;
-        const itemId = item.id;
-        
-        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
-    
-        const newFavorites = JSON.parse(JSON.stringify(favorites));
+    setFavorites(prev => {
+        const newFavorites = JSON.parse(JSON.stringify(prev || {}));
         if (!newFavorites[itemType]) newFavorites[itemType] = {};
+
+        const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
 
         if (isCurrentlyFavorited) {
             delete newFavorites[itemType]![itemId];
         } else {
             const favData = itemType === 'leagues'
-                ? { name: item.name, leagueId: itemId, logo: item.logo }
+                ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
                 : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
             newFavorites[itemType]![itemId] = favData as any;
         }
-        
-        setFavorites(newFavorites);
-    
+
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-            
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
-                setFavorites(favorites); // Revert on failure
             });
         } else {
             setLocalFavorites(newFavorites);
         }
-    }, [user, db, favorites, setFavorites]);
+
+        return newFavorites;
+    });
+  }, [favorites, setFavorites, user, db]);
+
 
   const handleOpenCrownDialog = (team: Item) => {
     if (!user) {
@@ -330,70 +326,74 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
   const handleOpenRename = (type: RenameType, id: number, originalData: any) => {
     const currentName = getDisplayName(type as 'team' | 'league', id, originalData.name);
-    setRenameItem({ id, name: currentName, type, originalData, purpose: 'rename' });
+    setRenameItem({ id, name: currentName, type, originalData, purpose: 'rename', originalName: originalData.name });
   };
   
   const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
-        if (!renameItem || !db) return;
-        const { purpose, originalData } = renameItem;
+    if (!renameItem || !db) return;
+    const { purpose, originalData, originalName } = renameItem;
 
-        if (purpose === 'rename' && isAdmin) {
-            const collectionName = `${type}Customizations`;
-            const docRef = doc(db, collectionName, String(id));
-            if (newName && newName !== originalData.name) {
-                setDoc(docRef, { customName: newName });
-            } else {
-                deleteDoc(docRef); 
-            }
-        } else if (purpose === 'crown' && user) {
-            const teamId = Number(id);
-            const isCurrentlyCrowned = !!favorites?.crownedTeams?.[teamId];
-
-            const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
+    if (purpose === 'rename' && isAdmin) {
+        const collectionName = `${type}Customizations`;
+        const docRef = doc(db, collectionName, String(id));
+        if (newName && newName !== originalName) {
+            setDoc(docRef, { customName: newName });
+        } else {
+            deleteDoc(docRef); 
+        }
+    } else if (purpose === 'crown' && user) {
+        const teamId = Number(id);
+        
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {
                 newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
-            setFavorites(newFavorites);
 
             if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(favorites); // Revert on failure
                 });
             } else {
                 setLocalFavorites(newFavorites);
             }
-        }
-        setRenameItem(null);
+            return newFavorites;
+        });
+    }
+    setRenameItem(null);
   };
   
-  const popularItems = itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES;
+  const popularItems = useMemo(() => {
+    return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => ({
+        id: item.id,
+        type: itemType,
+        name: getDisplayName(itemType.slice(0,-1) as ItemType, item.id, item.name),
+        logo: item.logo,
+        originalItem: item,
+        normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as ItemType, item.id, item.name)),
+    }))
+  }, [itemType, getDisplayName]);
 
   const renderContent = () => {
     if (loading) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
     
-    const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems.map(item => ({
-        id: item.id,
-        type: itemType,
-        name: item.name,
-        logo: item.logo,
-        originalItem: item,
-        normalizedName: normalizeArabic(item.name)
-    })).filter(i => i.type === itemType);
+    if (!favorites) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    }
+
+    const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
 
     if (itemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
-    }
-    
-    if (!favorites) {
-        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
     return (
@@ -402,11 +402,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             {itemsToRender.map(result => {
                 const isFavorited = !!favorites[result.type]?.[result.id];
                 const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
-                const displayName = getDisplayName(result.type.slice(0, -1) as 'team'|'league', result.id, result.name);
-
+                
                 return <ItemRow 
                             key={`${result.type}-${result.id}`} 
-                            item={{...result.originalItem, name: displayName}} 
+                            item={result.originalItem}
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
@@ -461,3 +460,4 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 }
 
     
+
