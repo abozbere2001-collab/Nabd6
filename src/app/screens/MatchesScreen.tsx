@@ -9,7 +9,7 @@ import type { ScreenProps } from '@/app/page';
 import { format, addDays, isToday, isYesterday, isTomorrow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
-import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FirestorePermissionError } from '@/firebase/errors';

@@ -606,8 +606,15 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         if (user && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+            
+            updateDoc(favDocRef, updateData).catch(err => {
+                 if (err.code === 'not-found') {
+                    setDoc(favDocRef, { teams: { [team.id]: { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } } }, { merge: true }).catch(e => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'create', requestResourceData: updateData }));
+                    });
+                } else {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                }
             });
         } else {
             const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
@@ -619,6 +626,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
             setLocalFavorites(newFavorites);
+            setFavorites(newFavorites); // Also update local state for immediate feedback
         }
     }, [user, db, favorites, teamData]);
 
@@ -670,7 +678,9 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             }
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+            const currentFavorites = (user && db) ? favorites : getLocalFavorites();
+            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
     
             const updateData = {
@@ -679,8 +689,14 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     : deleteField()
             };
     
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+             updateDoc(favDocRef, updateData).catch(err => {
+                if (err.code === 'not-found') {
+                    setDoc(favDocRef, { crownedTeams: { [teamId]: updateData[`crownedTeams.${teamId}`] } }, { merge: true }).catch(e => {
+                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'create', requestResourceData: updateData }));
+                    });
+                } else {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                }
             });
         }
         setRenameItem(null);

@@ -8,7 +8,7 @@ import { Star, Plus, Users, Trophy, User as PlayerIcon, Search } from 'lucide-re
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { useAuth, useFirestore } from '@/firebase/provider';
-import { doc, onSnapshot, getDocs, collection } from 'firebase/firestore';
+import { doc, onSnapshot, getDocs, collection, updateDoc, deleteField } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import type { Favorites } from '@/lib/types';
@@ -34,59 +34,29 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
     // Centralized useEffect for fetching custom names and subscribing to favorites
     useEffect(() => {
         let isMounted = true;
-        let unsubscribe: (() => void) | null = null;
-        
-        const fetchInitialData = async () => {
-            if (!db) {
-                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-                return;
-            };
-            try {
-                const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
-                    getDocs(collection(db, 'leagueCustomizations')),
-                    getDocs(collection(db, 'teamCustomizations'))
-                ]);
-                
-                if (isMounted) {
-                    const leagueNames = new Map<number, string>();
-                    leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-
-                    const teamNames = new Map<number, string>();
-                    teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-                    
-                    setCustomNames({ leagues: leagueNames, teams: teamNames });
-                }
-
-            } catch (error) {
-                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-            }
-        };
+        let favsUnsub: (() => void) | undefined;
+        let customLeaguesUnsub: (() => void) | undefined;
+        let customTeamsUnsub: (() => void) | undefined;
 
         const handleLocalFavoritesChange = () => {
             if (isMounted) setFavorites(getLocalFavorites());
         };
 
-        fetchInitialData();
-        setLoading(true);
-        
         if (user && db) {
-            const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            unsubscribe = onSnapshot(docRef, (doc) => {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) {
-                    const favs = (doc.data() as Favorites) || { userId: user.uid };
-                    setFavorites(favs);
+                    setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
                     setLoading(false);
                 }
             }, (error) => {
-                 if (error.code === 'permission-denied') {
-                    if (isMounted) setFavorites(getLocalFavorites());
-                } else {
-                  const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'get' });
-                  errorEmitter.emit('permission-error', permissionError);
+                if (isMounted) {
+                    setFavorites(getLocalFavorites());
+                    setLoading(false);
                 }
-                if (isMounted) setLoading(false);
+                console.error("Error listening to favorites:", error);
             });
-             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
             if (isMounted) {
                 setFavorites(getLocalFavorites());
@@ -95,9 +65,30 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         }
 
+        if (db) {
+            customLeaguesUnsub = onSnapshot(collection(db, 'leagueCustomizations'), (snapshot) => {
+                if (isMounted) {
+                    const names = new Map<number, string>();
+                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
+                    setCustomNames(prev => ({ ...prev, leagues: names } as any));
+                }
+            });
+            customTeamsUnsub = onSnapshot(collection(db, 'teamCustomizations'), (snapshot) => {
+                if (isMounted) {
+                    const names = new Map<number, string>();
+                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
+                    setCustomNames(prev => ({ ...prev, teams: names } as any));
+                }
+            });
+        } else {
+            if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
+        }
+
         return () => {
             isMounted = false;
-            if (unsubscribe) unsubscribe();
+            if (favsUnsub) favsUnsub();
+            if (customLeaguesUnsub) customLeaguesUnsub();
+            if (customTeamsUnsub) customTeamsUnsub();
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
     }, [user, db]);
