@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -128,8 +127,8 @@ const getLeagueImportance = (leagueName: string): number => {
 
 // --- MAIN SCREEN COMPONENT ---
 export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps) {
-    const { isAdmin, db } = useAdmin();
-    const { user } = useAuth();
+    const { isAdmin } = useAdmin();
+    const { user, db } = useAuth();
     const { toast } = useToast();
     
     const [favorites, setFavorites] = useState<Partial<Favorites>>({});
@@ -384,26 +383,19 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const handleFavoriteToggle = (item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        const currentFavorites = (user && db) ? favorites : getLocalFavorites();
+        const currentFavorites = favorites; // Already sourced from user or local
         const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
-    
-        if (user && db) {
+
+        if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const favData = itemType === 'leagues'
                 ? { name: item.name, leagueId: itemId, logo: item.logo }
                 : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-
             const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : favData };
 
-            updateDoc(favDocRef, updateData).catch(err => {
-                // If the document doesn't exist, create it.
-                if (err.code === 'not-found') {
-                     setDoc(favDocRef, { [itemType]: { [itemId]: favData } }, { merge: true }).catch(e => {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'create', requestResourceData: updateData }));
-                     });
-                } else {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                }
+            // Use setDoc with merge to create if not exists, or updateDoc to modify
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
             });
         } else {
             const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
@@ -412,6 +404,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 delete newFavorites[itemType][itemId];
             } else {
                  newFavorites[itemType][itemId] = { name: item.name, [`${itemType.slice(0, -1)}Id`]: itemId, logo: item.logo };
+                 if (itemType === 'teams') {
+                     (newFavorites.teams![itemId] as FavoriteTeam).type = (item as Team).national ? 'National' : 'Club';
+                 }
             }
             setLocalFavorites(newFavorites);
         }
@@ -451,8 +446,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = (user && db) ? favorites : getLocalFavorites();
-            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
 
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updateData = {
@@ -461,14 +455,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     : deleteField()
             };
     
-             updateDoc(favDocRef, updateData).catch(err => {
-                if (err.code === 'not-found') {
-                    setDoc(favDocRef, { crownedTeams: { [teamId]: updateData[`crownedTeams.${teamId}`] } }, { merge: true }).catch(e => {
-                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'create', requestResourceData: updateData }));
-                    });
-                } else {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                }
+             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
             });
         }
     
