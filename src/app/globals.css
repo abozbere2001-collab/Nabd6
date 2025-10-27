@@ -39,19 +39,19 @@
     --card-foreground: 40 10% 95%; /* Light text on the dark gold cards */
     --popover: 40 15% 10%;
     --popover-foreground: 40 10% 95%;
-    --primary: 40 90% 55%; /* Rich, deep gold for primary actions */
-    --primary-foreground: 40 15% 10%; /* Dark text for primary buttons */
+    --primary: 140 60% 45%; /* Bright, clear green for primary actions */
+    --primary-foreground: 140 10% 10%; /* Dark text for green primary buttons */
     --secondary: 40 40% 22%; /* A secondary gold shade */
     --secondary-foreground: 40 10% 95%;
     --muted: 40 40% 22%;
     --muted-foreground: 40 10% 60%;
-    --accent: 40 90% 55%; /* Accent is the same as primary for consistency */
-    --accent-foreground: 40 15% 10%;
+    --accent: 140 60% 45%; /* Accent is the same as primary for consistency */
+    --accent-foreground: 140 10% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 40 10% 95%;
     --border: 40 40% 25%; /* Border is a bit lighter than the card */
     --input: 40 40% 25%;
-    --ring: 40 90% 60%;
+    --ring: 140 70% 50%; /* Ring color based on the new primary green */
   }
  
   .light {
