@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -25,6 +24,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { isMatchLive } from '@/lib/matchStatus';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
+import { format, isToday } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 // --- Caching Logic ---
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -123,7 +124,6 @@ const TeamPlayersTab = ({ teamId, navigate }: { teamId: number, navigate: Screen
             snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
             setCustomNames(names);
         } catch (error) {
-            // Non-admins might not have access, which is fine.
             console.warn("Could not fetch player customizations.");
         }
     }, [db]);
@@ -228,8 +228,8 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
     const { db } = useFirestore();
     const [customNames, setCustomNames] = useState<{leagues: Map<number, string>, teams: Map<number, string>} | null>(null);
 
-    const fixturesListRef = useRef<HTMLDivElement>(null);
-    const firstUpcomingMatchRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const dateRefs = useRef<{[key: string]: HTMLDivElement | null}>({});
 
 
      const fetchAllCustomNames = useCallback(async () => {
@@ -251,7 +251,6 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             
             setCustomNames({ leagues: leagueNames, teams: teamNames });
         } catch(error) {
-             console.warn("Could not fetch custom names, this is expected for non-admins", error);
              setCustomNames({ leagues: new Map(), teams: new Map() });
         }
     }, [db]);
@@ -290,21 +289,6 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
         fetchData();
     }, [teamId, fetchAllCustomNames]);
 
-    useEffect(() => {
-        if (!loading && fixtures.length > 0 && fixturesListRef.current) {
-            const firstUpcomingIndex = fixtures.findIndex(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-            if (firstUpcomingIndex !== -1 && firstUpcomingMatchRef.current) {
-                setTimeout(() => {
-                    if (firstUpcomingMatchRef.current && fixturesListRef.current) {
-                        const listTop = fixturesListRef.current.offsetTop;
-                        const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                        fixturesListRef.current.scrollTop = itemTop - listTop - 10;
-                    }
-                }, 100);
-            }
-        }
-    }, [loading, fixtures]);
-
     const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
         if (!customNames) return defaultName;
         const key = `${type}s` as 'teams' | 'leagues';
@@ -318,32 +302,66 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
 
         return defaultName;
     }, [customNames]);
+
+    const { processedFixtures, groupedFixtures } = useMemo(() => {
+        const processed = fixtures.map(fixture => ({
+            ...fixture,
+            league: { ...fixture.league, name: getDisplayName('league', fixture.league.id, fixture.league.name) },
+            teams: {
+                home: { ...fixture.teams.home, name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name) },
+                away: { ...fixture.teams.away, name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name) },
+            }
+        }));
+
+        const grouped = processed.reduce((acc, fixture) => {
+            const date = format(new Date(fixture.fixture.timestamp * 1000), 'yyyy-MM-dd');
+            if (!acc[date]) acc[date] = [];
+            acc[date].push(fixture);
+            return acc;
+        }, {} as Record<string, Fixture[]>);
+
+        return { processedFixtures: processed, groupedFixtures: grouped };
+    }, [fixtures, getDisplayName]);
+
+    useEffect(() => {
+        if (loading || Object.keys(groupedFixtures).length === 0) return;
+
+        const sortedDates = Object.keys(groupedFixtures).sort();
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        
+        let targetDate = sortedDates.find(date => date >= todayStr);
+        if (!targetDate && sortedDates.length > 0) {
+            targetDate = sortedDates[sortedDates.length - 1];
+        }
+
+        if (targetDate && listRef.current && dateRefs.current[targetDate]) {
+            const list = listRef.current;
+            const element = dateRefs.current[targetDate];
+            if(element) {
+                const listTop = list.offsetTop;
+                const elementTop = element.offsetTop;
+                list.scrollTop = elementTop - listTop;
+            }
+        }
+    }, [loading, groupedFixtures]);
     
-    
+    const processedStandings = useMemo(() => {
+        if (!standings) return [];
+        return standings.map(s => ({
+            ...s,
+            team: {
+                ...s.team,
+                name: getDisplayName('team', s.team.id, s.team.name),
+            }
+        }));
+    }, [standings, getDisplayName]);
+
+
     if (loading || customNames === null) {
          return <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
-    const processedFixtures = fixtures.map(fixture => ({
-        ...fixture,
-        league: {
-            ...fixture.league,
-            name: getDisplayName('league', fixture.league.id, fixture.league.name),
-        },
-        teams: {
-            home: { ...fixture.teams.home, name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name) },
-            away: { ...fixture.teams.away, name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name) },
-        }
-    }));
-
-     const processedStandings = standings.map(s => ({
-        ...s,
-        team: {
-            ...s.team,
-            name: getDisplayName('team', s.team.id, s.team.name),
-        }
-    }));
-
+    const sortedDates = Object.keys(groupedFixtures).sort();
 
     return (
         <Tabs defaultValue="matches" className="w-full">
@@ -353,22 +371,26 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                 <TabsTrigger value="stats">الإحصائيات</TabsTrigger>
             </TabsList>
             <TabsContent value="matches" className="mt-4">
-                <div ref={fixturesListRef} className="h-full overflow-y-auto space-y-3">
-                    {processedFixtures.length > 0 ? processedFixtures.map((fixture, index) => {
-                        const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
-                        const isFirstUpcoming = isUpcomingOrLive && !processedFixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-                        return (
-                            <div key={fixture.fixture.id} ref={isFirstUpcoming ? firstUpcomingMatchRef : null}>
-                                <FixtureItem 
-                                    fixture={fixture} 
-                                    navigate={navigate} 
-                                    isPinnedForPrediction={pinnedPredictionMatches.has(fixture.fixture.id)}
-                                    onPinToggle={onPinToggle}
-                                    isAdmin={isAdmin}
-                                />
+                <div ref={listRef} className="h-full overflow-y-auto space-y-4">
+                    {sortedDates.length > 0 ? sortedDates.map(date => (
+                        <div key={date} ref={el => dateRefs.current[date] = el}>
+                            <h3 className="font-bold text-center text-sm text-muted-foreground my-2">
+                                {format(new Date(date), 'EEEE, d MMMM yyyy', { locale: ar })}
+                            </h3>
+                            <div className="space-y-2">
+                                {groupedFixtures[date].map(fixture => (
+                                    <FixtureItem
+                                        key={fixture.fixture.id}
+                                        fixture={fixture} 
+                                        navigate={navigate} 
+                                        isPinnedForPrediction={pinnedPredictionMatches.has(fixture.fixture.id)}
+                                        onPinToggle={onPinToggle}
+                                        isAdmin={isAdmin}
+                                    />
+                                ))}
                             </div>
-                        )
-                    }) : <p className="text-center text-muted-foreground p-8">لا توجد مباريات متاحة.</p>}
+                        </div>
+                    )) : <p className="text-center text-muted-foreground p-8">لا توجد مباريات متاحة.</p>}
                 </div>
             </TabsContent>
             <TabsContent value="standings" className="mt-4">

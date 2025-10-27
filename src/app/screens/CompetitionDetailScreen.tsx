@@ -43,6 +43,8 @@ import { isMatchLive } from '@/lib/matchStatus';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { Card, CardContent } from '@/components/ui/card';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
+import { format, isToday } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 // --- Caching Logic ---
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -143,8 +145,8 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   const [customNames, setCustomNames] = useState<{ teams: Map<number, string>, players: Map<number, string>, adminNotes: Map<number, string> } | null>(null);
   const [season, setSeason] = useState<number>(CURRENT_SEASON);
   
-  const fixturesListRef = useRef<HTMLDivElement>(null);
-  const firstUpcomingMatchRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   
   const fetchAllCustomNames = useCallback(async () => {
@@ -295,20 +297,42 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   }, [leagueId, season, customNames, fetchAllCustomNames, initialTitle, toast]);
   
 
+  const groupedFixtures = useMemo(() => {
+    return fixtures.reduce((acc, fixture) => {
+        const date = format(new Date(fixture.fixture.timestamp * 1000), 'yyyy-MM-dd');
+        if (!acc[date]) {
+            acc[date] = [];
+        }
+        acc[date].push(fixture);
+        return acc;
+    }, {} as Record<string, Fixture[]>);
+  }, [fixtures]);
+
   useEffect(() => {
-    if (!loading && fixtures.length > 0 && fixturesListRef.current) {
-      const firstUpcomingIndex = fixtures.findIndex(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-      if (firstUpcomingIndex !== -1 && firstUpcomingMatchRef.current) {
-        setTimeout(() => {
-          if (firstUpcomingMatchRef.current && fixturesListRef.current) {
-            const listTop = fixturesListRef.current.offsetTop;
-            const itemTop = firstUpcomingMatchRef.current.offsetTop;
-            fixturesListRef.current.scrollTop = itemTop - listTop;
-          }
-        }, 100);
-      }
+    if (loading || Object.keys(groupedFixtures).length === 0) return;
+
+    const sortedDates = Object.keys(groupedFixtures).sort();
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    
+    let targetDate = sortedDates.find(date => date >= todayStr);
+    
+    // If no upcoming dates, scroll to the last available date
+    if (!targetDate && sortedDates.length > 0) {
+        targetDate = sortedDates[sortedDates.length - 1];
     }
-  }, [loading, fixtures]);
+    
+    if (targetDate && listRef.current && dateRefs.current[targetDate]) {
+        const list = listRef.current;
+        const element = dateRefs.current[targetDate];
+        if (element) {
+             setTimeout(() => {
+                const listTop = list.offsetTop;
+                const elementTop = element.offsetTop;
+                list.scrollTop = elementTop - listTop;
+            }, 100);
+        }
+    }
+}, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = (team: Team) => {
         const itemType = 'teams';
@@ -487,6 +511,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     </div>
   );
 
+  const sortedFixtureDates = Object.keys(groupedFixtures).sort();
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -512,24 +537,24 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
              </div>
           </div>
           <TabsContent value="matches" className="p-0 mt-0">
-             <div ref={fixturesListRef} className="h-full overflow-y-auto">
+             <div ref={listRef} className="h-full overflow-y-auto space-y-4 pt-2">
                 {loading || customNames === null ? (
                     <div className="space-y-4 p-4">
                         {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
                     </div>
-                ) : fixtures.length > 0 ? (
-                    <div className="space-y-3 p-1">
-                        {fixtures.map((fixture, index) => {
-                            const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
-                            const isFirstUpcoming = isUpcomingOrLive && !fixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-                            
-                            return (
-                               <div key={fixture.fixture.id} ref={isFirstUpcoming ? firstUpcomingMatchRef : null}>
-                                    <FixtureItem fixture={fixture} navigate={navigate} />
-                               </div>
-                            );
-                        })}
-                    </div>
+                ) : sortedFixtureDates.length > 0 ? (
+                    sortedFixtureDates.map(date => (
+                        <div key={date} ref={el => dateRefs.current[date] = el}>
+                            <h3 className="font-bold text-center text-sm text-muted-foreground my-2">
+                                {format(new Date(date), 'EEEE, d MMMM yyyy', { locale: ar })}
+                            </h3>
+                            <div className="space-y-2 px-1">
+                                {groupedFixtures[date].map(fixture => (
+                                    <FixtureItem key={fixture.fixture.id} fixture={fixture} navigate={navigate} />
+                                ))}
+                            </div>
+                        </div>
+                    ))
                 ) : <p className="pt-4 text-center text-muted-foreground">لا توجد مباريات لهذا الموسم.</p>}
              </div>
           </TabsContent>
@@ -668,5 +693,4 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     </div>
   );
 }
-
     
