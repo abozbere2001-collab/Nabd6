@@ -298,7 +298,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                     if (firstUpcomingMatchRef.current && fixturesListRef.current) {
                         const listTop = fixturesListRef.current.offsetTop;
                         const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                        fixturesListRef.current.scrollTop = itemTop - listTop;
+                        fixturesListRef.current.scrollTop = itemTop - listTop - 10;
                     }
                 }, 100);
             }
@@ -751,5 +751,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
         </div>
     );
 }
+
+    
 
     
