@@ -27,43 +27,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-  if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
+    if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
+        return 0;
+    }
+
+    if (fixture.goals.home === null || fixture.goals.away === null) {
+      return 0;
+    }
+
+    // This is the CRITICAL FIX for the swapped prediction inputs.
+    // The UI for prediction is swapped (home on left, away on right in RTL).
+    // `prediction.homeGoals` holds the predicted away score.
+    // `prediction.awayGoals` holds the predicted home score.
+    // We must compare them against the actual scores in the correct order.
+    const predHome = prediction.awayGoals;
+    const predAway = prediction.homeGoals;
+
+    const actualHome = fixture.goals.home;
+    const actualAway = fixture.goals.away;
+
+    // Exact score: 3 points
+    if (actualHome === predHome && actualAway === predAway) {
+        return 3;
+    }
+
+    // Correct outcome (win/loss/draw): 1 point
+    const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
+    const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
+
+    if (actualWinner === predWinner) {
+        return 1;
+    }
+
     return 0;
-  }
-
-  if (fixture.goals.home === null || fixture.goals.away === null) {
-    return 0;
-  }
-
-  // تصحيح اتجاه التوقعات (الواجهة بالعربية مقلوبة)
-  const predHome = prediction.awayGoals;
-  const predAway = prediction.homeGoals;
-
-  const actualHome = fixture.goals.home;
-  const actualAway = fixture.goals.away;
-
-  // ✅ النتيجة الدقيقة (3 نقاط)
-  if (actualHome === predHome && actualAway === predAway) {
-    return 3;
-  }
-
-  // ✅ الفائز الصحيح أو التعادل (1 نقطة)
-  const actualResult =
-    actualHome > actualAway ? 'home' :
-    actualHome < actualAway ? 'away' :
-    'draw';
-
-  const predictedResult =
-    predHome > predAway ? 'home' :
-    predHome < predAway ? 'away' :
-    'draw';
-
-  if (actualResult === predictedResult) {
-    return 1;
-  }
-
-  // ❌ التوقع الخاطئ (0 نقاط)
-  return 0;
 };
 
 const LeaderboardDisplay = React.memo(({ leaderboard, loadingLeaderboard, userScore, userId }: { leaderboard: UserScore[], loadingLeaderboard: boolean, userScore: UserScore | null, userId: string | undefined }) => {
@@ -378,13 +374,11 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             
             await pointsUpdateBatch.commit();
             
-            // **CRITICAL FIX**: This updates the local state to re-render PredictionCards with new points
             if (user && Object.keys(locallyUpdatedPredictions).length > 0) {
                  setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions as { [key: string]: Prediction } }));
             }
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
 
-            // Leaderboard Calculation
             const userPoints = new Map<string, number>();
             const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
             for (const fixtureDoc of allFixturesForLeaderboard.docs) {
@@ -532,4 +526,4 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             </Tabs>
         </div>
     );
-};
+}
