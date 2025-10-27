@@ -3,7 +3,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { type Firestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -140,30 +140,35 @@ export const useFirebase = (): FirebaseServicesAndUser => {
 /** Hook to access Firebase Auth instance. */
 export const useAuth = () => {
     const { user, isUserLoading, auth, firestore } = useFirebase();
-    
-    // Pro status could also be derived from custom claims
-    const [isProUser, setProUser] = useState(false);
+    const [isProUser, setIsProUser] = useState(false);
 
+    const setProUser = async (isPro: boolean) => {
+      if (user && firestore) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        try {
+          await setDoc(userDocRef, { isProUser: isPro }, { merge: true });
+          setIsProUser(isPro); // Update local state on successful write
+        } catch (error) {
+          console.error("Failed to update Pro status in Firestore:", error);
+        }
+      }
+    };
+    
     useEffect(() => {
         if (user && firestore) {
             const userDocRef = doc(firestore, 'users', user.uid);
-            const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                 if (user) {
-                     const docSnap = await getDoc(userDocRef);
-                     if (docSnap.exists() && docSnap.data().isProUser) {
-                         setProUser(true);
-                     } else {
-                         setProUser(false);
-                     }
-                 } else {
-                    setProUser(false);
-                 }
+            const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists() && docSnap.data().isProUser) {
+                    setIsProUser(true);
+                } else {
+                    setIsProUser(false);
+                }
             });
             return () => unsubscribe();
         } else {
-            setProUser(false);
+            setIsProUser(false);
         }
-    }, [user, firestore, auth]);
+    }, [user, firestore]);
 
     return { user, isUserLoading, isProUser, setProUser };
 };
@@ -213,11 +218,14 @@ export const useAdmin = () => {
     useEffect(() => {
         if (user && db) {
             const adminDocRef = doc(db, 'admins', user.uid);
-            getDoc(adminDocRef).then(docSnap => {
+            const unsubscribe = onSnapshot(adminDocRef, (docSnap) => {
                 setIsAdmin(docSnap.exists());
-            }).finally(() => {
+                setIsCheckingAdmin(false);
+            }, () => {
+                setIsAdmin(false);
                 setIsCheckingAdmin(false);
             });
+            return () => unsubscribe();
         } else {
             setIsAdmin(false);
             setIsCheckingAdmin(false);
