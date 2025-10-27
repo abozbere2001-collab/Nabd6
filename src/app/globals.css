@@ -33,25 +33,25 @@
   }
 
   .dark {
-    --background: 200 50% 8%;      /* Deep Petrol Blue background */
-    --foreground: 210 20% 98%;
-    --card: 38 92% 50%;             /* Rich Amber/Gold for cards */
-    --card-foreground: 210 20% 5%;  /* Dark text for contrast on gold cards */
-    --popover: 200 50% 5%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 38 92% 50%;          /* Rich Amber/Gold */
-    --primary-foreground: 210 20% 5%;
-    --secondary: 200 30% 15%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 200 30% 15%;
-    --muted-foreground: 200 10% 45%;
-    --accent: 38 92% 50%;           /* Accent is also Amber/Gold */
-    --accent-foreground: 210 20% 5%;
+    --background: 40 10% 8%; /* Very dark, almost black with a hint of gold/brown */
+    --foreground: 40 10% 95%; /* Light, creamy off-white */
+    --card: 38 70% 25%; /* A deep, rich gold for cards, not too bright */
+    --card-foreground: 40 10% 95%; /* Light text on the dark gold cards */
+    --popover: 40 15% 5%;
+    --popover-foreground: 40 10% 95%;
+    --primary: 40 85% 50%; /* The main interactive gold, vibrant but not neon */
+    --primary-foreground: 40 15% 5%; /* Dark text for primary buttons */
+    --secondary: 38 50% 18%; /* A darker, less saturated gold */
+    --secondary-foreground: 40 10% 95%;
+    --muted: 38 50% 18%;
+    --muted-foreground: 40 10% 55%;
+    --accent: 40 85% 50%; /* Accent is the same as primary for consistency */
+    --accent-foreground: 40 15% 5%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 200 30% 15%;
-    --input: 200 30% 15%;
-    --ring: 38 92% 50%;
+    --destructive-foreground: 40 10% 95%;
+    --border: 38 70% 20%; /* A slightly darker shade of the card color */
+    --input: 38% 50% 22%;
+    --ring: 40 85% 55%;
   }
  
   .light {
