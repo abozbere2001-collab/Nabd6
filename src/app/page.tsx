@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { AppContentWrapper } from './AppContentWrapper';
 import { AdProvider } from '@/components/AdProvider';
@@ -113,6 +113,9 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     
     const handleDisplayNameSet = () => {
         setNeedsDisplayName(false);
+        if (onboardingComplete && typeof window !== 'undefined') {
+            (window as any).appNavigate('Matches');
+        }
     }
     
     const onHintsDismissed = () => {
