@@ -126,7 +126,7 @@ const getLeagueImportance = (leagueName: string): number => {
 
 
 // --- MAIN SCREEN COMPONENT ---
-export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>}) {
+export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>>}) {
     const { isAdmin } = useAdmin();
     const { user, db } = useAuth();
     const { toast } = useToast();
@@ -305,12 +305,11 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
 
     const handleFavoriteToggle = (item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
+        if (!favorites) return;
         const itemId = item.id;
-        const currentFavorites = favorites;
-        const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
+        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
     
-        // Optimistic UI update
-        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        const newFavorites = JSON.parse(JSON.stringify(favorites));
         if (!newFavorites[itemType]) newFavorites[itemType] = {};
         if (isCurrentlyFavorited) {
             delete newFavorites[itemType]![itemId];
@@ -322,15 +321,13 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         }
         setFavorites(newFavorites);
     
-        // Permanent storage
-        if (user && !user.isAnonymous && db) {
+        if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
-                // Revert optimistic update on failure
-                setFavorites(currentFavorites);
+                setFavorites(favorites);
             });
         } else {
             setLocalFavorites(newFavorites);
@@ -371,28 +368,31 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = favorites;
-            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+            
+            setFavorites(prev => {
+                if (!prev) return null;
+                const newFavorites = JSON.parse(JSON.stringify(prev));
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-            if(isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-            }
-            setFavorites(newFavorites);
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                } else {
+                    newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                }
 
-            if (user && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(currentFavorites); // Revert on failure
-                });
-            } else {
-                setLocalFavorites(newFavorites);
-            }
+                if (db && !user.isAnonymous) {
+                    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
+                    setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                        setFavorites(prev); // Revert on failure
+                    });
+                } else {
+                    setLocalFavorites(newFavorites);
+                }
+                return newFavorites;
+            });
         }
     
         setRenameItem(null);
@@ -439,8 +439,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
               <AccordionContent className="p-1">
                 <ul className="flex flex-col">{
                   groupedNationalTeams[continent].map(team => {
-                     const isStarred = !!favorites.teams?.[team.id];
-                     const isCrowned = !!favorites.crownedTeams?.[team.id];
+                     const isStarred = !!favorites?.teams?.[team.id];
+                     const isCrowned = !!favorites?.crownedTeams?.[team.id];
                      return (
                          <li key={team.id} className="flex w-full items-center justify-between p-3 h-12 hover:bg-accent/80 transition-colors rounded-md">
                            <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id })}>
@@ -511,7 +511,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                                         <LeagueHeaderItem
                                             key={league.id}
                                             league={{leagueId: league.id, name: getName('league', league.id, league.name), logo: league.logo, countryName: country}}
-                                            isFavorited={!!favorites.leagues?.[league.id]}
+                                            isFavorited={!!favorites?.leagues?.[league.id]}
                                             onFavoriteToggle={() => handleFavoriteToggle(league, 'leagues')}
                                             onRename={() => handleOpenRename('league', league.id, getName('league', league.id, league.name), league.name)}
                                             onClick={() => navigate('CompetitionDetails', { title: getName('league', league.id, league.name), leagueId: league.id, logo: league.logo })}

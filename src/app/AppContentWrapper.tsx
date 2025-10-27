@@ -152,10 +152,9 @@ export const ProfileButton = () => {
 export function AppContentWrapper() {
   const { user } = useAuth();
   const { db } = useFirestore();
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({ teams: {}, leagues: {}, players: {}, crownedTeams: {} });
-  const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
-  const [loadingInitialData, setLoadingInitialData] = useState(true);
-
+  const [favorites, setFavorites] = useState<Partial<Favorites> | null>(null);
+  const [customNames, setCustomNames] = useState<{[key: string]: Map<number | string, string>;} | null>(null);
+  
   const [navigationState, setNavigationState] = useState<{ activeTab: ScreenKey, stacks: Record<string, StackItem[]> }>({
     activeTab: 'Matches',
     stacks: {
@@ -171,15 +170,12 @@ export function AppContentWrapper() {
   const { showSplashAd, showBannerAd } = useAd();
   const keyCounter = useRef(1);
   
-  // Centralized data fetching and listening
   useEffect(() => {
     let isMounted = true;
     let favsUnsub: (() => void) | undefined;
     
     const loadInitialData = async () => {
         if (!isMounted) return;
-
-        setLoadingInitialData(true);
 
         // Fetch custom names once
         if (db) {
@@ -213,7 +209,6 @@ export function AppContentWrapper() {
              if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
         }
 
-        // Setup favorites listener
         const handleLocalFavoritesChange = () => {
             if (isMounted) setFavorites(getLocalFavorites());
         };
@@ -231,8 +226,6 @@ export function AppContentWrapper() {
             if (isMounted) setFavorites(getLocalFavorites());
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         }
-        
-        if (isMounted) setLoadingInitialData(false);
     };
 
     loadInitialData();
@@ -293,7 +286,7 @@ export function AppContentWrapper() {
       }
   }, [navigate]);
   
-  if (loadingInitialData || !customNames) {
+  if (favorites === null || customNames === null) {
       return (
           <div className="flex h-full w-full items-center justify-center bg-background">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -331,10 +324,9 @@ export function AppContentWrapper() {
                                 goBack,
                                 canGoBack: stack.length > 1,
                                 isVisible,
-                                // Pass global data and a setter down
                                 favorites,
                                 customNames,
-                                setFavorites, // Pass the setter function down
+                                setFavorites,
                             };
 
                             return (
@@ -360,5 +352,6 @@ export function AppContentWrapper() {
         </main>
   );
 }
+
 
 

@@ -28,6 +28,7 @@ import PredictionCard from '@/components/PredictionCard';
 import { FootballIcon } from '@/components/icons/FootballIcon';
 import { cn } from '@/lib/utils';
 import {Skeleton} from "@/components/ui/skeleton";
+import { setLocalFavorites } from '@/lib/local-favorites';
 
 
 const CrownedTeamScroller = ({
@@ -169,30 +170,15 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     );
 };
 
-export function IraqScreen({ navigate, goBack, canGoBack }: ScreenProps) {
+export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>>}) {
   const { user } = useAuth();
-  const { isAdmin, db } = useAdmin();
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
+  const { db } = useFirestore();
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   
-  useEffect(() => {
-    if (!user || !db) return;
-    const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const unsubscribe = onSnapshot(favRef, 
-      (doc) => {
-        setFavorites(doc.exists() ? doc.data() as Favorites : {});
-      },
-      (error) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'get' }));
-      }
-    );
-    return () => unsubscribe();
-  }, [user, db]);
-
   const crownedTeams = useMemo(() => {
-    if (!favorites.crownedTeams) return [];
+    if (!favorites?.crownedTeams) return [];
     return Object.values(favorites.crownedTeams);
-  }, [favorites.crownedTeams]);
+  }, [favorites?.crownedTeams]);
   
   useEffect(() => {
     if(crownedTeams.length > 0 && !selectedTeamId) {
@@ -205,14 +191,25 @@ export function IraqScreen({ navigate, goBack, canGoBack }: ScreenProps) {
 
 
   const handleRemoveCrowned = (teamId: number) => {
-    if (!user || !db) return;
-    const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const fieldPath = `crownedTeams.${teamId}`;
-    
-    updateDoc(favRef, { [fieldPath]: deleteField() })
-      .catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: { [fieldPath]: 'DELETED' } }));
-      });
+     setFavorites(prev => {
+        if (!prev) return null;
+        const newFavorites = JSON.parse(JSON.stringify(prev));
+        if (newFavorites.crownedTeams?.[teamId]) {
+            delete newFavorites.crownedTeams[teamId];
+        }
+
+        if (user && db && !user.isAnonymous) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            updateDoc(favDocRef, { [`crownedTeams.${teamId}`]: deleteField() }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { [`crownedTeams.${teamId}`]: 'DELETED' } }));
+                setFavorites(prev); // Revert on failure
+            });
+        } else {
+            setLocalFavorites(newFavorites);
+        }
+
+        return newFavorites;
+    });
   };
   
   const handleSelectTeam = (teamId: number) => {
@@ -243,7 +240,7 @@ export function IraqScreen({ navigate, goBack, canGoBack }: ScreenProps) {
         canGoBack={canGoBack}
         actions={
           <div className="flex items-center gap-1">
-              <SearchSheet navigate={navigate}>
+              <SearchSheet navigate={navigate} favorites={favorites} customNames={{}} setFavorites={setFavorites}>
                   <Button variant="ghost" size="icon">
                       <Search className="h-5 w-5" />
                   </Button>
@@ -277,3 +274,4 @@ export function IraqScreen({ navigate, goBack, canGoBack }: ScreenProps) {
     </div>
   );
 }
+

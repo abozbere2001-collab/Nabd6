@@ -446,7 +446,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 };
 
 
-export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>> }) {
     const { user, db } = useAuth();
     const { isAdmin } = useAdmin();
     const { toast } = useToast();
@@ -460,7 +460,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const listRef = useRef<HTMLDivElement>(null);
     const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-    // Centralized useEffect for fetching and subscriptions
     useEffect(() => {
         if (!teamId) return;
         let isMounted = true;
@@ -538,33 +537,36 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     }, [db, pinnedPredictionMatches, toast]);
 
     const handleFavoriteToggle = useCallback(() => {
-        if (!teamData || !favorites) return;
+        if (!teamData || !setFavorites) return;
         const { team } = teamData;
-        const isCurrentlyFavorited = !!favorites.teams?.[team.id];
-    
-        const newFavorites: Partial<Favorites> = JSON.parse(JSON.stringify(favorites));
-        if (!newFavorites.teams) newFavorites.teams = {};
-
-        if (isCurrentlyFavorited) {
-            delete newFavorites.teams[team.id];
-        } else {
-            newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-        }
         
-        setFavorites(newFavorites);
-    
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
+        setFavorites(prev => {
+            if (!prev) return null;
+            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                setFavorites(favorites); // Revert on failure
-            });
-        } else {
-            setLocalFavorites(newFavorites);
-        }
-    }, [user, db, favorites, teamData, setFavorites]);
+            if (!newFavorites.teams) newFavorites.teams = {};
+
+            if (isCurrentlyFavorited) {
+                delete newFavorites.teams[team.id];
+            } else {
+                newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
+            
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
+                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setFavorites(prev); // Revert on failure
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+
+            return newFavorites;
+        });
+    }, [teamData, user, db, setFavorites]);
 
 
     const handleOpenCrownDialog = () => {
@@ -598,7 +600,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     };
 
     const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
-        if (!teamData || !db || !renameItem || !favorites) return;
+        if (!teamData || !db || !renameItem || !setFavorites) return;
         const { purpose, originalData, originalName } = renameItem;
     
         if (purpose === 'rename' && isAdmin) {
@@ -614,27 +616,31 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             }
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+             setFavorites(prev => {
+                if (!prev) return null;
+                const newFavorites = JSON.parse(JSON.stringify(prev));
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-            const newFavorites = JSON.parse(JSON.stringify(favorites));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-            }
-            setFavorites(newFavorites);
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                } else {
+                    newFavorites.crownedTeams[teamId] = { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                }
 
-            if (user && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(favorites); // Revert on failure
-                });
-            } else {
-                setLocalFavorites(newFavorites);
-            }
+                if (user && db && !user.isAnonymous) {
+                    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
+                    setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                        setFavorites(prev); // Revert on failure
+                    });
+                } else {
+                    setLocalFavorites(newFavorites);
+                }
+                return newFavorites;
+            });
         }
         setRenameItem(null);
     };
