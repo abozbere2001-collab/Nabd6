@@ -103,8 +103,8 @@ export const ProfileButton = () => {
 
     if (!user) {
         return (
-            <Button variant="ghost" size="sm" onClick={navigateToLogin}>
-                تسجيل الدخول
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={navigateToLogin}>
+                <UserIcon className="h-4 w-4" />
             </Button>
         );
     }
