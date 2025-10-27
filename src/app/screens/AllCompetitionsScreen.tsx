@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { Star, Pencil, Plus, Search, Users, Trophy, Loader2, RefreshCw } from 'lucide-react';
+import { Star, Pencil, Plus, Search, Users, Trophy, Loader2, RefreshCw, Crown } from 'lucide-react';
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ProfileButton } from '../AppContentWrapper';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { LeagueHeaderItem } from '@/components/LeagueHeaderItem';
+import { cn } from '@/lib/utils';
 
 // --- Persistent Cache Logic ---
 const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
@@ -418,11 +419,48 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' }
                 };
             
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+            updateDoc(favDocRef, updateData).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
             });
         }
     }, [user, db, favorites]);
+
+    const handleCrownToggle = useCallback((item: Team) => {
+        const teamId = item.id;
+        if (!user || user.isAnonymous) {
+            toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
+            return;
+        }
+
+        setFavorites(prev => {
+            const newFavs = JSON.parse(JSON.stringify(prev));
+            if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+            if (newFavs.crownedTeams[teamId]) {
+                delete newFavs.crownedTeams[teamId];
+            } else {
+                newFavs.crownedTeams[teamId] = { teamId, name: item.name, logo: item.logo, note: '' };
+            }
+
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavs);
+            }
+            return newFavs;
+        });
+
+        if (user && db && !user.isAnonymous) {
+            const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const fieldPath = `crownedTeams.${teamId}`;
+            const isCrowned = !!favorites.crownedTeams?.[teamId];
+
+            const updateData = isCrowned 
+                ? { [fieldPath]: deleteField() }
+                : { [fieldPath]: { teamId, name: item.name, logo: item.logo, note: '' } };
+            
+            updateDoc(favRef, updateData).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
+            });
+        }
+    }, [user, db, favorites, toast]);
     
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
@@ -494,6 +532,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 <ul className="flex flex-col">{
                   groupedNationalTeams[continent].map(team => {
                      const isStarred = !!favorites.teams?.[team.id];
+                     const isCrowned = !!favorites.crownedTeams?.[team.id];
                      return (
                          <li key={team.id} className="flex w-full items-center justify-between p-3 h-12 hover:bg-accent/80 transition-colors rounded-md">
                            <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id })}>
@@ -506,6 +545,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                                  <Pencil className="h-4 w-4 text-muted-foreground/80" />
                                </Button>
                              )}
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleCrownToggle(team); }}>
+                                <Crown className={cn("h-5 w-5 text-muted-foreground/60", isCrowned && "fill-current text-yellow-400")} />
+                              </Button>
                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleFavoriteToggle(team, 'teams'); }}>
                                <Star className={isStarred ? "h-5 w-5 text-yellow-400 fill-current" : "h-5 w-5 text-muted-foreground/50"} />
                              </Button>
@@ -653,5 +695,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     
+
 
 

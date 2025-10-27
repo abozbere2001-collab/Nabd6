@@ -347,14 +347,15 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
                     ? { name: item.name, leagueId: itemId, logo: item.logo } 
                     : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' } };
 
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+            updateDoc(favDocRef, updateData).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}))
             });
         }
     }, [user, db, favorites]);
 
-  const handleCrownToggle = (item: Item) => {
+  const handleCrownToggle = useCallback((item: Item) => {
     const team = item as Team;
+    const teamId = team.id;
     if (!user || user.isAnonymous) {
         toast({title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.'});
         return;
@@ -364,26 +365,29 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     setFavorites(prev => {
         const newFavs = JSON.parse(JSON.stringify(prev));
         if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
-        if (newFavs.crownedTeams[team.id]) {
-            delete newFavs.crownedTeams[team.id];
+        if (newFavs.crownedTeams[teamId]) {
+            delete newFavs.crownedTeams[teamId];
         } else {
-            newFavs.crownedTeams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, note: '' };
+            newFavs.crownedTeams[teamId] = { teamId, name: team.name, logo: team.logo, note: '' };
+        }
+        if (!user || user.isAnonymous) {
+            setLocalFavorites(newFavs);
         }
         return newFavs;
     });
 
     const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const fieldPath = `crownedTeams.${team.id}`;
-    const isCrowned = !!favorites.crownedTeams?.[team.id];
+    const fieldPath = `crownedTeams.${teamId}`;
+    const isCrowned = !!favorites.crownedTeams?.[teamId];
 
     const updateData = isCrowned 
         ? { [fieldPath]: deleteField() }
-        : { [fieldPath]: { teamId: team.id, name: team.name, logo: team.logo, note: '' } };
+        : { [fieldPath]: { teamId, name: team.name, logo: team.logo, note: '' } };
     
     updateDoc(favRef, updateData).catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
     });
-  }
+  }, [user, db, favorites, toast]);
 
 
   const handleResultClick = (result: SearchableItem) => {
@@ -504,3 +508,4 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
+
