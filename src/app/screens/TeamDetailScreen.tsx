@@ -657,15 +657,21 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             return;
         }
         const { team } = teamData;
-        const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
-        setRenameItem({
-            id: team.id,
-            name: displayTitle || team.name,
-            type: 'crown',
-            purpose: 'crown',
-            originalData: team,
-            note: currentNote,
-        });
+        const isCurrentlyCrowned = !!favorites?.crownedTeams?.[team.id];
+        
+        if (isCurrentlyCrowned) {
+            handleSaveRenameOrNote('crown', team.id, team.name, '', true);
+        } else {
+            const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
+            setRenameItem({
+                id: team.id,
+                name: displayTitle || team.name,
+                type: 'crown',
+                purpose: 'crown',
+                originalData: team,
+                note: currentNote,
+            });
+        }
     };
 
     const handleRename = () => {
@@ -680,26 +686,29 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         });
     };
 
-    const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
+    const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '', isDelete: boolean = false) => {
         if (!teamData || !db) return;
         const { team } = teamData;
 
-        if (type === 'crown' && user) {
-            const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+        if (type === 'crown' && user && !user.isAnonymous) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${id}`;
-            const isCurrentlyCrowned = !!favorites?.crownedTeams?.[id];
-            const crownedTeamData: CrownedTeam = {
-                teamId: id,
-                name: team.name,
-                logo: team.logo,
-                note: newNote,
-            };
-            const updateData = { [fieldPath]: crownedTeamData };
+            let updateData;
+            
+            if (isDelete) {
+                 updateData = { [fieldPath]: deleteField() };
+            } else {
+                 const crownedTeamData: CrownedTeam = {
+                    teamId: id,
+                    name: team.name,
+                    logo: team.logo,
+                    note: newNote,
+                };
+                updateData = { [fieldPath]: crownedTeamData };
+            }
 
-            setDoc(favRef, updateData, { merge: true }).then(() => {
-                toast({ title: 'نجاح', description: `تم تتويج فريق ${team.name}.` });
-            }).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
+            setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
             });
         } else if (type === 'team' && isAdmin) {
             const customNameRef = doc(db, 'teamCustomizations', String(id));
@@ -784,3 +793,4 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
+
