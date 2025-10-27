@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -542,8 +541,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         
         const { team } = teamData;
         setFavorites(prev => {
-            if (!prev) return {};
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -614,24 +612,28 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
                 });
             }
-        } else if (purpose === 'crown' && user && setFavorites) {
-             setFavorites(prev => {
-                if(!prev) return {};
-                const newFavorites = JSON.parse(JSON.stringify(prev));
+        } else if (purpose === 'crown' && user) {
+             const teamId = Number(id);
+             const updatePayload: { [key: string]: any } = {};
+
+            setFavorites(prev => {
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[id];
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
                 if (isCurrentlyCrowned) {
-                    delete newFavorites.crownedTeams[id];
+                    delete newFavorites.crownedTeams[teamId];
+                    updatePayload[`crownedTeams.${teamId}`] = deleteField();
                 } else {
-                    newFavorites.crownedTeams[id] = { teamId: id, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                    const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                    newFavorites.crownedTeams[teamId] = crownedData;
+                    updatePayload[`crownedTeams.${teamId}`] = crownedData;
                 }
 
-                if (user && db && !user.isAnonymous) {
+                if (db && user && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                    const updateData = { [`crownedTeams.${id}`]: newFavorites.crownedTeams[id] || deleteField() };
-                    setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                     });
                 } else {
                     setLocalFavorites(newFavorites);
@@ -718,12 +720,5 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-
-    
-
-    
-
-    
 
     

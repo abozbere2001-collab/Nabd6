@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -265,12 +264,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [debouncedSearchTerm, handleSearch, isOpen]);
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
-        if (!setFavorites) return;
         const itemId = item.id;
 
         setFavorites(prev => {
-            if (!prev) return {};
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
 
@@ -340,26 +337,28 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         } else {
             deleteDoc(docRef); 
         }
-    } else if (purpose === 'crown' && user && setFavorites) {
+    } else if (purpose === 'crown' && user) {
         const teamId = Number(id);
-        
+        const updatePayload: { [key: string]: any } = {};
+
         setFavorites(prev => {
-            if (!prev) return {};
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
+                updatePayload[`crownedTeams.${teamId}`] = deleteField();
             } else {
-                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                newFavorites.crownedTeams[teamId] = crownedData;
+                updatePayload[`crownedTeams.${teamId}`] = crownedData;
             }
 
-            if (user && !user.isAnonymous) {
+            if (db && user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             } else {
                 setLocalFavorites(newFavorites);
@@ -373,13 +372,13 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const popularItems = useMemo(() => {
     if (!customNames) return [];
     return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => {
-        const name = getDisplayName(itemType.slice(0, -1) as 'team' | 'league', item.id, item.name);
+        const name = getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name);
         return {
             id: item.id,
             type: itemType,
             name: name,
             logo: item.logo,
-            originalItem: { ...item, name }, // Pass the potentially translated name
+            originalItem: item, // Pass the original item
             normalizedName: normalizeArabic(name),
         }
     })
@@ -458,10 +457,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
-
-    
-
-
-
 
     

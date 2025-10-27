@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -275,8 +274,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
         const itemType = 'teams';
 
         setFavorites(prev => {
-            if (!prev) return {};
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
@@ -344,25 +342,28 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
-        } else if (purpose === 'crown' && user && setFavorites) {
+        } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
+            const updatePayload: { [key: string]: any } = {};
+
             setFavorites(prev => {
-                if (!prev) return {};
-                const newFavorites = JSON.parse(JSON.stringify(prev));
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
+                    updatePayload[`crownedTeams.${teamId}`] = deleteField();
                 } else {
-                     newFavorites.crownedTeams[teamId] = { teamId, name: originalData.name, logo: originalData.logo, note: newNote };
+                    const crownedData = { teamId, name: originalData.name, logo: originalData.logo, note: newNote };
+                    newFavorites.crownedTeams[teamId] = crownedData;
+                    updatePayload[`crownedTeams.${teamId}`] = crownedData;
                 }
 
-                if (db && !user.isAnonymous) {
+                if (db && user && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                    const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField()};
-                    setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                    setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                     });
                 } else {
                     setLocalFavorites(newFavorites);
@@ -633,11 +634,5 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
-
-
-
-    
-
-    
 
     
