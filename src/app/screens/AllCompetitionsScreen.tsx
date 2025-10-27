@@ -369,17 +369,17 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         } else if (purpose === 'crown' && user && setFavorites) {
             const teamId = Number(id);
             
-             setFavorites(prev => {
+            setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
-
+        
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
                     newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 }
-
+        
                 if (db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                     const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
@@ -605,7 +605,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 isOpen={!!renameItem}
                 onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
                 item={renameItem}
-                onSave={handleSaveRenameOrNote}
+                onSave={(type, id, name, note) => handleSaveRenameOrNote(type, id, name, note || '')}
             />}
             <AddCompetitionDialog isOpen={isAddOpen} onOpenChange={(isOpen) => {
                 setAddOpen(isOpen);
@@ -617,3 +617,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     );
 }
 
+
+
+    

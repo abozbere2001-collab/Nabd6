@@ -152,7 +152,7 @@ export const ProfileButton = () => {
 export function AppContentWrapper() {
   const { user } = useAuth();
   const { db } = useFirestore();
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({ teams: {}, leagues: {}, crownedTeams: {}, players: {}});
+  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
   const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
   
   const [navigationState, setNavigationState] = useState<{ activeTab: ScreenKey, stacks: Record<string, StackItem[]> }>({
@@ -291,11 +291,7 @@ export function AppContentWrapper() {
   const isDataReady = customNames !== null;
 
   if (!isDataReady) {
-    return (
-        <div className="flex h-full w-full items-center justify-center bg-background">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-    )
+    return null; // Return null instead of loader to avoid the second loading screen
   }
 
   if (showSplashAd) {
@@ -358,3 +354,6 @@ export function AppContentWrapper() {
 }
 
 
+
+
+    
