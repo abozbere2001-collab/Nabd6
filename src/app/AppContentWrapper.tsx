@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -151,7 +152,7 @@ export const ProfileButton = () => {
 export function AppContentWrapper() {
   const { user } = useAuth();
   const { db } = useFirestore();
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
+  const [favorites, setFavorites] = useState<Partial<Favorites>>({ teams: {}, leagues: {}, players: {}, crownedTeams: {} });
   const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
   const [loadingInitialData, setLoadingInitialData] = useState(true);
 
@@ -292,7 +293,7 @@ export function AppContentWrapper() {
       }
   }, [navigate]);
   
-  if (loadingInitialData) {
+  if (loadingInitialData || !customNames) {
       return (
           <div className="flex h-full w-full items-center justify-center bg-background">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -359,4 +360,5 @@ export function AppContentWrapper() {
         </main>
   );
 }
+
 

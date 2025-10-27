@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -390,7 +391,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     if (itemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
     }
-
+    
     if (!favorites) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
