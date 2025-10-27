@@ -368,18 +368,17 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     }
 
   const handleOpenCrownDialog = (team: Team) => {
-    if (!user || user.isAnonymous) {
+    if (!user) {
         toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
         return;
     }
-    const currentNote = favorites?.crownedTeams?.[team.id]?.note || '';
     setRenameItem({
         id: team.id,
         name: getDisplayName('team', team.id, team.name),
         type: 'crown',
         purpose: 'crown',
         originalData: team,
-        note: currentNote,
+        note: favorites?.crownedTeams?.[team.id]?.note || '',
     });
   };
   
@@ -396,50 +395,58 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   };
 
   const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
-    if (!renameItem || !user || !db) return;
-    
-    const { originalData, purpose } = renameItem;
+        if (!renameItem || !db) return;
+        
+        const { purpose, originalData } = renameItem;
 
-    if (purpose === 'rename' && isAdmin) {
-        const collectionName = `${type}Customizations`;
-        const docRef = doc(db, collectionName, String(id));
-        if (newName && newName !== originalData.name) {
+        if (purpose === 'rename' && isAdmin) {
+            const collectionName = `${type}Customizations`;
+            const docRef = doc(db, collectionName, String(id));
             const data = { customName: newName };
-            setDoc(docRef, data).then(() => {
-                fetchAllCustomNames();
-                toast({ title: 'نجاح', description: 'تم حفظ الاسم المخصص.' });
-            }).catch(serverError => {
-                const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'create', requestResourceData: data });
-                errorEmitter.emit('permission-error', permissionError);
-            });
-        } else {
-             deleteDoc(docRef).then(() => {
-                fetchAllCustomNames();
-                toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
-             }).catch(serverError => {
-                 const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'delete' });
-                 errorEmitter.emit('permission-error', permissionError);
-             });
-        }
-    } else if (purpose === 'crown') {
-        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const fieldPath = `crownedTeams.${id}`;
-        const crownedTeamData: CrownedTeam = {
-            teamId: Number(id),
-            name: originalData.name,
-            logo: originalData.logo,
-            note: newNote,
-        };
-        const updateData = { [fieldPath]: crownedTeamData };
 
-        setDoc(favRef, updateData, { merge: true }).then(() => {
-            toast({ title: 'نجاح', description: `تم تتويج فريق ${originalData.name}.` });
-        }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
-        });
-    }
-    
-    setRenameItem(null);
+            const op = (newName && newName.trim() && newName !== renameItem.originalName)
+                ? setDoc(docRef, data)
+                : deleteDoc(docRef);
+
+            op.then(() => {
+                fetchAllCustomNames();
+                toast({ title: 'نجاح', description: 'تم حفظ التغييرات.' });
+            }).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
+            });
+
+        } else if (purpose === 'crown' && user) {
+            const teamId = Number(id);
+            // Decide based on current favorites state
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+            const newFavorites = JSON.parse(JSON.stringify(favorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+
+            if (isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[teamId];
+            } else {
+                newFavorites.crownedTeams[teamId] = {
+                    teamId: teamId,
+                    name: (originalData as Team).name,
+                    logo: (originalData as Team).logo,
+                    note: newNote,
+                };
+            }
+            // Optimistic UI update
+            setFavorites(newFavorites);
+
+            // Persist to storage
+            if (user.isAnonymous) {
+                setLocalFavorites(newFavorites);
+            } else {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                setDoc(favDocRef, { crownedTeams: newFavorites.crownedTeams }, { merge: true }).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { crownedTeams: newFavorites.crownedTeams } }));
+                });
+            }
+        }
+        
+        setRenameItem(null);
   };
 
   const handleDeleteCompetition = () => {
@@ -519,7 +526,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
           isOpen={!!renameItem}
           onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
           item={renameItem}
-          onSave={(type, id, name, note) => handleSaveRenameOrNote(type, id, name, note)}
+          onSave={(type, id, name, note) => handleSaveRenameOrNote(type, Number(id), name, note)}
         />}
        <div className="flex-1 overflow-y-auto p-1">
         <CompetitionHeaderCard league={{ name: displayTitle, logo }} teamsCount={teams.length} />
@@ -693,6 +700,3 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   );
 }
     
-
-
-

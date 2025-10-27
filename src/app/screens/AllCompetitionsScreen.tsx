@@ -452,48 +452,31 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
+            // Decide based on current favorites state
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+            const newFavorites = JSON.parse(JSON.stringify(favorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
 
-            // Optimistically update local state first
-            setFavorites(prev => {
-                const newFavs = JSON.parse(JSON.stringify(prev));
-                if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+            if (isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[teamId];
+            } else {
+                newFavorites.crownedTeams[teamId] = {
+                    teamId: teamId,
+                    name: (originalData as Team).name,
+                    logo: (originalData as Team).logo,
+                    note: newNote,
+                };
+            }
+            // Optimistic UI update
+            setFavorites(newFavorites);
 
-                if (isCurrentlyCrowned) {
-                    delete newFavs.crownedTeams[teamId];
-                } else {
-                    newFavs.crownedTeams[teamId] = {
-                        teamId: teamId,
-                        name: (originalData as Team).name,
-                        logo: (originalData as Team).logo,
-                        note: newNote,
-                    };
-                }
-                
-                // Also update localStorage for guest users
-                if(user.isAnonymous){
-                    setLocalFavorites(newFavs);
-                }
-
-                return newFavs;
-            });
-
-            // Persist to Firestore for logged-in (non-anonymous) users
-            if (!user.isAnonymous) {
+            // Persist to storage
+            if (user.isAnonymous) {
+                setLocalFavorites(newFavorites);
+            } else {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const fieldPath = `crownedTeams.${teamId}`;
-                const updateData = isCurrentlyCrowned
-                    ? { [fieldPath]: deleteField() }
-                    : { [fieldPath]: {
-                            teamId: teamId,
-                            name: (originalData as Team).name,
-                            logo: (originalData as Team).logo,
-                            note: newNote,
-                        }
-                    };
-
-                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                setDoc(favDocRef, { crownedTeams: newFavorites.crownedTeams }, { merge: true }).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { crownedTeams: newFavorites.crownedTeams } }));
                 });
             }
         }
@@ -659,7 +642,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 }
             />
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                 <Accordion type="single" collapsible className="w-full">
+                 <Accordion type="multiple" className="w-full space-y-2">
                     <AccordionItem value="national-teams" className="rounded-lg border bg-card/50">
                         <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (!nationalTeams && !loadingNationalTeams) fetchNationalTeams() }}>
                             <div className="flex items-center gap-3">
@@ -675,7 +658,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     </AccordionItem>
                  </Accordion>
                  
-                 <Accordion type="single" collapsible className="w-full">
+                 <Accordion type="multiple" className="w-full space-y-2">
                     <AccordionItem value="club-competitions" className="rounded-lg border bg-card/50">
                         <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (allLeagues.length === 0 && !loadingClubData) fetchAllCompetitions() }}>
                             <div className="flex items-center gap-3">

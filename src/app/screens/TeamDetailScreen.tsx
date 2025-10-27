@@ -482,7 +482,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const [displayTitle, setDisplayTitle] = useState<string | undefined>(undefined);
     const [teamData, setTeamData] = useState<TeamData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [renameItem, setRenameItem] = useState<{ id: number; name: string; note?: string; type: 'team' | 'crown'; purpose: 'rename' | 'crown' | 'note'; originalData: any; } | null>(null);
+    const [renameItem, setRenameItem] = useState<{ id: number; name: string; note?: string; type: 'team' | 'crown'; purpose: 'rename' | 'crown' | 'note'; originalData: any; originalName?: string; } | null>(null);
     const [favorites, setFavorites] = useState<Partial<Favorites>>({});
     const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
 
@@ -676,55 +676,53 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             type: 'team',
             purpose: 'rename',
             originalData: team,
+            originalName: team.name,
         });
     };
 
-    const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
+    const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
         if (!teamData || !db || !renameItem) return;
-        const { team } = teamData;
-        const { purpose } = renameItem;
+        
+        const { purpose, originalData } = renameItem;
 
-        if (type === 'crown' && user) {
-            const isCurrentlyCrowned = !!favorites.crownedTeams?.[id];
-    
-            setFavorites(prev => {
-                const newFavs = JSON.parse(JSON.stringify(prev));
-                if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
-                if (isCurrentlyCrowned) {
-                    delete newFavs.crownedTeams[id];
-                } else {
-                    newFavs.crownedTeams[id] = { teamId: id, name: team.name, logo: team.logo, note: newNote };
-                }
-                if (user.isAnonymous) {
-                    setLocalFavorites(newFavs);
-                }
-                return newFavs;
-            });
-    
-            if (!user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const fieldPath = `crownedTeams.${id}`;
-                const updateData = isCurrentlyCrowned 
-                    ? { [fieldPath]: deleteField() }
-                    : { [fieldPath]: { teamId: id, name: team.name, logo: team.logo, note: newNote } };
-    
-                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+        if (purpose === 'rename' && isAdmin) {
+            const docRef = doc(db, 'teamCustomizations', String(id));
+            if (newName && newName !== originalData.name) {
+                setDoc(docRef, { customName: newName }).then(() => {
+                    setDisplayTitle(newName);
+                    toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
+                });
+            } else {
+                deleteDoc(docRef).then(() => {
+                    setDisplayTitle(originalData.name);
+                    toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
                 });
             }
-        } else if (type === 'team' && isAdmin) {
-            const customNameRef = doc(db, 'teamCustomizations', String(id));
-            if (newName && newName !== team.name) {
-                await setDoc(customNameRef, { customName: newName });
-            } else {
-                await deleteDoc(customNameRef);
-            }
-            setDisplayTitle(newName || team.name);
-            toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
-        }
+        } else if (purpose === 'crown' && user) {
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[id];
+            const newFavorites = JSON.parse(JSON.stringify(favorites));
+            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
 
+            if (isCurrentlyCrowned) {
+                delete newFavorites.crownedTeams[id];
+            } else {
+                newFavorites.crownedTeams[id] = { teamId: id, name: originalData.name, logo: originalData.logo, note: newNote };
+            }
+
+            setFavorites(newFavorites);
+
+            if (user.isAnonymous) {
+                setLocalFavorites(newFavorites);
+            } else {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                setDoc(favDocRef, { crownedTeams: newFavorites.crownedTeams }, { merge: true }).catch(err => {
+                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { crownedTeams: newFavorites.crownedTeams } }));
+                });
+            }
+        }
         setRenameItem(null);
     };
+
 
     if(loading) {
         return (
