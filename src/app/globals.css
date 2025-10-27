@@ -28,39 +28,39 @@
   }
 
   .dark {
-    --background: 130 15% 10%;
+    --background: 220 20% 12%;
     --foreground: 0 0% 98%;
-    --card: 0 50% 15%;
+    --card: 220 20% 18%;
     --card-foreground: 0 0% 98%;
-    --popover: 265 25% 8%;
-    --popover-foreground: 260 30% 96%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 265 20% 18%;
-    --secondary-foreground: 260 30% 96%;
-    --muted: 265 20% 18%;
-    --muted-foreground: 260 20% 65%;
-    --accent: 0 60% 50%;
-    --accent-foreground: 0 0% 100%;
+    --popover: 220 20% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 150 70% 55%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 20% 25%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 220 20% 25%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 150 80% 65%;
+    --accent-foreground: 220 20% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 100%;
-    --input: 265 20% 20%;
-    --ring: 0 0% 98%;
+    --border: 220 20% 25%;
+    --input: 220 20% 22%;
+    --ring: 150 70% 55%;
   }
  
   .light {
-    --background: 130 50% 95%; /* Light Green */
+    --background: 220 10% 95%; /* Very light grey, almost white */
     --foreground: 0 0% 8%; /* Black for text */
-    --card: 0 80% 96%; /* Light Red */
-    --card-foreground: 0 0% 8%; /* Black text on cards */
+    --card: 0 65% 45%; /* Deeper, less saturated red */
+    --card-foreground: 0 0% 98%; /* White text on cards */
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 8%;
     --primary: 0 0% 8%; /* Black for indicators and app name */
     --primary-foreground: 0 0% 98%; /* White text on primary buttons */
-    --secondary: 130 40% 90%;
+    --secondary: 220 10% 90%;
     --secondary-foreground: 0 0% 8%;
-    --muted: 130 30% 92%;
+    --muted: 220 10% 92%;
     --muted-foreground: 0 0% 40%;
     --accent: 0 80% 60%; /* A brighter red for accents if needed */
     --accent-foreground: 0 0% 100%;
