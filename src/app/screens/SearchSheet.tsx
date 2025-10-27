@@ -17,10 +17,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { ScreenProps } from '@/app/page';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam } from '@/lib/types';
+import type { Favorites, Team } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { useToast } from '@/hooks/use-toast';
@@ -38,7 +38,6 @@ interface LeagueResult {
 
 type Item = TeamResult['team'] | LeagueResult['league'];
 type ItemType = 'teams' | 'leagues';
-type SearchResult = (TeamResult & { type: 'team' }) | (LeagueResult & { type: 'league' });
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status' | 'crown';
 
 interface SearchableItem {
@@ -83,7 +82,7 @@ const normalizeArabic = (text: string) => {
 };
 
 
-const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onCrownToggle, onResultClick, onRename, isAdmin }: { item: Item, itemType: ItemType, isFavorited: boolean, isCrowned: boolean, onFavoriteToggle: (item: Item, itemType: ItemType) => void, onCrownToggle: (item: Item) => void, onResultClick: () => void, onRename: () => void, isAdmin: boolean }) => {
+const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onCrownToggle, onResultClick, onRename, isAdmin }: { item: Item, itemType: ItemType, isFavorited: boolean, isCrowned: boolean, onFavoriteToggle: () => void, onCrownToggle: () => void, onResultClick: () => void, onRename: () => void, isAdmin: boolean }) => {
   return (
     <div className="flex items-center gap-2 p-1.5 border-b last:border-b-0 hover:bg-accent/50 rounded-md">
        <div className="flex-1 flex items-center gap-2 cursor-pointer" onClick={onResultClick}>
@@ -100,11 +99,11 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
                 </Button>
             )}
             {itemType === 'teams' && (
-                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onCrownToggle(item); }}>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onCrownToggle(); }}>
                     <Crown className={cn("h-5 w-5 text-muted-foreground/60", isCrowned && "fill-current text-yellow-400")} />
                 </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onFavoriteToggle(item, itemType); }}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onFavoriteToggle(); }}>
                 <Star className={cn("h-5 w-5 text-muted-foreground/60", isFavorited && "fill-current text-yellow-400")} />
             </Button>
         </div>
@@ -138,7 +137,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [customNames]);
 
   const buildLocalIndex = useCallback(async () => {
-    if (!customNames || localSearchIndex.length > 0) return;
+    if (!customNames) return;
+    if (localSearchIndex.length > 0 && !debouncedSearchTerm) return;
+
     setLoading(true);
     const index: SearchableItem[] = [];
     const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
@@ -168,14 +169,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 name,
                 normalizedName: normalizeArabic(name),
                 logo: team.logo,
-                originalItem: { ...team }
+                originalItem: { ...team, type: 'National' }
             });
         });
     }
     
     setLocalSearchIndex(index);
     setLoading(false);
-  }, [customNames, getDisplayName, localSearchIndex.length]);
+  }, [customNames, getDisplayName, localSearchIndex.length, debouncedSearchTerm]);
 
 
   useEffect(() => {
@@ -228,7 +229,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                     name: name,
                     normalizedName: normalizeArabic(name),
                     logo: r.team.logo,
-                    originalItem: r.team,
+                    originalItem: { ...r.team, type: 'Club' },
                 });
                 existingIds.add(`teams-${r.team.id}`);
             }
@@ -279,7 +280,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             } else {
                 const favData = itemType === 'leagues'
                     ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
-                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
                 newFavorites[itemType]![itemId] = favData as any;
             }
 
@@ -298,18 +299,18 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }, [user, db, setFavorites]);
 
 
-  const handleOpenCrownDialog = (team: Item) => {
+  const handleOpenCrownDialog = (item: Item) => {
     if (!user) {
         toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
         return;
     }
     setRenameItem({
-        id: team.id,
-        name: getDisplayName('team', team.id, team.name),
+        id: item.id,
+        name: getDisplayName('team', item.id, item.name),
         type: 'crown',
         purpose: 'crown',
-        originalData: team,
-        note: favorites?.crownedTeams?.[team.id]?.note || '',
+        originalData: item,
+        note: favorites?.crownedTeams?.[item.id]?.note || '',
     });
   };
 
@@ -331,6 +332,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
     if (!renameItem || !db) return;
     const { purpose, originalData, originalName } = renameItem;
+    const teamId = Number(id);
 
     if (purpose === 'rename' && isAdmin) {
         const collectionName = `${type}Customizations`;
@@ -341,8 +343,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             deleteDoc(docRef); 
         }
     } else if (purpose === 'crown' && user && setFavorites) {
-        const teamId = Number(id);
-        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
@@ -351,7 +351,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {
-                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Item).name, logo: (originalData as Item).logo, note: newNote };
             }
 
             if (user && db && !user.isAnonymous) {
@@ -370,18 +370,19 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
   
   const popularItems = useMemo(() => {
+    if (!customNames) return [];
     return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => ({
         id: item.id,
         type: itemType,
         name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
         logo: item.logo,
-        originalItem: item,
+        originalItem: { ...item, type: (item as Team).type || (itemType === 'teams' ? 'Club' : undefined) }, // Ensure type is present
         normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
     }))
-  }, [itemType, getDisplayName]);
+  }, [itemType, getDisplayName, customNames]);
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || !customNames) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
     
@@ -408,8 +409,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
-                            onFavoriteToggle={handleFavorite} 
-                            onCrownToggle={(item) => handleOpenCrownDialog(item)}
+                            onFavoriteToggle={() => handleFavorite(result.originalItem, result.type)} 
+                            onCrownToggle={() => handleOpenCrownDialog(result.originalItem)}
                             onResultClick={() => handleResultClick(result)} 
                             isAdmin={isAdmin} 
                             onRename={() => handleOpenRename(result.type as RenameType, result.id, result.originalItem)} 
@@ -450,7 +451,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             isOpen={!!renameItem}
             onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
             item={renameItem}
-            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note)}
+            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note || '')}
           />
         )}
       </SheetContent>
@@ -462,5 +463,3 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
 
 
-
-    
