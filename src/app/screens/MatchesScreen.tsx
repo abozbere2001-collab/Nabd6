@@ -9,7 +9,7 @@ import type { ScreenProps } from '@/app/page';
 import { format, addDays, isToday, isYesterday, isTomorrow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
-import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -26,6 +26,7 @@ import { POPULAR_LEAGUES } from '@/lib/popular-data';
 import { useToast } from '@/hooks/use-toast';
 import { RenameDialog } from '@/components/RenameDialog';
 import { LeagueHeaderItem } from '@/components/LeagueHeaderItem';
+import { CURRENT_SEASON } from '@/lib/constants';
 
 
 interface GroupedFixtures {
@@ -358,14 +359,11 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
         const favLeagueIds = currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [];
         const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
         
-        let url = activeTab === 'all-matches' ? '/api/football/fixtures?live=all' : `/api/football/fixtures?date=${dateKey}`;
-        
-        // This logic was flawed. When 'my-results' is active, we should fetch for *user's teams* first,
-        // and if there are none, then fetch for popular leagues.
         let teamFixtures: FixtureType[] = [];
-        if (activeTab === 'my-results' && hasFavs) {
-            // API doesn't support multiple teams, so we fetch one by one.
-            const teamFixturePromises = favTeamIds.map(id => fetch(`/api/football/fixtures?team=${id}&season=${CURRENT_SEASON}&date=${dateKey}`, { signal: abortSignal }).then(res => res.json()));
+        if (activeTab === 'my-results' && hasFavs && favTeamIds.length > 0) {
+            const teamFixturePromises = favTeamIds.map(id => 
+                fetch(`/api/football/fixtures?team=${id}&season=${CURRENT_SEASON}&date=${dateKey}`, { signal: abortSignal }).then(res => res.json())
+            );
             const teamFixtureResults = await Promise.all(teamFixturePromises);
             teamFixtures = teamFixtureResults.map(r => r.response || []).flat();
         }
@@ -568,3 +566,4 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     </div>
   );
 }
+
