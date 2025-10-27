@@ -542,7 +542,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         
         const { team } = teamData;
         setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!prev) return {};
+            const newFavorites = JSON.parse(JSON.stringify(prev));
             const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -613,9 +614,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
                 });
             }
-        } else if (purpose === 'crown' && user) {
+        } else if (purpose === 'crown' && user && setFavorites) {
              setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if(!prev) return {};
+                const newFavorites = JSON.parse(JSON.stringify(prev));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[id];
 
@@ -717,6 +719,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     );
 }
 
+
+    
 
     
 

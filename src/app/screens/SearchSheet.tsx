@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { ScreenProps } from '@/app/page';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
 import type { Favorites, Team } from '@/lib/types';
@@ -137,8 +137,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [customNames]);
 
   const buildLocalIndex = useCallback(async () => {
-    if (!customNames) return;
-    if (localSearchIndex.length > 0 && !debouncedSearchTerm) return;
+    if (!customNames || localSearchIndex.length > 0) return;
 
     setLoading(true);
     const index: SearchableItem[] = [];
@@ -169,14 +168,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 name,
                 normalizedName: normalizeArabic(name),
                 logo: team.logo,
-                originalItem: { ...team, type: 'National' }
+                originalItem: { ...team }
             });
         });
     }
     
     setLocalSearchIndex(index);
     setLoading(false);
-  }, [customNames, getDisplayName, localSearchIndex.length, debouncedSearchTerm]);
+  }, [customNames, getDisplayName, localSearchIndex.length]);
 
 
   useEffect(() => {
@@ -229,7 +228,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                     name: name,
                     normalizedName: normalizeArabic(name),
                     logo: r.team.logo,
-                    originalItem: { ...r.team, type: 'Club' },
+                    originalItem: r.team,
                 });
                 existingIds.add(`teams-${r.team.id}`);
             }
@@ -270,9 +269,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         const itemId = item.id;
 
         setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!prev) return {};
+            const newFavorites = JSON.parse(JSON.stringify(prev));
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
-
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
 
             if (isCurrentlyFavorited) {
@@ -299,18 +298,18 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }, [user, db, setFavorites]);
 
 
-  const handleOpenCrownDialog = (item: Item) => {
+  const handleOpenCrownDialog = (team: Item) => {
     if (!user) {
         toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
         return;
     }
     setRenameItem({
-        id: item.id,
-        name: getDisplayName('team', item.id, item.name),
+        id: team.id,
+        name: getDisplayName('team', team.id, team.name),
         type: 'crown',
         purpose: 'crown',
-        originalData: item,
-        note: favorites?.crownedTeams?.[item.id]?.note || '',
+        originalData: team,
+        note: favorites?.crownedTeams?.[team.id]?.note || '',
     });
   };
 
@@ -332,7 +331,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
     if (!renameItem || !db) return;
     const { purpose, originalData, originalName } = renameItem;
-    const teamId = Number(id);
 
     if (purpose === 'rename' && isAdmin) {
         const collectionName = `${type}Customizations`;
@@ -343,18 +341,21 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             deleteDoc(docRef); 
         }
     } else if (purpose === 'crown' && user && setFavorites) {
+        const teamId = Number(id);
+        
         setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!prev) return {};
+            const newFavorites = JSON.parse(JSON.stringify(prev));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {
-                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Item).name, logo: (originalData as Item).logo, note: newNote };
+                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
 
-            if (user && db && !user.isAnonymous) {
+            if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
@@ -371,23 +372,22 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   
   const popularItems = useMemo(() => {
     if (!customNames) return [];
-    return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => ({
-        id: item.id,
-        type: itemType,
-        name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
-        logo: item.logo,
-        originalItem: { ...item, type: (item as Team).type || (itemType === 'teams' ? 'Club' : undefined) }, // Ensure type is present
-        normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
-    }))
+    return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => {
+        const name = getDisplayName(itemType.slice(0, -1) as 'team' | 'league', item.id, item.name);
+        return {
+            id: item.id,
+            type: itemType,
+            name: name,
+            logo: item.logo,
+            originalItem: { ...item, name }, // Pass the potentially translated name
+            normalizedName: normalizeArabic(name),
+        }
+    })
   }, [itemType, getDisplayName, customNames]);
 
   const renderContent = () => {
-    if (loading || !customNames) {
+    if (loading || !customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-    }
-    
-    if (!favorites) {
-        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
     const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
@@ -405,7 +405,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 
                 return <ItemRow 
                             key={`${result.type}-${result.id}`} 
-                            item={{...result.originalItem, name: result.name}}
+                            item={result.originalItem}
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
@@ -451,7 +451,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             isOpen={!!renameItem}
             onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
             item={renameItem}
-            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note || '')}
+            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note)}
           />
         )}
       </SheetContent>
@@ -463,3 +463,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
 
 
+
+    

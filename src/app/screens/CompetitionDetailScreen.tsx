@@ -275,7 +275,8 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
         const itemType = 'teams';
 
         setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!prev) return {};
+            const newFavorites = JSON.parse(JSON.stringify(prev));
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
@@ -346,7 +347,8 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
         } else if (purpose === 'crown' && user && setFavorites) {
             const teamId = Number(id);
             setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if (!prev) return {};
+                const newFavorites = JSON.parse(JSON.stringify(prev));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
@@ -633,6 +635,8 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }
 
 
+
+    
 
     
 
