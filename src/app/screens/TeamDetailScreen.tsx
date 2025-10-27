@@ -266,9 +266,10 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
                 const statsData = await statsRes.json();
                 
                 const sortedFixtures = (fixturesData.response || []).sort((a: Fixture, b: Fixture) => a.fixture.timestamp - b.fixture.timestamp);
+                
                 setFixtures(sortedFixtures);
                 setStats(statsData.response);
-
+                
                 const effectiveLeagueId = leagueId || statsData?.response?.league?.id;
 
                 if (effectiveLeagueId) {
@@ -775,6 +776,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-
-
