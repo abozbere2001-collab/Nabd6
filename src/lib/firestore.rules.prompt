@@ -1,84 +1,97 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // ==================================================
+
+    // ==================================
     // == Helper Functions
-    // ==================================================
-    
-    // Checks if the user is an administrator.
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-    
-    // Checks if the user is authenticated.
+    // ==================================
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    // Checks if the request is for the user's own data.
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+
+    function isAdmin() {
+      // An admin is a user whose UID exists in the 'admins' collection.
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // ==================================================
-    // == Admin Collection
-    // ==================================================
-    
-    // Admins have absolute power over the entire database.
-    // This single rule grants them full access everywhere.
+    function isOwner(userId) {
+      // Checks if the requesting user is the owner of the document.
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ==================================
+    // == Admin Override (Full Access)
+    // ==================================
+    // Admins have absolute power over everything.
     match /{path=**} {
       allow read, write: if isAdmin();
     }
-    
-    // ==================================================
-    // == Publicly Readable Data
-    // ==================================================
-    
-    // Collections that anyone (including unauthenticated users) can read.
-    // Write access is handled by the admin rule above.
-    match /{publicCollection}/{docId}
-    where publicCollection in [
-        'news', 'competitions', 'teams', 'managedCompetitions', 
-        'iraqiLeagueTopScorers', 'pinnedIraqiMatches', 
-        'leagueCustomizations', 'teamCustomizations', 'playerCustomizations', 
-        'coachCustomizations', 'continentCustomizations', 'countryCustomizations',
-        'matchCustomizations', 'leaderboard', 'predictionFixtures'
-    ] {
-      allow read: if true;
+
+    // ==================================
+    // == Public Data (Read for All, Write for Admin Only)
+    // ==================================
+    match /{collectionName}/{docId} {
+      allow read: if collectionName in [
+        'news',
+        'competitions',
+        'teams',
+        'managedCompetitions',
+        'iraqiLeagueTopScorers',
+        'pinnedIraqiMatches',
+        'leagueCustomizations',
+        'teamCustomizations',
+        'playerCustomizations',
+        'coachCustomizations',
+        'continentCustomizations',
+        'countryCustomizations',
+        'matchCustomizations'
+      ];
+      // No explicit 'allow write' here means only the admin override rule can grant write access.
     }
 
-    // ==================================================
-    // == User-Specific Data
-    // ==================================================
-    
-    // A user can create their own user document.
-    // They can only read and update their own document, not delete it.
+    // ==================================
+    // == Users Collection
+    // ==================================
     match /users/{userId} {
-      allow create: if isSignedIn() && isOwner(userId);
+      // A user can create their own profile document.
+      allow create: if isOwner(userId);
+
+      // A user can read and update their own profile document.
       allow read, update: if isOwner(userId);
       
-      // Users can read and write their own favorites subcollection.
-      match /favorites/data {
-        allow read, write: if isOwner(userId);
+      // ---- Favorites Subcollection ----
+      // A user can manage their own favorites/crowned items.
+      match /favorites/{favId} {
+        allow read, write: if isOwner(userId) && favId == "data";
       }
     }
 
-    // ==================================================
-    // == Predictions Logic
-    // ==================================================
-
-    match /predictionFixtures/{fixtureId}/userPredictions/{userId} {
-      // A user can read their own prediction.
-      allow read: if isOwner(userId);
+    // ==================================
+    // == Predictions System
+    // ==================================
+    match /predictionFixtures/{fixtureId} {
+      // Anyone can read the list of matches available for prediction.
+      allow read: if true;
       
-      // A user can create or update their prediction ONLY if they are the owner
-      // AND the match has not started yet (checked against the timestamp stored in the document).
-      // Note: We use get() to securely access the fixture's start time from the parent document.
-      allow write: if isOwner(userId) 
+      // ---- User Predictions Subcollection ----
+      match /userPredictions/{userId} {
+        // A user can read their own prediction.
+        allow read: if isOwner(userId);
+
+        // A user can create or update their own prediction, but only if the
+        // current request time is before the match's official start time.
+        allow write: if isOwner(userId)
                       && request.time < get(/databases/$(database)/documents/predictionFixtures/$(fixtureId)).data.fixtureData.fixture.timestamp;
+      }
+    }
+    
+    // ==================================
+    // == Leaderboard
+    // ==================================
+    match /leaderboard/{leaderboardId} {
+      // Anyone can read the leaderboard.
+      allow read: if true;
     }
   }
 }
