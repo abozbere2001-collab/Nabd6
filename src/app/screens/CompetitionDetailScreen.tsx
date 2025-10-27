@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -39,7 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { isMatchLive } from '@/lib/matchStatus';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { Card, CardContent } from '@/components/ui/card';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
@@ -142,44 +140,25 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   const [standings, setStandings] = useState<Standing[]>([]);
   const [topScorers, setTopScorers] = useState<TopScorer[]>([]);
   const [teams, setTeams] = useState<{team: Team}[]>([]);
-  const [customNames, setCustomNames] = useState<{ teams: Map<number, string>, players: Map<number, string>, adminNotes: Map<number, string> } | null>(null);
+  const [customNames, setCustomNames] = useState<{ teams: Map<number, string>, players: Map<number, string> } | null>(null);
   const [season, setSeason] = useState<number>(CURRENT_SEASON);
   
   const listRef = useRef<HTMLDivElement>(null);
   const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   
-  const fetchAllCustomNames = useCallback(async () => {
-    if (!db) {
-        setCustomNames({ teams: new Map(), players: new Map(), adminNotes: new Map() });
-        return;
-    };
-    try {
-        const [teamsSnapshot, playersSnapshot] = await Promise.all([
-            getDocs(collection(db, 'teamCustomizations')),
-            getDocs(collection(db, 'playerCustomizations')),
-        ]);
-        
-        const teamNames = new Map<number, string>();
-        teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-        
-        const playerNames = new Map<number, string>();
-        playersSnapshot.forEach(doc => playerNames.set(Number(doc.id), doc.data().customName));
-        
-
-        setCustomNames({ teams: teamNames, players: playerNames, adminNotes: new Map() });
-    } catch (error) {
-        console.warn("Could not fetch custom names:", error);
-        setCustomNames({ teams: new Map(), players: new Map(), adminNotes: new Map() });
+  const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: number, defaultName: string) => {
+    if (!customNames && type !== 'league') return defaultName;
+    
+    if (type === 'league') {
+        const hardcodedName = hardcodedTranslations.leagues[id];
+        if (hardcodedName) return hardcodedName;
+        return defaultName;
     }
-  }, [db]);
-  
-
-  const getDisplayName = useCallback((type: 'team' | 'player', id: number, defaultName: string) => {
-    if (!customNames) return defaultName;
+    
     const key = `${type}s` as 'teams' | 'players';
-    const firestoreMap = customNames[key];
-    const customName = firestoreMap.get(id);
+    const firestoreMap = customNames?.[key];
+    const customName = firestoreMap?.get(id);
     if (customName) return customName;
     
     const hardcodedKey = type === 'team' ? 'teams' : 'players';
@@ -190,112 +169,111 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   }, [customNames]);
 
   useEffect(() => {
-    if (user && !user.isAnonymous && db) {
-        const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const unsub = onSnapshot(favDocRef, (doc) => {
-            setFavorites(doc.data() as Favorites || {});
-        }, (error) => {
-            const permissionError = new FirestorePermissionError({ path: favDocRef.path, operation: 'get' });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-        return () => unsub();
-    } else {
-        setFavorites(getLocalFavorites());
-    }
-  }, [user, db]);
+    if (!leagueId || !db) {
+        setLoading(false);
+        return;
+    };
 
-  useEffect(() => {
-    if (leagueId) {
-        if (db) {
-            const leagueDocRef = doc(db, 'leagueCustomizations', String(leagueId));
-            getDoc(leagueDocRef)
-                .then(doc => {
-                    if (doc.exists()) {
-                        setDisplayTitle(doc.data().customName);
-                    } else {
-                        const hardcodedName = hardcodedTranslations.leagues[leagueId];
-                        setDisplayTitle(hardcodedName || initialTitle);
-                    }
-                })
-                .catch(error => {
-                    console.warn(
-                        'Could not fetch league customization, falling back to hardcoded/initial.',
-                        error
-                    );
-                    const hardcodedName = hardcodedTranslations.leagues[leagueId];
-                    setDisplayTitle(hardcodedName || initialTitle);
-                });
-        } else {
-            const hardcodedName = hardcodedTranslations.leagues[leagueId];
-            setDisplayTitle(hardcodedName || initialTitle);
-        }
-    }
-  }, [leagueId, initialTitle, db]);
+    let isMounted = true;
+    let favoritesUnsub: (() => void) | undefined;
+    let leagueUnsub: (() => void) | undefined;
 
-
-  useEffect(() => {
-    const fetchData = async (seasonToFetch: number) => {
-        if (!leagueId) return;
+    const fetchData = async () => {
         setLoading(true);
-        if (customNames === null) await fetchAllCustomNames();
+        if (!isMounted) return;
 
-        const cacheKey = `competition_data_${leagueId}_${seasonToFetch}`;
-        const cachedData = getCachedData(cacheKey);
-
-        if (cachedData) {
-            setStandings(cachedData.standings || []);
-            setTopScorers(cachedData.topScorers || []);
-            setTeams(cachedData.teams || []);
-            setFixtures(cachedData.fixtures || []);
-            setLoading(false);
-            return;
+        // --- Setup Listeners ---
+        if (user && !user.isAnonymous) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            favoritesUnsub = onSnapshot(favDocRef, (doc) => {
+                if (isMounted) setFavorites(doc.data() as Favorites || {});
+            }, (error) => console.error("Error listening to favorites:", error));
+        } else {
+            setFavorites(getLocalFavorites());
         }
 
-        try {
-            const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
-                fetch(`/api/football/standings?league=${leagueId}&season=${seasonToFetch}`),
-                fetch(`/api/football/players/topscorers?league=${leagueId}&season=${seasonToFetch}`),
-                fetch(`/api/football/teams?league=${leagueId}&season=${seasonToFetch}`),
-                fetch(`/api/football/fixtures?league=${leagueId}&season=${seasonToFetch}`)
-            ]);
-
-            const standingsData = await standingsRes.json();
-            const scorersData = await scorersRes.json();
-            const teamsData = await teamsRes.json();
-            const fixturesData = await fixturesRes.json();
-            
-            const newStandings = standingsData.response[0]?.league?.standings[0] || [];
-            const newTopScorers = scorersData.response || [];
-            const newTeams = teamsData.response || [];
-            const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
-
-            setStandings(newStandings);
-            setTopScorers(newTopScorers);
-            setTeams(newTeams);
-            setFixtures(sortedFixtures);
-
-            if(!initialTitle && sortedFixtures.length > 0) {
-                 const hardcodedName = hardcodedTranslations.leagues[sortedFixtures[0].league.id];
-                 setDisplayTitle(hardcodedName || sortedFixtures[0].league.name);
+        const leagueDocRef = doc(db, 'leagueCustomizations', String(leagueId));
+        leagueUnsub = onSnapshot(leagueDocRef, (doc) => {
+            if (isMounted) {
+                if (doc.exists()) {
+                    setDisplayTitle(doc.data().customName);
+                } else {
+                    setDisplayTitle(getDisplayName('league', leagueId, initialTitle || ''));
+                }
             }
+        });
+        
+        try {
+            const [teamsSnapshot, playersSnapshot] = await Promise.all([
+                getDocs(collection(db, 'teamCustomizations')),
+                getDocs(collection(db, 'playerCustomizations')),
+            ]);
+            if (!isMounted) return;
+            const teamNames = new Map<number, string>();
+            teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+            const playerNames = new Map<number, string>();
+            playersSnapshot.forEach(doc => playerNames.set(Number(doc.id), doc.data().customName));
+            setCustomNames({ teams: teamNames, players: playerNames });
+            
+            // --- Fetch API Data ---
+            const cacheKey = `competition_data_${leagueId}_${season}`;
+            const cachedData = getCachedData(cacheKey);
 
-            setCachedData(cacheKey, {
-                standings: newStandings,
-                topScorers: newTopScorers,
-                teams: newTeams,
-                fixtures: sortedFixtures,
-            });
+            if (cachedData) {
+                setStandings(cachedData.standings || []);
+                setTopScorers(cachedData.topScorers || []);
+                setTeams(cachedData.teams || []);
+                setFixtures(cachedData.fixtures || []);
+                setLoading(false);
+            } else {
+                 const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
+                    fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
+                    fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
+                    fetch(`/api/football/teams?league=${leagueId}&season=${season}`),
+                    fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`)
+                ]);
+
+                if (!isMounted) return;
+
+                const standingsData = await standingsRes.json();
+                const scorersData = await scorersRes.json();
+                const teamsData = await teamsRes.json();
+                const fixturesData = await fixturesRes.json();
+
+                const newStandings = standingsData.response[0]?.league?.standings[0] || [];
+                const newTopScorers = scorersData.response || [];
+                const newTeams = teamsData.response || [];
+                const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
+
+                setStandings(newStandings);
+                setTopScorers(newTopScorers);
+                setTeams(newTeams);
+                setFixtures(sortedFixtures);
+
+                setCachedData(cacheKey, {
+                    standings: newStandings,
+                    topScorers: newTopScorers,
+                    teams: newTeams,
+                    fixtures: sortedFixtures,
+                });
+            }
         } catch (error) {
             console.error("Failed to fetch competition details:", error);
-            toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
+            if(isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
         } finally {
-            setLoading(false);
+            if (isMounted) setLoading(false);
         }
     };
 
-    fetchData(season);
-  }, [leagueId, season, customNames, fetchAllCustomNames, initialTitle, toast]);
-  
+    fetchData();
+
+    return () => {
+        isMounted = false;
+        if (favoritesUnsub) favoritesUnsub();
+        if (leagueUnsub) leagueUnsub();
+    };
+}, [leagueId, season, db, user, initialTitle]);
+
 
   const groupedFixtures = useMemo(() => {
     return fixtures.reduce((acc, fixture) => {
@@ -334,36 +312,38 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
 }, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = (team: Team) => {
-        const itemType = 'teams';
         const itemId = team.id;
         
+        const isCurrentlyFavorited = !!favorites?.teams?.[itemId];
+
+        // Optimistic UI update
+        setFavorites(prev => {
+            const newFavs = JSON.parse(JSON.stringify(prev));
+            if (!newFavs.teams) newFavs.teams = {};
+            
+            if (isCurrentlyFavorited) {
+                delete newFavs.teams[itemId];
+            } else {
+                newFavs.teams[itemId] = { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
+
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavs);
+            }
+            return newFavs;
+        });
+
+        // Persist to Firestore
         if (user && !user.isAnonymous && db) {
             const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `teams.${itemId}`;
-            const isCurrentlyFavorited = !!favorites?.teams?.[itemId];
-            let updateData: { [key: string]: any };
-
-            if (isCurrentlyFavorited) {
-                updateData = { [fieldPath]: deleteField() };
-            } else {
-                updateData = { [fieldPath]: { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
-            }
-            
+            const updateData = isCurrentlyFavorited 
+                ? { [fieldPath]: deleteField() } 
+                : { [fieldPath]: { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
+        
             setDoc(favRef, updateData, { merge: true }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
             });
-        } else {
-            const currentFavorites = getLocalFavorites();
-            if (!currentFavorites.teams) {
-                currentFavorites.teams = {};
-            }
-            if (currentFavorites.teams?.[itemId]) {
-                delete currentFavorites.teams[itemId];
-            } else {
-                currentFavorites.teams[itemId] = { name: team.name, teamId: itemId, logo: team.logo, type: team.national ? 'National' : 'Club' };
-            }
-            setLocalFavorites(currentFavorites);
-            setFavorites(currentFavorites);
         }
     }
 
@@ -385,12 +365,12 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   const handleOpenRename = (type: RenameType, id: number, originalData: any) => {
     if (type === 'team') {
         const currentName = getDisplayName('team', id, originalData.name);
-        setRenameItem({ id, name: currentName, type, purpose: 'rename', originalData });
+        setRenameItem({ id, name: currentName, type, purpose: 'rename', originalData, originalName: originalData.name });
     } else if (type === 'player') {
         const currentName = getDisplayName('player', id, originalData.name);
-        setRenameItem({ id, name: currentName, type, purpose: 'rename', originalData });
+        setRenameItem({ id, name: currentName, type, purpose: 'rename', originalData, originalName: originalData.name });
     } else if (type === 'league' && leagueId) {
-        setRenameItem({ type: 'league', id: leagueId, name: displayTitle || '', purpose: 'rename', originalData: {name: initialTitle} });
+        setRenameItem({ type: 'league', id: leagueId, name: displayTitle || '', purpose: 'rename', originalData: {name: initialTitle}, originalName: initialTitle });
     }
   };
 
@@ -408,44 +388,36 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                 ? setDoc(docRef, data)
                 : deleteDoc(docRef);
 
-            op.then(() => {
-                fetchAllCustomNames();
-                toast({ title: 'نجاح', description: 'تم حفظ التغييرات.' });
-            }).catch(serverError => {
+            op.catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            // Decide based on current favorites state
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
-            const newFavorites = JSON.parse(JSON.stringify(favorites));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
 
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = {
-                    teamId: teamId,
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
-                };
-            }
-            // Optimistic UI update
-            setFavorites(newFavorites);
-
-            // Persist to storage
-            if (user.isAnonymous) {
-                setLocalFavorites(newFavorites);
-            } else {
+            setFavorites(prev => {
+                const newFavorites = JSON.parse(JSON.stringify(prev));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                } else {
+                    newFavorites.crownedTeams[teamId] = { teamId, name: originalData.name, logo: originalData.logo, note: newNote };
+                }
+                if (!user || user.isAnonymous) {
+                    setLocalFavorites(newFavorites);
+                }
+                return newFavorites;
+            });
+            
+            if (db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                setDoc(favDocRef, { crownedTeams: newFavorites.crownedTeams }, { merge: true }).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { crownedTeams: newFavorites.crownedTeams } }));
+                 const updateData = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : { teamId: teamId, name: originalData.name, logo: originalData.logo, note: newNote }};
+                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             }
         }
-        
         setRenameItem(null);
   };
 
@@ -544,7 +516,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
           </div>
           <TabsContent value="matches" className="p-0 mt-0">
              <div ref={listRef} className="max-h-[60vh] overflow-y-auto space-y-4 pt-2">
-                {loading || customNames === null ? (
+                {loading ? (
                     <div className="space-y-4 p-4">
                         {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
                     </div>
@@ -565,7 +537,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
              </div>
           </TabsContent>
           <TabsContent value="standings" className="p-0 mt-0">
-            {loading || customNames === null ? (
+            {loading ? (
                  <div className="space-y-px p-4">
                     {Array.from({ length: 18 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
                 </div>
@@ -610,7 +582,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
             ): <p className="pt-4 text-center text-muted-foreground">الترتيب غير متاح حالياً.</p>}
           </TabsContent>
            <TabsContent value="scorers" className="p-0 mt-0">
-            {loading || customNames === null ? (
+            {loading ? (
                 <div className="space-y-px p-4">
                     {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
                 </div>
@@ -651,7 +623,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
             ) : <p className="pt-4 text-center text-muted-foreground">قائمة الهدافين غير متاحة.</p>}
           </TabsContent>
           <TabsContent value="teams" className="mt-0">
-            {loading || customNames === null ? (
+            {loading ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
                     {Array.from({ length: 12 }).map((_, i) => (
                         <div key={i} className="flex flex-col items-center gap-2 rounded-lg border bg-card p-4">
@@ -675,9 +647,9 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                                 <AvatarImage src={team.logo} alt={team.name} />
                                 <AvatarFallback>{team.name.substring(0, 2)}</AvatarFallback>
                             </Avatar>
-                            <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('team', team.id, team) }}>
+                            {isAdmin && <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('team', team.id, team) }}>
                                 <Pencil className="h-4 w-4"/>
-                            </Button>
+                            </Button>}
                             <span className="font-semibold text-sm">
                                 {displayName}
                             </span>
@@ -699,4 +671,3 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     </div>
   );
 }
-    
