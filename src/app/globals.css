@@ -5,53 +5,53 @@
 
 @layer base {
   :root {
-    --background: 200 50% 12%;
-    --foreground: 210 20% 98%;
-    --card: 200 45% 16%;
-    --card-foreground: 210 20% 98%;
-    --popover: 200 50% 10%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 35 90% 55%;
-    --primary-foreground: 210 20% 5%;
-    --secondary: 200 30% 20%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 200 30% 20%;
-    --muted-foreground: 200 10% 50%;
-    --accent: 35 90% 55%;
-    --accent-foreground: 210 20% 5%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 210 20% 98%; 
+    --foreground: 220 15% 10%;
+    --card: 210 20% 94%;
+    --card-foreground: 220 15% 10%;
+    --popover: 210 20% 98%;
+    --popover-foreground: 220 15% 10%;
+    --primary: 150 60% 45%; 
+    --primary-foreground: 210 20% 98%;
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 220 15% 10%;
+    --muted: 210 20% 90%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 150 60% 45%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 20% 98%;
-    --border: 200 30% 20%;
-    --input: 200 30% 20%;
-    --ring: 35 90% 55%;
-    --chart-1: 35 80% 50%;
-    --chart-2: 180 70% 45%;
-    --chart-3: 210 80% 55%;
+    --border: 210 20% 85%;
+    --input: 210 20% 85%;
+    --ring: 150 60% 45%;
+    --chart-1: 150 70% 40%;
+    --chart-2: 210 80% 55%;
+    --chart-3: 35 90% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
     --radius: 1.5rem;
   }
 
   .dark {
-    --background: 220 15% 10%; /* Very dark, cool charcoal */
-    --foreground: 210 20% 98%; /* Off-white */
-    --card: 220 15% 15%; /* Slightly lighter charcoal for cards */
+    --background: 220 15% 10%; 
+    --foreground: 210 20% 98%; 
+    --card: 220 15% 15%; 
     --card-foreground: 210 20% 98%;
     --popover: 220 15% 8%;
     --popover-foreground: 210 20% 98%;
-    --primary: 90 80% 55%; /* Electric Lime Green */
-    --primary-foreground: 90 20% 5%; /* Very dark green for text on primary */
+    --primary: 150 60% 50%;
+    --primary-foreground: 220 15% 10%;
     --secondary: 220 10% 25%;
     --secondary-foreground: 210 20% 98%;
     --muted: 220 10% 25%;
     --muted-foreground: 210 15% 60%;
-    --accent: 90 80% 55%; /* Electric Lime Green */
-    --accent-foreground: 90 20% 5%;
+    --accent: 150 60% 50%; 
+    --accent-foreground: 220 15% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 20% 98%;
     --border: 220 15% 20%;
     --input: 220 15% 20%;
-    --ring: 90 80% 60%; /* Ring color based on lime green */
+    --ring: 150 60% 55%; 
   }
  
   .light {
