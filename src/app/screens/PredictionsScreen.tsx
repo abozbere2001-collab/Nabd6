@@ -27,39 +27,44 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
-    if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
-        return 0;
-    }
-
-    if (fixture.goals.home === null || fixture.goals.away === null) {
-      return 0;
-    }
-
-    // This is the CRITICAL FIX for the swapped prediction inputs.
-    // The UI for prediction is swapped (home on left, away on right in RTL).
-    // `prediction.homeGoals` holds the predicted away score.
-    // `prediction.awayGoals` holds the predicted home score.
-    // We must compare them against the actual scores in the correct order.
-    const predHome = prediction.awayGoals;
-    const predAway = prediction.homeGoals;
-
-    const actualHome = fixture.goals.home;
-    const actualAway = fixture.goals.away;
-
-    // Exact score: 3 points
-    if (actualHome === predHome && actualAway === predAway) {
-        return 3;
-    }
-
-    // Correct outcome (win/loss/draw): 1 point
-    const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
-    const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
-
-    if (actualWinner === predWinner) {
-        return 1;
-    }
-
+  if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) {
     return 0;
+  }
+
+  if (fixture.goals.home === null || fixture.goals.away === null) {
+    return 0;
+  }
+
+  // This is the CRITICAL FIX for the swapped prediction inputs.
+  // The UI for prediction is swapped (home on left, away on right in RTL).
+  const predHome = prediction.awayGoals;
+  const predAway = prediction.homeGoals;
+
+  const actualHome = fixture.goals.home;
+  const actualAway = fixture.goals.away;
+
+  // 3 points for exact score
+  if (actualHome === predHome && actualAway === predAway) {
+    return 3;
+  }
+
+  // 1 point for correct outcome (winner or draw)
+  const actualResult =
+    actualHome > actualAway ? 'home' :
+    actualHome < actualAway ? 'away' :
+    'draw';
+
+  const predictedResult =
+    predHome > predAway ? 'home' :
+    predHome < predAway ? 'away' :
+    'draw';
+
+  if (actualResult === predictedResult) {
+    return 1;
+  }
+
+  // 0 points otherwise
+  return 0;
 };
 
 const LeaderboardDisplay = React.memo(({ leaderboard, loadingLeaderboard, userScore, userId }: { leaderboard: UserScore[], loadingLeaderboard: boolean, userScore: UserScore | null, userId: string | undefined }) => {
@@ -324,8 +329,8 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         const predictionData: Prediction = {
             userId: user.uid,
             fixtureId,
-            homeGoals, // This is away score prediction due to UI swap
-            awayGoals, // This is home score prediction due to UI swap
+            homeGoals,
+            awayGoals,
             points: allUserPredictions[String(fixtureId)]?.points || 0,
             timestamp: new Date().toISOString()
         };
@@ -342,46 +347,59 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
         }
     }, [user, db, allUserPredictions]);
 
-   const handleCalculateAllPoints = useCallback(async () => {
+    const handleCalculateAllPoints = useCallback(async () => {
         if (!db || !isAdmin) return;
         setIsUpdatingPoints(true);
         toast({ title: "بدء تحديث النقاط...", description: "قد تستغرق هذه العملية بضع لحظات." });
 
         try {
+            // 1. Get all finished fixtures from the 'predictionFixtures' collection
             const fixturesSnapshot = await getDocs(collection(db, "predictionFixtures"));
+            const finishedFixtures = fixturesSnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() as PredictionMatch }))
+                .filter(match => ['FT', 'AET', 'PEN'].includes(match.fixtureData.fixture.status.short));
+
+            if (finishedFixtures.length === 0) {
+                toast({ title: 'لا توجد مباريات', description: 'لا توجد مباريات منتهية لاحتساب نقاطها.' });
+                setIsUpdatingPoints(false);
+                return;
+            }
+            
+            // This object will hold the latest points for the current user to update the UI
+            const locallyUpdatedUserPredictions: { [key: string]: Prediction } = {};
+
+            // 2. Calculate points for each prediction
             const pointsUpdateBatch = writeBatch(db);
-            const locallyUpdatedPredictions: { [key: string]: Partial<Prediction> } = {};
-
-            for (const fixtureDoc of fixturesSnapshot.docs) {
-                const fixtureData = (fixtureDoc.data() as PredictionMatch).fixtureData;
-                if (!fixtureData || !fixtureData.fixture || !['FT', 'AET', 'PEN'].includes(fixtureData.fixture.status.short)) {
-                    continue;
-                }
-
-                const userPredictionsSnapshot = await getDocs(collection(db, "predictionFixtures", fixtureDoc.id, "userPredictions"));
+            for (const fixtureMatch of finishedFixtures) {
+                const userPredictionsSnapshot = await getDocs(collection(db, "predictionFixtures", fixtureMatch.id, "userPredictions"));
                 userPredictionsSnapshot.forEach(predDoc => {
-                    const pred = predDoc.data() as Prediction;
-                    const newPoints = calculatePoints(pred, fixtureData);
+                    const prediction = predDoc.data() as Prediction;
+                    const newPoints = calculatePoints(prediction, fixtureMatch.fixtureData);
                     
-                    if (pred.points !== newPoints) {
+                    if (prediction.points !== newPoints) {
                         pointsUpdateBatch.update(predDoc.ref, { points: newPoints });
-                         if (pred.userId === user?.uid) {
-                             locallyUpdatedPredictions[fixtureDoc.id] = { ...pred, points: newPoints };
-                         }
+                        if (prediction.userId === user?.uid) {
+                            locallyUpdatedUserPredictions[fixtureMatch.id] = { ...prediction, points: newPoints };
+                        }
                     }
                 });
             }
             
+            // 3. Commit point updates to individual predictions
             await pointsUpdateBatch.commit();
             
-            if (user && Object.keys(locallyUpdatedPredictions).length > 0) {
-                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions as { [key: string]: Prediction } }));
+            // **CRITICAL UI FIX**: Update local state for the current user immediately
+            if (user && Object.keys(locallyUpdatedUserPredictions).length > 0) {
+                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedUserPredictions }));
             }
-            toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
+            toast({ title: "تم تحديث نقاط التوقعات", description: "جاري الآن تحديث لوحة الصدارة." });
 
+            // 4. Recalculate leaderboard
             const userPoints = new Map<string, number>();
             const allFixturesForLeaderboard = await getDocs(collection(db, "predictionFixtures"));
             for (const fixtureDoc of allFixturesForLeaderboard.docs) {
+                 if (!['FT', 'AET', 'PEN'].includes((fixtureDoc.data() as PredictionMatch).fixtureData.fixture.status.short)) continue;
+
                 const userPredictionsSnapshot = await getDocs(collection(db, 'predictionFixtures', fixtureDoc.id, 'userPredictions'));
                 userPredictionsSnapshot.forEach(predDoc => {
                     const pred = predDoc.data() as Prediction;
@@ -390,29 +408,31 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
                     }
                 });
             }
-
+            
+            // Fetch user profiles to get display names
             const userProfiles = new Map<string, UserProfile>();
             if (userPoints.size > 0) {
                 const allUserIds = Array.from(userPoints.keys());
                  for (let i = 0; i < allUserIds.length; i += 30) {
                     const batchIds = allUserIds.slice(i, i + 30);
                     if (batchIds.length > 0) {
-                        const usersQuery = query(collection(db, "users"), where('__name__', 'in', batchIds));
-                        const usersSnapshot = await getDocs(usersQuery);
-                        usersSnapshot.forEach(doc => userProfiles.set(doc.id, doc.data() as UserProfile));
+                        const usersQuery = query(collection(db, "users"), where(getDoc(doc(db, 'users', 'dummy')).id, 'in', batchIds));
+                        try {
+                          const usersSnapshot = await getDocs(usersQuery);
+                          usersSnapshot.forEach(doc => userProfiles.set(doc.id, doc.data() as UserProfile));
+                        } catch (e) {
+                          // Fallback for non-indexed queries or large datasets in development
+                          for(const userId of batchIds) {
+                            const userDoc = await getDoc(doc(db, 'users', userId));
+                            if(userDoc.exists()) userProfiles.set(userId, userDoc.data() as UserProfile);
+                          }
+                        }
                     }
                 }
             }
-
+            
+            // Create leaderboard update batch
             const leaderboardBatch = writeBatch(db);
-            const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
-            oldLeaderboardSnapshot.forEach(doc => {
-                if (!userPoints.has(doc.id)) {
-                    leaderboardBatch.delete(doc.ref);
-                }
-            });
-
-
             const sortedUsers = Array.from(userPoints.entries())
                 .filter(([userId]) => userProfiles.has(userId))
                 .sort((a, b) => b[1] - a[1]);
@@ -434,7 +454,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             }
             
             await leaderboardBatch.commit();
-            toast({ title: "نجاح!", description: "تم تحديث لوحة الصدارة بنجاح." });
+            toast({ title: "اكتمل التحديث!", description: "تم تحديث لوحة الصدارة بنجاح." });
             await fetchLeaderboard();
 
         } catch (error) {
