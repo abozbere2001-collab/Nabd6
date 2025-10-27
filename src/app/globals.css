@@ -52,23 +52,23 @@
   .light {
     --background: 220 10% 95%; /* Very light grey, almost white */
     --foreground: 0 0% 8%; /* Black for text */
-    --card: 0 65% 45%; /* Deeper, less saturated red */
-    --card-foreground: 0 0% 98%; /* White text on cards */
+    --card: 0 0% 100%; /* White cards */
+    --card-foreground: 0 0% 8%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 8%;
-    --primary: 0 0% 8%; /* Black for indicators and app name */
-    --primary-foreground: 0 0% 98%; /* White text on primary buttons */
+    --primary: 220 70% 55%; /* A nice blue for primary actions */
+    --primary-foreground: 0 0% 100%;
     --secondary: 220 10% 90%;
     --secondary-foreground: 0 0% 8%;
     --muted: 220 10% 92%;
     --muted-foreground: 0 0% 40%;
-    --accent: 0 80% 60%; /* A brighter red for accents if needed */
+    --accent: 220 70% 55%; /* Blue accent */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 100%; /* White borders */
+    --border: 0 0% 93%; /* Light grey borders */
     --input: 0 0% 93%;
-    --ring: 0 0% 8%;
+    --ring: 220 70% 55%;
     --radius: 1.5rem;
   }
   
