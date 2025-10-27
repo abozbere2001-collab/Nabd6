@@ -347,7 +347,7 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
                     ? { name: item.name, leagueId: itemId, logo: item.logo } 
                     : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' } };
 
-            updateDoc(favDocRef, updateData).catch(err => {
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}))
             });
         }
@@ -356,11 +356,10 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   const handleCrownToggle = useCallback((item: Item) => {
     const team = item as Team;
     const teamId = team.id;
-    if (!user || user.isAnonymous) {
+    if (!user) {
         toast({title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.'});
         return;
     }
-    if (!db) return;
 
     setFavorites(prev => {
         const newFavs = JSON.parse(JSON.stringify(prev));
@@ -370,23 +369,25 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         } else {
             newFavs.crownedTeams[teamId] = { teamId, name: team.name, logo: team.logo, note: '' };
         }
-        if (!user || user.isAnonymous) {
+        if (user.isAnonymous) {
             setLocalFavorites(newFavs);
         }
         return newFavs;
     });
 
-    const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const fieldPath = `crownedTeams.${teamId}`;
-    const isCrowned = !!favorites.crownedTeams?.[teamId];
+    if (db && !user.isAnonymous) {
+        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+        const fieldPath = `crownedTeams.${teamId}`;
+        const isCrowned = !!favorites.crownedTeams?.[teamId];
 
-    const updateData = isCrowned 
-        ? { [fieldPath]: deleteField() }
-        : { [fieldPath]: { teamId, name: team.name, logo: team.logo, note: '' } };
-    
-    updateDoc(favRef, updateData).catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
-    });
+        const updateData = isCrowned 
+            ? { [fieldPath]: deleteField() }
+            : { [fieldPath]: { teamId, name: team.name, logo: team.logo, note: '' } };
+        
+        setDoc(favRef, updateData, { merge: true }).catch(err => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
+        });
+    }
   }, [user, db, favorites, toast]);
 
 
@@ -508,4 +509,5 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
+
 

@@ -419,7 +419,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' }
                 };
             
-            updateDoc(favDocRef, updateData).catch(err => {
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }))
             });
         }
@@ -427,7 +427,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const handleCrownToggle = useCallback((item: Team) => {
         const teamId = item.id;
-        if (!user || user.isAnonymous) {
+        if (!user) {
             toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
             return;
         }
@@ -441,13 +441,13 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 newFavs.crownedTeams[teamId] = { teamId, name: item.name, logo: item.logo, note: '' };
             }
 
-            if (!user || user.isAnonymous) {
+            if (user.isAnonymous) {
                 setLocalFavorites(newFavs);
             }
             return newFavs;
         });
 
-        if (user && db && !user.isAnonymous) {
+        if (db && !user.isAnonymous) {
             const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${teamId}`;
             const isCrowned = !!favorites.crownedTeams?.[teamId];
@@ -456,7 +456,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 ? { [fieldPath]: deleteField() }
                 : { [fieldPath]: { teamId, name: item.name, logo: item.logo, note: '' } };
             
-            updateDoc(favRef, updateData).catch(err => {
+            setDoc(favRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
             });
         }
@@ -695,6 +695,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     
+
 
 
 
