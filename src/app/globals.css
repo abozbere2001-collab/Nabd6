@@ -28,24 +28,24 @@
   }
 
   .dark {
-    --background: 220 20% 10%; /* Very dark blue-gray */
+    --background: 0 0% 8%; /* Slightly darker background */
     --foreground: 220 15% 95%; /* Light gray */
-    --card: 220 20% 15%; /* Slightly lighter dark blue-gray */
+    --card: 240 2% 12%; /* #1c1c1e */
     --card-foreground: 220 15% 95%;
     --popover: 220 20% 8%;
     --popover-foreground: 220 15% 95%;
     --primary: 140 70% 50%; /* Lime Green */
     --primary-foreground: 140 90% 10%;
-    --secondary: 220 20% 25%;
+    --secondary: 240 2% 20%; /* Adjusted for new dark theme */
     --secondary-foreground: 220 15% 95%;
-    --muted: 220 20% 20%;
+    --muted: 240 2% 15%; /* Adjusted for new dark theme */
     --muted-foreground: 220 15% 60%;
     --accent: 140 60% 45%; /* Slightly darker Lime Green */
     --accent-foreground: 220 15% 95%;
     --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 25%;
-    --input: 220 20% 22%;
+    --border: 240 2% 20%; /* Adjusted for new dark theme */
+    --input: 240 2% 18%; /* Adjusted for new dark theme */
     --ring: 140 70% 50%;
   }
  
@@ -56,13 +56,13 @@
     --card-foreground: 220 15% 20%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 20%;
-    --primary: 140 65% 40%; /* Vibrant Green */
-    --primary-foreground: 0 0% 100%; /* White text on green */
+    --primary: 140 70% 50%; /* Lime Green */
+    --primary-foreground: 140 90% 10%;
     --secondary: 210 30% 94%;
     --secondary-foreground: 220 15% 20%;
     --muted: 210 30% 94%;
     --muted-foreground: 210 15% 45%;
-    --accent: 140 55% 45%; /* Slightly darker green for accents */
+    --accent: 140 60% 45%; /* Slightly darker green for accents */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
