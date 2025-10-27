@@ -75,7 +75,7 @@ export function OddsTab({ fixtureId }: { fixtureId: number }) {
 
             const oddsResponse: OddsApiResponse | undefined = oddsData.response?.[0];
             const fixtureInfo = fixtureData.response?.[0];
-            const bookmaker = oddsResponse?.bookmakers?.find((b: Bookmaker) => b.id === 8); // Bet365
+            const bookmaker = oddsResponse?.bookmakers?.find((b: Bookmaker) => b.id === 1); // Using 1xBet
             const matchWinnerBet = bookmaker?.bets.find((b: Bet) => b.id === 1);
 
             if (matchWinnerBet && oddsResponse.update && fixtureInfo) {
@@ -179,3 +179,5 @@ export function OddsTab({ fixtureId }: { fixtureId: number }) {
         </Card>
     );
 }
+
+    

@@ -404,7 +404,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   useEffect(() => {
       const currentFavorites = favorites;
       
-      if (isVisible && selectedDateKey && customNames) {
+      if (isVisible && selectedDateKey && customNames && currentFavorites) {
           const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
           const controller = new AbortController();
           fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
@@ -422,8 +422,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     setActiveTab(tabValue);
   };
   
-  const favoritedTeamIds = useMemo(() => favorites?.teams ? Object.keys(favorites.teams).map(Number) : [], [favorites.teams]);
-  const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites.leagues]);
+  const favoritedTeamIds = useMemo(() => favorites?.teams ? Object.keys(favorites.teams).map(Number) : [], [favorites]);
+  const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
   
   const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey || '';
@@ -509,3 +509,5 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
+
+    

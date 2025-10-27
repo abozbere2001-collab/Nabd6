@@ -131,6 +131,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
   
   const buildLocalIndex = useCallback(async () => {
+    if (!customNames) return;
     setLoading(true);
     const index: SearchableItem[] = [];
     const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
@@ -138,7 +139,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     const getName = (type: 'team' | 'league', id: number, defaultName: string) => {
         const customMap = type === 'team' ? customNames.teams : customNames.leagues;
-        return customMap.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
+        return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
     };
 
     if (competitionsCache) {
@@ -269,13 +270,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
+        if (!favorites) return;
         const itemId = item.id;
-        const currentFavorites = favorites;
-        const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
+        
+        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
     
-        // Optimistic UI update
-        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+        const newFavorites = JSON.parse(JSON.stringify(favorites));
         if (!newFavorites[itemType]) newFavorites[itemType] = {};
+
         if (isCurrentlyFavorited) {
             delete newFavorites[itemType]![itemId];
         } else {
@@ -284,17 +286,16 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
             newFavorites[itemType]![itemId] = favData as any;
         }
+        
         setFavorites(newFavorites);
     
-        // Permanent storage
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
             
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
-                 // Revert optimistic update on failure
-                setFavorites(currentFavorites);
+                setFavorites(favorites); // Revert on failure
             });
         } else {
             setLocalFavorites(newFavorites);
@@ -345,10 +346,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             }
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = favorites;
-            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
+            const isCurrentlyCrowned = !!favorites?.crownedTeams?.[teamId];
 
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
@@ -362,7 +362,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(currentFavorites); // Revert on failure
+                    setFavorites(favorites); // Revert on failure
                 });
             } else {
                 setLocalFavorites(newFavorites);
@@ -389,6 +389,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
     if (itemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
+    }
+
+    if (!favorites) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
     return (
@@ -454,3 +458,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
+    

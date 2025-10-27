@@ -86,7 +86,7 @@ export function PredictionOdds({ fixtureId }: { fixtureId: number }) {
     }, [fixtureId]);
 
     if (loading) {
-        return <Skeleton className="h-2 w-full mt-4" />;
+        return <Skeleton className="h-2 w-full" />;
     }
 
     if (!odds) {
@@ -145,3 +145,5 @@ export function PredictionOdds({ fixtureId }: { fixtureId: number }) {
         </TooltipProvider>
     );
 }
+
+    
