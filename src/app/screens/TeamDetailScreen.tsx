@@ -538,11 +538,11 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     }, [db, pinnedPredictionMatches, toast]);
 
     const handleFavoriteToggle = useCallback(() => {
-        if (!teamData) return;
+        if (!teamData || !setFavorites) return;
         
+        const { team } = teamData;
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            const { team } = teamData;
             const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -614,21 +614,20 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 });
             }
         } else if (purpose === 'crown' && user) {
-            const teamId = Number(id);
              setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[id];
 
                 if (isCurrentlyCrowned) {
-                    delete newFavorites.crownedTeams[teamId];
+                    delete newFavorites.crownedTeams[id];
                 } else {
-                    newFavorites.crownedTeams[teamId] = { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                    newFavorites.crownedTeams[id] = { teamId: id, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 }
 
                 if (user && db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                    const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
+                    const updateData = { [`crownedTeams.${id}`]: newFavorites.crownedTeams[id] || deleteField() };
                     setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                     });
@@ -718,6 +717,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     );
 }
 
+
+    
 
     
 

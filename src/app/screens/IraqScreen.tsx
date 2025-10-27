@@ -191,19 +191,18 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
   }, [crownedTeams, selectedTeamId]);
 
 
-  const handleRemoveCrowned = (teamId: number) => {
-     if (!setFavorites) return;
-
-     setFavorites(prev => {
-        const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-        if (newFavorites.crownedTeams?.[teamId]) {
-            delete newFavorites.crownedTeams[teamId];
+ const handleRemoveCrowned = useCallback((teamIdToRemove: number) => {
+    setFavorites(prev => {
+        if (!prev) return {};
+        const newFavorites = JSON.parse(JSON.stringify(prev));
+        if (newFavorites.crownedTeams?.[teamIdToRemove]) {
+            delete newFavorites.crownedTeams[teamIdToRemove];
         }
 
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            updateDoc(favDocRef, { [`crownedTeams.${teamId}`]: deleteField() }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { [`crownedTeams.${teamId}`]: 'DELETED' } }));
+            updateDoc(favDocRef, { [`crownedTeams.${teamIdToRemove}`]: deleteField() }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { [`crownedTeams.${teamIdToRemove}`]: 'DELETED' } }));
             });
         } else {
             setLocalFavorites(newFavorites);
@@ -211,7 +210,7 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
 
         return newFavorites;
     });
-  };
+}, [user, db, setFavorites]);
   
   const handleSelectTeam = (teamId: number) => {
     setSelectedTeamId(teamId);
@@ -277,5 +276,7 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
 }
 
 
+
+    
 
     

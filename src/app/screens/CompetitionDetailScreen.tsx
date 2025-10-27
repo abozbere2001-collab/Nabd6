@@ -595,12 +595,11 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 </div>
             ) : teams.length > 0 ? (
                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4">
-                    {teams.map((teamData) => {
-                        if (!teamData || !teamData.team) return null;
-                        const { team } = teamData;
+                    {teams.map(({ team }) => {
+                        if (!team) return null;
                         const displayName = getDisplayName('team', team.id, team.name);
                         const isFavoritedTeam = !!favorites?.teams?.[team.id];
-                        const isCrowned = !!favorites.crownedTeams?.[team.id];
+                        const isCrowned = !!favorites?.crownedTeams?.[team.id];
                         
                         return (
                         <div key={team.id} className="relative flex flex-col items-center gap-2 rounded-lg border bg-card p-4 text-center cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id, leagueId: leagueId })}>
@@ -634,5 +633,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }
 
 
+
+    
 
     
