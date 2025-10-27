@@ -93,6 +93,17 @@ const continentOrder = ["World", "Europe", "Asia", "Africa", "South America", "N
 const WORLD_LEAGUES_KEYWORDS = ["world", "uefa", "champions league", "europa", "copa libertadores", "copa sudamericana", "caf champions", "afc champions", "conmebol", "concacaf", "arab", "club world cup", "nations league"];
 
 const priorityCountries = [ "England", "Spain", "Germany", "Italy", "France", "Netherlands", "Portugal", "Saudi Arabia", "Iraq", "Japan", "Australia", "Brazil", "Argentina", "Egypt", "Morocco", "Tunisia", "Algeria", "Qatar", "United Arab Emirates", "Jordan", "Syria", "Lebanon", "Oman", "Kuwait", "Bahrain", "Sudan", "Libya", "Yemen"];
+const priorityNationalTeams = [
+    // South America
+    6, 28, 5, 4, 7, // Brazil, Argentina, Colombia, Chile, Uruguay
+    // Europe
+    2, 8, 9, 10, 12, 13, 27, 21, // France, Germany, England, Portugal, Spain, Italy, Netherlands, Belgium
+    // Asia
+    769, 768, 775, 25, 24, 22, 17, // Iraq, Saudi Arabia, Qatar, Japan, South Korea, Iran, Australia
+    // Africa
+    15, 19, 20, 29, 31, 23, // Morocco, Egypt, Algeria, Tunisia, Senegal, Nigeria
+];
+
 
 // --- Sorting Logic ---
 const getLeagueImportance = (leagueName: string): number => {
@@ -347,7 +358,13 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         });
 
         Object.keys(grouped).forEach(continent => {
-            grouped[continent].sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+            grouped[continent].sort((a,b) => {
+                const aIsPriority = priorityNationalTeams.includes(a.id);
+                const bIsPriority = priorityNationalTeams.includes(b.id);
+                if (aIsPriority && !bIsPriority) return -1;
+                if (!aIsPriority && bIsPriority) return 1;
+                return a.name.localeCompare(b.name, 'ar');
+            });
         });
         
         return grouped;
@@ -636,4 +653,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     
+
 
