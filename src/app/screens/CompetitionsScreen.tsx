@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -8,93 +7,18 @@ import { Star, Plus, Users, Trophy, User as PlayerIcon, Search } from 'lucide-re
 import type { ScreenProps } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { useAuth, useFirestore } from '@/firebase/provider';
-import { doc, onSnapshot, getDocs, collection, updateDoc, deleteField } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 import type { Favorites } from '@/lib/types';
 import { SearchSheet } from '@/components/SearchSheet';
 import { ProfileButton } from '../AppContentWrapper';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
-import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
 
 // --- MAIN SCREEN COMPONENT ---
-export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps) {
+export function CompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames }: ScreenProps) {
     const { user } = useAuth();
-    const { db } = useFirestore();
-    const { toast } = useToast();
-    const [favorites, setFavorites] = useState<Partial<Favorites>>({});
-    const [loading, setLoading] = useState(true);
-    const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string> } | null>(null);
-
-    // Centralized useEffect for fetching custom names and subscribing to favorites
-    useEffect(() => {
-        let isMounted = true;
-        let favsUnsub: (() => void) | undefined;
-        
-        const loadInitialData = async () => {
-            if (isMounted) setLoading(true);
-
-            // Fetch custom names once
-            if (db) {
-                try {
-                    const [leaguesSnap, teamsSnap] = await Promise.all([
-                        getDocs(collection(db, 'leagueCustomizations')),
-                        getDocs(collection(db, 'teamCustomizations'))
-                    ]);
-
-                    if (isMounted) {
-                        const leagueNames = new Map<number, string>();
-                        leaguesSnap.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-                        const teamNames = new Map<number, string>();
-                        teamsSnap.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-                        setCustomNames({ leagues: leagueNames, teams: teamNames });
-                    }
-                } catch (error) {
-                    if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-                }
-            } else {
-                 if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-            }
-
-            // Setup favorites listener
-            const handleLocalFavoritesChange = () => {
-                if (isMounted) setFavorites(getLocalFavorites());
-            };
-
-            if (user && db) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                favsUnsub = onSnapshot(favDocRef, (doc) => {
-                    if (isMounted) {
-                        setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
-                    }
-                }, (error) => {
-                    if (isMounted) setFavorites(getLocalFavorites());
-                    console.error("Error listening to favorites:", error);
-                });
-                window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            } else {
-                if (isMounted) setFavorites(getLocalFavorites());
-                window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            }
-
-            if (isMounted) setLoading(false);
-        };
-        
-        loadInitialData();
-
-        return () => {
-            isMounted = false;
-            if (favsUnsub) favsUnsub();
-            window.removeEventListener('localFavoritesChanged', () => {});
-        };
-    }, [user, db]);
-
-
+    
      const getDisplayName = useCallback((type: 'league' | 'team', id: number, defaultName: string) => {
         if (!customNames) return defaultName;
         const key = `${type}s` as 'leagues' | 'teams';
@@ -134,7 +58,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         }
     }
 
-    if (loading) {
+    if (!favorites || !customNames) {
         // You can return a loading spinner here if you want
         return null;
     }
@@ -147,7 +71,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                 canGoBack={canGoBack} 
                 actions={
                   <div className="flex items-center gap-1">
-                      <SearchSheet navigate={navigate}>
+                      <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames}>
                           <Button variant="ghost" size="icon" className="h-7 w-7">
                               <Search className="h-5 w-5" />
                           </Button>
@@ -162,7 +86,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                         <ScrollArea className="w-full whitespace-nowrap">
                             <div className="flex w-max space-x-4 px-4 flex-row-reverse">
                                  <div className="flex flex-col items-center gap-2 w-20 h-[84px] text-center">
-                                      <SearchSheet navigate={navigate} initialItemType="teams">
+                                      <SearchSheet navigate={navigate} initialItemType="teams" favorites={favorites} customNames={customNames}>
                                         <div className="flex flex-col items-center justify-center h-14 w-14 bg-card rounded-full cursor-pointer hover:bg-accent/50 transition-colors">
                                             <Plus className="h-6 w-6 text-primary" />
                                         </div>
@@ -195,7 +119,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                             <TabsContent value="teams" className="mt-4 px-3">
                                 <div className="grid grid-cols-4 gap-4">
                                      <div className="h-[76px] w-full">
-                                         <SearchSheet navigate={navigate} initialItemType="teams">
+                                         <SearchSheet navigate={navigate} initialItemType="teams" favorites={favorites} customNames={customNames}>
                                             <div className="flex flex-col items-center justify-center gap-2 text-center p-2 rounded-2xl border-2 border-dashed border-muted-foreground/50 h-full w-full cursor-pointer hover:bg-accent/50 transition-colors">
                                                 <div className="flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full">
                                                     <Plus className="h-6 w-6 text-primary" />
@@ -219,7 +143,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                             <TabsContent value="competitions" className="mt-4 px-3">
                                 <div className="grid grid-cols-4 gap-4">
                                     <div className="h-[76px] w-full">
-                                        <SearchSheet navigate={navigate} initialItemType="leagues">
+                                        <SearchSheet navigate={navigate} initialItemType="leagues" favorites={favorites} customNames={customNames}>
                                             <div className="flex flex-col items-center justify-center gap-2 text-center p-2 rounded-2xl border-2 border-dashed border-muted-foreground/50 h-full w-full cursor-pointer hover:bg-accent/50 transition-colors">
                                                 <div className="flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full">
                                                     <Plus className="h-6 w-6 text-primary" />
@@ -243,7 +167,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                             <TabsContent value="players" className="mt-4 px-3">
                                 <div className="grid grid-cols-4 gap-4">
                                      <div className="h-[76px] w-full">
-                                        <SearchSheet navigate={navigate} initialItemType="teams">
+                                        <SearchSheet navigate={navigate} initialItemType="teams" favorites={favorites} customNames={customNames}>
                                             <div className="flex flex-col items-center justify-center gap-2 text-center p-2 rounded-2xl border-2 border-dashed border-muted-foreground/50 h-full w-full cursor-pointer hover:bg-accent/50 transition-colors">
                                                 <div className="flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full">
                                                     <Plus className="h-6 w-6 text-primary" />

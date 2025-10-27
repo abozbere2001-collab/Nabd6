@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -251,11 +250,10 @@ const tabs: {id: TabName, label: string}[] = [
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status';
 
 // Main Screen Component
-export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: ScreenProps & { isVisible: boolean }) {
+export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames }: ScreenProps & { isVisible: boolean }) {
   const { user } = useAuth();
   const { db, isAdmin } = useAdmin();
   const { toast } = useToast();
-  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
   const [activeTab, setActiveTab] = useState<TabName>('my-results');
   const [renameItem, setRenameItem] = useState<{ type: RenameType, id: number, name: string, originalName?: string } | null>(null);
   const [showOdds, setShowOdds] = useState(false);
@@ -272,7 +270,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   const [matchesCache, setMatchesCache] = useState<Map<string, FixtureType[]>>(new Map());
   const [loading, setLoading] = useState(true);
     
-  const [customNamesCache, setCustomNamesCache] = useState<{leagues: Map<number, string>, teams: Map<number, string>} | null>(null);
   const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
 
 
@@ -290,8 +287,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   }, [db, isAdmin]);
 
   const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
-    if (!customNamesCache) return defaultName;
-    const firestoreMap = type === 'team' ? customNamesCache?.teams : customNamesCache?.leagues;
+    if (!customNames) return defaultName;
+    const firestoreMap = type === 'team' ? customNames?.teams : customNames?.leagues;
     const customName = firestoreMap?.get(id);
     if (customName) return customName;
 
@@ -300,7 +297,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     if(hardcodedName) return hardcodedName;
 
     return defaultName;
-}, [customNamesCache]);
+}, [customNames]);
 
 
   const handlePinToggle = useCallback((fixture: FixtureType) => {
@@ -326,35 +323,10 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   }, [db, pinnedPredictionMatches, toast]);
 
 
-  const fetchAllCustomNames = useCallback(async (abortSignal: AbortSignal) => {
-    if (customNamesCache || !db) return;
-     try {
-        const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
-            getDocs(collection(db, 'leagueCustomizations')),
-            getDocs(collection(db, 'teamCustomizations'))
-        ]);
-        
-        if (abortSignal.aborted) return;
-        
-        const leagueNames = new Map<number, string>();
-        leaguesSnapshot?.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-        const teamNames = new Map<number, string>();
-        teamsSnapshot?.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-        
-        setCustomNamesCache({ leagues: leagueNames, teams: teamNames });
-    } catch(e) {
-        console.warn("Could not fetch custom names", e);
-        setCustomNamesCache({ leagues: new Map(), teams: new Map() });
-    }
-  }, [customNamesCache, db]);
-
-
   const fetchAndProcessData = useCallback(async (dateKey: string, currentFavorites: Partial<Favorites>, abortSignal: AbortSignal) => {
     setLoading(true);
       
     try {
-        await fetchAllCustomNames(abortSignal);
-
         const favTeamIds = currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [];
         const favLeagueIds = currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [];
         const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
@@ -426,47 +398,20 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             setLoading(false);
           }
       }
-  }, [db, activeTab, fetchAllCustomNames, getDisplayName]);
+  }, [db, activeTab, getDisplayName]);
 
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    const handleLocalFavoritesChange = () => setFavorites(getLocalFavorites());
-
-    if (user && db) {
-        const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        unsubscribe = onSnapshot(docRef, (doc) => {
-            setFavorites(doc.data() as Favorites || { userId: user.uid });
-        }, (error) => {
-            if (error.code === 'permission-denied') {
-                setFavorites(getLocalFavorites());
-            } else {
-                const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'get' });
-                errorEmitter.emit('permission-error', permissionError);
-            }
-        });
-        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-    } else {
-        setFavorites(getLocalFavorites());
-        window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-    }
-    return () => {
-        if(unsubscribe) unsubscribe();
-        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-    };
-  }, [user, db]);
   
   
   useEffect(() => {
       const currentFavorites = (user && db) ? favorites : getLocalFavorites();
       
-      if (isVisible && selectedDateKey) {
+      if (isVisible && selectedDateKey && customNames) {
           const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
           const controller = new AbortController();
           fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
           return () => controller.abort();
       }
-  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user, db]);
+  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user, db, customNames]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -478,9 +423,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     setActiveTab(tabValue);
   };
   
-  const currentFavorites = (user && db) ? favorites : getLocalFavorites();
-  const favoritedTeamIds = useMemo(() => currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [], [currentFavorites.teams]);
-  const favoritedLeagueIds = useMemo(() => currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [], [currentFavorites.leagues]);
+  const favoritedTeamIds = useMemo(() => favorites?.teams ? Object.keys(favorites.teams).map(Number) : [], [favorites.teams]);
+  const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites.leagues]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
   
   const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey || '';
@@ -495,7 +439,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
             actions={
                <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs font-mono px-2" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
-                  <SearchSheet navigate={navigate}>
+                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
                       </Button>
@@ -566,4 +510,3 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     </div>
   );
 }
-

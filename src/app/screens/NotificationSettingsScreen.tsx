@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -10,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { ScreenProps } from '@/app/page';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, doc, onSnapshot, updateDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import type { Favorites } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -19,82 +18,9 @@ import { Newspaper } from 'lucide-react';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 
 
-export function NotificationSettingsScreen({ navigate, goBack, canGoBack, headerActions }: ScreenProps) {
+export function NotificationSettingsScreen({ navigate, goBack, canGoBack, headerActions, favorites, customNames }: ScreenProps) {
   const { user } = useAuth();
   const { db } = useFirestore();
-  const [favorites, setFavorites] = useState<Favorites | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string> } | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    let unsubscribe: (() => void) | null = null;
-    
-    const loadInitialData = async () => {
-        if (!db) {
-            if(isMounted) {
-                setCustomNames({ leagues: new Map(), teams: new Map() });
-                setLoading(false);
-            }
-            return;
-        };
-
-        if(isMounted) setLoading(true);
-
-        try {
-            const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
-                getDocs(collection(db, 'leagueCustomizations')),
-                getDocs(collection(db, 'teamCustomizations'))
-            ]);
-            
-            if(isMounted) {
-                const leagueNames = new Map<number, string>();
-                leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-                const teamNames = new Map<number, string>();
-                teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-                setCustomNames({ leagues: leagueNames, teams: teamNames });
-            }
-
-        } catch (error) {
-            if(isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-        }
-        
-        if (user && db) {
-            const favsRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            unsubscribe = onSnapshot(favsRef, (docSnap) => {
-              if (docSnap.exists()) {
-                if(isMounted) setFavorites(docSnap.data() as Favorites);
-              } else {
-                const defaultFavs: Favorites = { 
-                    userId: user.uid,
-                    leagues: {},
-                    teams: {},
-                    players: {},
-                    crownedTeams: {},
-                    notificationsEnabled: { news: true }
-                };
-                if(isMounted) setFavorites(defaultFavs);
-              }
-              if(isMounted) setLoading(false);
-            }, (error) => {
-              if(isMounted) {
-                  const permissionError = new FirestorePermissionError({ path: favsRef.path, operation: 'get' });
-                  errorEmitter.emit('permission-error', permissionError);
-                  setLoading(false);
-              }
-            });
-        } else {
-             if(isMounted) setLoading(false);
-        }
-    };
-    
-    loadInitialData();
-
-    return () => {
-      isMounted = false;
-      if (unsubscribe) unsubscribe();
-    };
-  }, [user, db]);
 
   const getDisplayName = useCallback((type: 'league' | 'team', id: number, defaultName: string) => {
     if (!customNames) return defaultName;
@@ -128,7 +54,7 @@ export function NotificationSettingsScreen({ navigate, goBack, canGoBack, header
     const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
     const updateData = { [fieldPath]: newStatus };
     
-    updateDoc(docRef, updateData).catch(serverError => {
+    setDoc(docRef, updateData, { merge: true }).catch(serverError => {
       const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData });
       errorEmitter.emit('permission-error', permissionError);
     });
@@ -164,7 +90,7 @@ export function NotificationSettingsScreen({ navigate, goBack, canGoBack, header
     );
   }
   
-  if (loading) {
+  if (!favorites || !customNames) {
     return (
       <div className="flex h-full flex-col bg-background">
         <ScreenHeader title="إعدادات الإشعارات" onBack={goBack} canGoBack={true} actions={headerActions} />

@@ -27,7 +27,7 @@ import { GoProScreen } from './screens/GoProScreen';
 import type { ScreenKey } from './page';
 
 import { useAd, SplashScreenAd, BannerAd } from '@/components/AdProvider';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -38,12 +38,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, Loader2 } from 'lucide-react';
 import { signOut } from '@/lib/firebase-client';
 import { cn } from '@/lib/utils';
 import { ManageTopScorersScreen } from './screens/ManageTopScorersScreen';
 import { IraqScreen } from './screens/IraqScreen';
 import { PredictionsScreen } from './screens/PredictionsScreen';
+import { doc, onSnapshot, getDocs, collection } from 'firebase/firestore';
+import type { Favorites } from '@/lib/types';
+import { getLocalFavorites } from '@/lib/local-favorites';
+
 
 const screenConfig: Record<string, { component: React.ComponentType<any>;}> = {
   Matches: { component: MatchesScreen },
@@ -145,6 +149,12 @@ export const ProfileButton = () => {
 
 
 export function AppContentWrapper() {
+  const { user } = useAuth();
+  const { db } = useFirestore();
+  const [favorites, setFavorites] = useState<Partial<Favorites>>({});
+  const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
+  const [loadingInitialData, setLoadingInitialData] = useState(true);
+
   const [navigationState, setNavigationState] = useState<{ activeTab: ScreenKey, stacks: Record<string, StackItem[]> }>({
     activeTab: 'Matches',
     stacks: {
@@ -160,6 +170,80 @@ export function AppContentWrapper() {
   const { showSplashAd, showBannerAd } = useAd();
   const keyCounter = useRef(1);
   
+  // Centralized data fetching and listening
+  useEffect(() => {
+    let isMounted = true;
+    let favsUnsub: (() => void) | undefined;
+    
+    const loadInitialData = async () => {
+        if (!isMounted) return;
+
+        setLoadingInitialData(true);
+
+        // Fetch custom names once
+        if (db) {
+            try {
+                const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap, playersSnap, coachesSnap] = await Promise.all([
+                    getDocs(collection(db, 'leagueCustomizations')),
+                    getDocs(collection(db, 'countryCustomizations')),
+                    getDocs(collection(db, 'continentCustomizations')),
+                    getDocs(collection(db, 'teamCustomizations')),
+                    getDocs(collection(db, 'playerCustomizations')),
+                    getDocs(collection(db, 'coachCustomizations')),
+                ]);
+
+                if (isMounted) {
+                    const names: { [key: string]: Map<number | string, string> } = {
+                        leagues: new Map(), countries: new Map(), continents: new Map(),
+                        teams: new Map(), players: new Map(), coaches: new Map()
+                    };
+                    leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
+                    countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
+                    continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
+                    teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
+                    playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
+                    coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
+                    setCustomNames(names);
+                }
+            } catch (error) {
+                 if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+            }
+        } else {
+             if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+        }
+
+        // Setup favorites listener
+        const handleLocalFavoritesChange = () => {
+            if (isMounted) setFavorites(getLocalFavorites());
+        };
+
+        if (user && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            favsUnsub = onSnapshot(favDocRef, (doc) => {
+                if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+            }, (error) => {
+                if (isMounted) setFavorites(getLocalFavorites());
+                console.error("Error listening to favorites:", error);
+            });
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+        } else {
+            if (isMounted) setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+        }
+        
+        if (isMounted) setLoadingInitialData(false);
+    };
+
+    loadInitialData();
+
+    return () => {
+        isMounted = false;
+        if (favsUnsub) favsUnsub();
+        window.removeEventListener('localFavoritesChanged', () => {});
+    };
+}, [user, db]);
+
+
   const goBack = useCallback(() => {
     setNavigationState(prevState => {
         const currentStack = prevState.stacks[prevState.activeTab];
@@ -207,6 +291,14 @@ export function AppContentWrapper() {
           (window as any).appNavigate = navigate;
       }
   }, [navigate]);
+  
+  if (loadingInitialData) {
+      return (
+          <div className="flex h-full w-full items-center justify-center bg-background">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+      )
+  }
 
   if (showSplashAd) {
     return <SplashScreenAd />;
@@ -238,6 +330,9 @@ export function AppContentWrapper() {
                                 goBack,
                                 canGoBack: stack.length > 1,
                                 isVisible,
+                                // Pass global data down
+                                favorites,
+                                customNames,
                             };
 
                             return (
