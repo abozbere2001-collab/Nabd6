@@ -35,10 +35,14 @@ const calculatePoints = (prediction: Prediction, fixture: Fixture): number => {
       return 0;
     }
     
+    // As per user request, prediction fields are swapped in the UI
+    // prediction.homeGoals contains the away team's predicted score
+    // prediction.awayGoals contains the home team's predicted score
+    const predHome = prediction.awayGoals;
+    const predAway = prediction.homeGoals;
+
     const actualHome = fixture.goals.home;
     const actualAway = fixture.goals.away;
-    const predHome = prediction.homeGoals;
-    const predAway = prediction.awayGoals;
 
     // Exact score: 3 points
     if (actualHome === predHome && actualAway === predAway) {
@@ -369,6 +373,7 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             await pointsUpdateBatch.commit();
             toast({ title: "تم تحديث نقاط التوقعات", description: "تم حساب جميع النقاط بنجاح." });
             
+            // This is the crucial fix: update the local state to re-render PredictionCards
             if (Object.keys(locallyUpdatedPredictions).length > 0) {
                 setAllUserPredictions(prev => ({ ...prev, ...locallyUpdatedPredictions }));
             }
@@ -402,10 +407,12 @@ export function PredictionsScreen({ navigate, goBack, canGoBack }: ScreenProps) 
             const leaderboardBatch = writeBatch(db);
             const oldLeaderboardSnapshot = await getDocs(collection(db, "leaderboard"));
             oldLeaderboardSnapshot.forEach(doc => {
-                if (!userPoints.has(doc.id) || !userProfiles.has(doc.id)) {
+                // Keep the document if the user still has points, otherwise delete
+                if (!userPoints.has(doc.id)) {
                     leaderboardBatch.delete(doc.ref);
                 }
             });
+
 
             const sortedUsers = Array.from(userPoints.entries())
                 .filter(([userId]) => userProfiles.has(userId))
