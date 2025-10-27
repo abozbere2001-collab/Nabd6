@@ -384,64 +384,57 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   };
   
   const handleSaveRenameOrNote = async (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
-    if (!renameItem || !db) {
-      setRenameItem(null);
-      return;
-    }
-
+    if (!renameItem || !db) return;
     const { purpose, originalData } = renameItem;
 
     if (purpose === 'rename' && isAdmin) {
-        const collectionName = `${type}Customizations`;
-        const docRef = doc(db, collectionName, String(id));
-        const data = { customName: newName };
+      const collectionName = `${type}Customizations`;
+      const docRef = doc(db, collectionName, String(id));
+      const data = { customName: newName };
 
-        const op = (newName && newName.trim() && newName !== (originalData as any)?.name)
-            ? setDoc(docRef, data)
-            : deleteDoc(docRef);
+      const op = (newName && newName.trim() && newName !== (originalData as any)?.name)
+        ? setDoc(docRef, data)
+        : deleteDoc(docRef);
 
-        op.then(() => {
-            toast({ title: 'نجاح', description: 'تم حفظ التغييرات.' });
-            buildLocalIndex();
-        }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
-        });
+      op.then(() => {
+        toast({ title: 'نجاح', description: 'تم حفظ التغييرات.' });
+        buildLocalIndex();
+      }).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
+      });
+    } else if (purpose === 'crown' && user) {
+        const teamId = Number(id);
+        const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
 
-    } else if (purpose === 'crown' && user && !user.isAnonymous) {
-        const isCurrentlyCrowned = !!favorites.crownedTeams?.[id as number];
-        
+        // This is the correct, immediate update for the UI
         setFavorites(prev => {
-            const newFavs = { ...prev };
+            const newFavs = JSON.parse(JSON.stringify(prev));
             if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
             if (isCurrentlyCrowned) {
-                delete newFavs.crownedTeams[id as number];
+                delete newFavs.crownedTeams[teamId];
             } else {
-                newFavs.crownedTeams[id as number] = {
-                    teamId: Number(id),
+                newFavs.crownedTeams[teamId] = {
+                    teamId: teamId,
                     name: (originalData as Team).name,
                     logo: (originalData as Team).logo,
                     note: newNote,
                 };
             }
-            if (user.isAnonymous) setLocalFavorites(newFavs);
+            if (user.isAnonymous) {
+                setLocalFavorites(newFavs);
+            }
             return newFavs;
         });
-
-        const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-        const fieldPath = `crownedTeams.${id}`;
-        const updateData = isCurrentlyCrowned
-            ? { [fieldPath]: deleteField() }
-            : { [fieldPath]: {
-                    teamId: Number(id),
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
-                }
-            };
-            
-        setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-        });
+        
+        // This is the correct, non-blocking update for Firestore
+        if (!user.isAnonymous) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const fieldPath = `crownedTeams.${teamId}`;
+            const updateData = isCurrentlyCrowned ? { [fieldPath]: deleteField() } : { [fieldPath]: { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote } };
+            setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+            });
+        }
     }
 
     setRenameItem(null);
@@ -530,7 +523,3 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
-
-
-
-

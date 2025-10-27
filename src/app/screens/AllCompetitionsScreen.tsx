@@ -372,18 +372,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     }, [nationalTeams, getName]);
 
 
-    const handleNationalTeamsAccordionOpen = (value: string[]) => {
-        if (value.includes('national-teams') && !nationalTeams && !loadingNationalTeams) {
-            fetchNationalTeams();
-        }
-    };
-    
-    const handleClubCompetitionsAccordionOpen = (value: string[]) => {
-        if (value.includes('club-competitions') && allLeagues.length === 0 && !loadingClubData) {
-            fetchAllCompetitions();
-        }
-    };
-
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const isLeague = itemType === 'leagues';
         const itemId = item.id;
@@ -426,7 +414,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     }, [user, db, favorites]);
 
     const handleOpenCrownDialog = (team: Team) => {
-        if (!user || user.isAnonymous) {
+        if (!user) {
             toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
             return;
         }
@@ -442,11 +430,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
-        if (!renameItem || !db) {
-            setRenameItem(null);
-            return;
-        }
-
+        if (!renameItem || !db) return;
+        
         const { purpose, originalData } = renameItem;
 
         if (purpose === 'rename' && isAdmin) {
@@ -465,39 +450,52 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
-        } else if (purpose === 'crown' && user && !user.isAnonymous) {
-            const isCurrentlyCrowned = !!favorites.crownedTeams?.[id as number];
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const fieldPath = `crownedTeams.${id}`;
-            let updateData;
-            
-            if (isCurrentlyCrowned) {
-                 updateData = { [fieldPath]: deleteField() };
-            } else {
-                 updateData = { [fieldPath]: {
-                    teamId: Number(id),
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
-                }};
-            }
-            
-            // Optimistically update UI
+        } else if (purpose === 'crown' && user) {
+            const teamId = Number(id);
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+
+            // Optimistically update local state first
             setFavorites(prev => {
                 const newFavs = JSON.parse(JSON.stringify(prev));
                 if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
+
                 if (isCurrentlyCrowned) {
-                    delete newFavs.crownedTeams[id as number];
+                    delete newFavs.crownedTeams[teamId];
                 } else {
-                    newFavs.crownedTeams[id as number] = updateData[fieldPath];
+                    newFavs.crownedTeams[teamId] = {
+                        teamId: teamId,
+                        name: (originalData as Team).name,
+                        logo: (originalData as Team).logo,
+                        note: newNote,
+                    };
                 }
-                if (user?.isAnonymous) setLocalFavorites(newFavs);
+                
+                // Also update localStorage for guest users
+                if(user.isAnonymous){
+                    setLocalFavorites(newFavs);
+                }
+
                 return newFavs;
             });
-            
-            setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-            });
+
+            // Persist to Firestore for logged-in (non-anonymous) users
+            if (!user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const fieldPath = `crownedTeams.${teamId}`;
+                const updateData = isCurrentlyCrowned
+                    ? { [fieldPath]: deleteField() }
+                    : { [fieldPath]: {
+                            teamId: teamId,
+                            name: (originalData as Team).name,
+                            logo: (originalData as Team).logo,
+                            note: newNote,
+                        }
+                    };
+
+                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                });
+            }
         }
         
         setRenameItem(null);
@@ -661,13 +659,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 }
             />
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                 <Accordion type="single" collapsible className="w-full space-y-4" onValueChange={(value) => {
-                     if (value === 'national-teams') {
-                         handleNationalTeamsAccordionOpen([value]);
-                     }
-                 }}>
+                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="national-teams" className="rounded-lg border bg-card/50">
-                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (!nationalTeams && !loadingNationalTeams) fetchNationalTeams() }}>
                             <div className="flex items-center gap-3">
                                 <Users className="h-6 w-6 text-primary"/>
                                 <h3 className="text-lg font-bold">المنتخبات</h3>
@@ -681,13 +675,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                     </AccordionItem>
                  </Accordion>
                  
-                 <Accordion type="single" collapsible className="w-full space-y-4" onValueChange={(value) => {
-                     if (value === 'club-competitions') {
-                         handleClubCompetitionsAccordionOpen([value]);
-                     }
-                 }}>
+                 <Accordion type="single" collapsible className="w-full">
                     <AccordionItem value="club-competitions" className="rounded-lg border bg-card/50">
-                        <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (allLeagues.length === 0 && !loadingClubData) fetchAllCompetitions() }}>
                             <div className="flex items-center gap-3">
                                 <Trophy className="h-6 w-6 text-primary"/>
                                 <h3 className="text-lg font-bold">البطولات</h3>
@@ -717,8 +707,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-
-
-
-

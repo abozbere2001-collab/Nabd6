@@ -682,42 +682,36 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const handleSaveRenameOrNote = async (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
         if (!teamData || !db || !renameItem) return;
         const { team } = teamData;
-        const { purpose, originalData } = renameItem;
+        const { purpose } = renameItem;
 
-        if (type === 'crown' && user && !user.isAnonymous) {
+        if (type === 'crown' && user) {
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[id];
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const fieldPath = `crownedTeams.${id}`;
-            let updateData;
-            
-            if (isCurrentlyCrowned) {
-                 updateData = { [fieldPath]: deleteField() };
-            } else {
-                 updateData = { [fieldPath]: {
-                    teamId: id,
-                    name: team.name,
-                    logo: team.logo,
-                    note: newNote,
-                }};
-            }
-            
-            // Optimistically update UI
+    
             setFavorites(prev => {
                 const newFavs = JSON.parse(JSON.stringify(prev));
                 if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
                 if (isCurrentlyCrowned) {
                     delete newFavs.crownedTeams[id];
                 } else {
-                    newFavs.crownedTeams[id] = updateData[fieldPath];
+                    newFavs.crownedTeams[id] = { teamId: id, name: team.name, logo: team.logo, note: newNote };
                 }
-                if (user?.isAnonymous) setLocalFavorites(newFavs);
+                if (user.isAnonymous) {
+                    setLocalFavorites(newFavs);
+                }
                 return newFavs;
             });
-            
-            setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-            });
-
+    
+            if (!user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const fieldPath = `crownedTeams.${id}`;
+                const updateData = isCurrentlyCrowned 
+                    ? { [fieldPath]: deleteField() }
+                    : { [fieldPath]: { teamId: id, name: team.name, logo: team.logo, note: newNote } };
+    
+                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                });
+            }
         } else if (type === 'team' && isAdmin) {
             const customNameRef = doc(db, 'teamCustomizations', String(id));
             if (newName && newName !== team.name) {
@@ -801,5 +795,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-
