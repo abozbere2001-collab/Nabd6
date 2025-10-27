@@ -17,7 +17,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: ScreenProps) {
+export function ProfileScreen({ navigate, goBack, canGoBack, headerActions, isNewUserFlow = false, onFlowComplete }: ScreenProps & { isNewUserFlow?: boolean, onFlowComplete?: () => void }) {
   const { user } = useAuth();
   const { db } = useFirestore();
   const { toast } = useToast();
@@ -72,6 +72,9 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
         title: 'تم الحفظ بنجاح',
         description: 'تم تحديث اسم العرض الخاص بك.',
       });
+      if (isNewUserFlow && onFlowComplete) {
+        onFlowComplete();
+      }
     } catch (error) {
       console.error("Error updating display name:", error);
       toast({
@@ -96,7 +99,7 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <ScreenHeader title="الملف الشخصي" onBack={goBack} canGoBack={true} actions={headerActions} />
+      <ScreenHeader title="الملف الشخصي" onBack={goBack} canGoBack={!isNewUserFlow && canGoBack} actions={headerActions} />
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <Card>
@@ -123,7 +126,7 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
                   <AvatarImage src={profile.photoURL} alt={profile.displayName} />
                   <AvatarFallback>{profile.displayName?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                <CardTitle>{profile.displayName}</CardTitle>
+                <CardTitle>{isNewUserFlow ? "اختر اسم العرض الخاص بك" : profile.displayName}</CardTitle>
                 <CardDescription>{isAnonymousUser ? 'حساب زائر' : profile.email}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -144,7 +147,7 @@ export function ProfileScreen({ navigate, goBack, canGoBack, headerActions }: Sc
               </CardContent>
             </Card>
 
-            {user && (
+            {!isNewUserFlow && user && (
                  <Card>
                     <CardHeader>
                         <CardTitle>معلومات فنية</CardTitle>

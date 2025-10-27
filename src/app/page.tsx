@@ -15,6 +15,7 @@ import { WelcomeScreen, GUEST_MODE_KEY } from './screens/WelcomeScreen';
 import { handleNewUser } from '@/lib/firebase-client';
 import { type User } from 'firebase/auth';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { OnboardingHints } from '@/components/OnboardingHints';
 
 export type ScreenKey = 'Welcome' | 'SignUp' | 'Matches' | 'Competitions' | 'AllCompetitions' | 'News' | 'Settings' | 'CompetitionDetails' | 'TeamDetails' | 'PlayerDetails' | 'AdminFavoriteTeamDetails' | 'Profile' | 'SeasonPredictions' | 'SeasonTeamSelection' | 'SeasonPlayerSelection' | 'AddEditNews' | 'ManageTopScorers' | 'MatchDetails' | 'NotificationSettings' | 'GeneralSettings' | 'ManagePinnedMatch' | 'PrivacyPolicy' | 'TermsOfService' | 'FavoriteSelection' | 'GoPro' | 'MyCountry' | 'Predictions';
 
@@ -25,6 +26,8 @@ export type ScreenProps = {
 };
 
 const GUEST_ONBOARDING_COMPLETE_KEY = 'goalstack_guest_onboarding_complete';
+const NEW_USER_HINTS_SHOWN_KEY = 'goalstack_new_user_hints_shown';
+
 
 const LoadingSplashScreen = () => (
     <div className="flex flex-col items-center justify-center h-screen bg-background text-center">
@@ -40,6 +43,8 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     const [onboardingComplete, setOnboardingComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [needsDisplayName, setNeedsDisplayName] = useState(false);
+    const [isNewUser, setIsNewUser] = useState(false);
+
 
     useEffect(() => {
         const checkOnboarding = async () => {
@@ -47,6 +52,7 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
             if (isGuest) {
                 const guestOnboardingComplete = localStorage.getItem(GUEST_ONBOARDING_COMPLETE_KEY) === 'true';
                 setOnboardingComplete(guestOnboardingComplete);
+                if (!guestOnboardingComplete) setIsNewUser(true);
                 setIsLoading(false);
                 return;
             }
@@ -60,8 +66,17 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
             try {
                 const userDoc = await getDoc(userDocRef);
                 const userData = userDoc.data();
-                setOnboardingComplete(userData?.onboardingComplete || false);
-                setNeedsDisplayName(!userData?.displayName);
+                const isComplete = userData?.onboardingComplete || false;
+                setOnboardingComplete(isComplete);
+                
+                if (!isComplete) setIsNewUser(true);
+                
+                if (user.isAnonymous) {
+                  setNeedsDisplayName(false);
+                } else {
+                  setNeedsDisplayName(!userData?.displayName || userData.displayName.startsWith('مستخدم_'));
+                }
+
             } catch (error) {
                 console.error("Error checking onboarding status:", error);
                 setOnboardingComplete(false);
@@ -73,6 +88,7 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     }, [user, db, isGuest]);
 
     const handleOnboardingComplete = async () => {
+        setIsNewUser(true); // Mark as new user to show hints after this step
         if (isGuest) {
             localStorage.setItem(GUEST_ONBOARDING_COMPLETE_KEY, 'true');
             setOnboardingComplete(true);
@@ -85,9 +101,8 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
         try {
             await setDoc(userDocRef, { onboardingComplete: true }, { merge: true });
             setOnboardingComplete(true);
-            // After completing favorite selection, check if they still need a display name
             const userDoc = await getDoc(userDocRef);
-            if (!userDoc.data()?.displayName) {
+            if (!user.isAnonymous && (!userDoc.data()?.displayName || userDoc.data()?.displayName.startsWith('مستخدم_'))) {
                 setNeedsDisplayName(true);
             }
         } catch (error) {
@@ -99,6 +114,17 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     const handleDisplayNameSet = () => {
         setNeedsDisplayName(false);
     }
+    
+    const onHintsDismissed = () => {
+        if(typeof window !== 'undefined'){
+            sessionStorage.setItem(NEW_USER_HINTS_SHOWN_KEY, 'true');
+        }
+    }
+    
+    const showHints = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return isNewUser && !sessionStorage.getItem(NEW_USER_HINTS_SHOWN_KEY);
+    }, [isNewUser]);
 
     if (isLoading) {
         return <LoadingSplashScreen />;
@@ -109,14 +135,14 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
     }
     
     if (needsDisplayName) {
-        // A simplified version of navigate/goBack for this specific flow
         const pseudoNavigate = () => {};
         const pseudoGoBack = () => handleDisplayNameSet();
-        return <ProfileScreen navigate={pseudoNavigate} goBack={pseudoGoBack} canGoBack={false} />;
+        return <ProfileScreen navigate={pseudoNavigate} goBack={handleDisplayNameSet} canGoBack={false} isNewUserFlow onFlowComplete={handleDisplayNameSet}/>;
     }
 
     return (
         <AdProvider>
+            {showHints && <OnboardingHints onDismiss={onHintsDismissed} />}
             <AppContentWrapper />
         </AdProvider>
     );
