@@ -221,17 +221,13 @@ const TeamPlayersTab = ({ teamId, navigate }: { teamId: number, navigate: Screen
     );
 };
 
-const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin }: { teamId: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean }) => {
+const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs }: { teamId: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}> }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
     const [loading, setLoading] = useState(true);
     const { db } = useFirestore();
     const [customNames, setCustomNames] = useState<{leagues: Map<number, string>, teams: Map<number, string>} | null>(null);
-
-    const listRef = useRef<HTMLDivElement>(null);
-    const dateRefs = useRef<{[key: string]: HTMLDivElement | null}>({});
-
 
      const fetchAllCustomNames = useCallback(async () => {
         if (!db) {
@@ -304,7 +300,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
         return defaultName;
     }, [customNames]);
 
-    const { groupedFixtures } = useMemo(() => {
+    const groupedFixtures = useMemo(() => {
         const processed = fixtures.map(fixture => ({
             ...fixture,
             league: { ...fixture.league, name: getDisplayName('league', fixture.league.id, fixture.league.name) },
@@ -314,17 +310,16 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             }
         }));
 
-        const grouped = processed.reduce((acc, fixture) => {
+        return processed.reduce((acc, fixture) => {
             const date = format(new Date(fixture.fixture.timestamp * 1000), 'yyyy-MM-dd');
             if (!acc[date]) acc[date] = [];
             acc[date].push(fixture);
             return acc;
         }, {} as Record<string, Fixture[]>);
 
-        return { groupedFixtures: grouped };
     }, [fixtures, getDisplayName]);
 
-    useEffect(() => {
+     useEffect(() => {
         if (loading || Object.keys(groupedFixtures).length === 0) return;
 
         const sortedDates = Object.keys(groupedFixtures).sort();
@@ -346,7 +341,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                 }, 100);
             }
         }
-    }, [loading, groupedFixtures]);
+    }, [loading, groupedFixtures, listRef, dateRefs]);
     
     const processedStandings = useMemo(() => {
         if (!standings) return [];
@@ -374,7 +369,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                 <TabsTrigger value="stats">الإحصائيات</TabsTrigger>
             </TabsList>
             <TabsContent value="matches" className="mt-4">
-                <div ref={listRef} className="h-full overflow-y-auto space-y-4">
+                <div ref={listRef} className="max-h-[60vh] overflow-y-auto space-y-4">
                     {sortedDates.length > 0 ? sortedDates.map(date => (
                         <div key={date} ref={el => dateRefs.current[date] = el}>
                             <h3 className="font-bold text-center text-sm text-muted-foreground my-2">
@@ -483,6 +478,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
     const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
 
     const [activeTab, setActiveTab] = useState('details');
+    
+    // REFS FOR SCROLLING, MOVED TO PARENT
+    const listRef = useRef<HTMLDivElement>(null);
+    const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
     useEffect(() => {
         if (!db) return;
@@ -766,7 +765,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} />
+                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} />
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
                     <TeamPlayersTab teamId={teamId} navigate={navigate} />
@@ -776,4 +775,5 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
         </div>
     );
 }
+
 

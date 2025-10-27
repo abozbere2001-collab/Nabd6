@@ -316,7 +316,6 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     
     let targetDate = sortedDates.find(date => date >= todayStr);
     
-    // If no upcoming dates, scroll to the last available date
     if (!targetDate && sortedDates.length > 0) {
         targetDate = sortedDates[sortedDates.length - 1];
     }
@@ -537,7 +536,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
              </div>
           </div>
           <TabsContent value="matches" className="p-0 mt-0">
-             <div ref={listRef} className="h-full overflow-y-auto space-y-4 pt-2">
+             <div ref={listRef} className="max-h-[60vh] overflow-y-auto space-y-4 pt-2">
                 {loading || customNames === null ? (
                     <div className="space-y-4 p-4">
                         {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -694,4 +693,5 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   );
 }
     
+
 
