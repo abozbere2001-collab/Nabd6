@@ -433,7 +433,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     let unsubscribe: (() => void) | undefined;
     const handleLocalFavoritesChange = () => setFavorites(getLocalFavorites());
 
-    if (user && db && !user.isAnonymous) {
+    if (user && db) {
         const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
         unsubscribe = onSnapshot(docRef, (doc) => {
             setFavorites(doc.data() as Favorites || { userId: user.uid });
@@ -458,7 +458,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
   
   
   useEffect(() => {
-      const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+      const currentFavorites = (user && db) ? favorites : getLocalFavorites();
       
       if (isVisible && selectedDateKey) {
           const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
@@ -466,7 +466,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
           fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
           return () => controller.abort();
       }
-  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user]);
+  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, user, db]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -478,7 +478,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     setActiveTab(tabValue);
   };
   
-  const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+  const currentFavorites = (user && db) ? favorites : getLocalFavorites();
   const favoritedTeamIds = useMemo(() => currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [], [currentFavorites.teams]);
   const favoritedLeagueIds = useMemo(() => currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [], [currentFavorites.leagues]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
@@ -566,5 +566,4 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible }: Screen
     </div>
   );
 }
-
 

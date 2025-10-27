@@ -544,7 +544,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 }
             });
 
-            if (user && !user.isAnonymous) {
+            if (user) {
                 const favoritesRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 favsUnsub = onSnapshot(favoritesRef, (docSnap) => {
                     if (isMounted) setFavorites(docSnap.exists() ? (docSnap.data() as Favorites) : {});
@@ -600,28 +600,24 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const handleFavoriteToggle = useCallback(() => {
         if (!teamData) return;
         const { team } = teamData;
-        const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
+        const currentFavorites = (user && db) ? favorites : getLocalFavorites();
         const isCurrentlyFavorited = !!currentFavorites.teams?.[team.id];
 
-        const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-        if (!newFavorites.teams) newFavorites.teams = {};
-
-        if (isCurrentlyFavorited) {
-            delete newFavorites.teams[team.id];
-        } else {
-            newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-        }
-
-        setFavorites(newFavorites);
-
-        if (user && !user.isAnonymous && db) {
+        if (user && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
+            const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
             setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                setFavorites(currentFavorites);
             });
         } else {
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.teams) newFavorites.teams = {};
+
+            if (isCurrentlyFavorited) {
+                delete newFavorites.teams[team.id];
+            } else {
+                newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
             setLocalFavorites(newFavorites);
         }
     }, [user, db, favorites, teamData]);
@@ -660,51 +656,32 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
         if (!teamData || !db || !renameItem) return;
         const { purpose, originalData, originalName } = renameItem;
-
+    
         if (purpose === 'rename' && isAdmin) {
             const docRef = doc(db, 'teamCustomizations', String(id));
             if (newName && newName !== originalName) {
                 setDoc(docRef, { customName: newName }).then(() => {
-                    setDisplayTitle(newName);
                     toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
                 });
             } else {
                 deleteDoc(docRef).then(() => {
-                    setDisplayTitle(originalName);
                     toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
                 });
             }
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const currentFavorites = (user && !user.isAnonymous) ? favorites : getLocalFavorites();
-            const isCurrentlyCrowned = !!currentFavorites.crownedTeams?.[teamId];
-
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = {
-                    teamId,
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
-                };
-            }
-            
-            setFavorites(newFavorites);
-
-            if (user && !user.isAnonymous && db) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`crownedTeams.${teamId}`]: !isCurrentlyCrowned ? newFavorites.crownedTeams[teamId] : deleteField() };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(currentFavorites);
-                });
-            } else {
-                setLocalFavorites(newFavorites);
-            }
+            const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+    
+            const updateData = {
+                [`crownedTeams.${teamId}`]: !isCurrentlyCrowned
+                    ? { teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
+                    : deleteField()
+            };
+    
+            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+            });
         }
         setRenameItem(null);
     };
@@ -779,4 +756,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-

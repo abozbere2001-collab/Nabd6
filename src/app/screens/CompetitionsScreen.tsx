@@ -69,7 +69,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         fetchInitialData();
         setLoading(true);
         
-        if (user && db && !user.isAnonymous) {
+        if (user && db) {
             const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
             unsubscribe = onSnapshot(docRef, (doc) => {
                 if (isMounted) {
@@ -260,7 +260,7 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                                 </div>
                             </TabsContent>
                         </Tabs>
-                         {!user && (
+                         {user && user.isAnonymous && (
                             <div className="px-4 pt-4 text-center">
                                  <p className="text-sm text-muted-foreground mb-4">للحفاظ على مفضلاتك ومزامنتها عبر الأجهزة، قم بإنشاء حساب دائم.</p>
                                 <Button onClick={handleLoginClick} className="w-full max-w-sm mx-auto">تسجيل الدخول أو إنشاء حساب</Button>
@@ -272,4 +272,3 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         </div>
     );
 }
-
