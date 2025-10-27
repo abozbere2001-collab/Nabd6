@@ -35,61 +35,62 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
     useEffect(() => {
         let isMounted = true;
         let favsUnsub: (() => void) | undefined;
-        let customLeaguesUnsub: (() => void) | undefined;
-        let customTeamsUnsub: (() => void) | undefined;
+        
+        const loadInitialData = async () => {
+            if (isMounted) setLoading(true);
 
-        const handleLocalFavoritesChange = () => {
-            if (isMounted) setFavorites(getLocalFavorites());
-        };
+            // Fetch custom names once
+            if (db) {
+                try {
+                    const [leaguesSnap, teamsSnap] = await Promise.all([
+                        getDocs(collection(db, 'leagueCustomizations')),
+                        getDocs(collection(db, 'teamCustomizations'))
+                    ]);
 
-        if (user && db) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            favsUnsub = onSnapshot(favDocRef, (doc) => {
-                if (isMounted) {
-                    setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
-                    setLoading(false);
+                    if (isMounted) {
+                        const leagueNames = new Map<number, string>();
+                        leaguesSnap.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
+                        const teamNames = new Map<number, string>();
+                        teamsSnap.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+                        setCustomNames({ leagues: leagueNames, teams: teamNames });
+                    }
+                } catch (error) {
+                    if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
                 }
-            }, (error) => {
-                if (isMounted) {
-                    setFavorites(getLocalFavorites());
-                    setLoading(false);
-                }
-                console.error("Error listening to favorites:", error);
-            });
-            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        } else {
-            if (isMounted) {
-                setFavorites(getLocalFavorites());
-                setLoading(false);
+            } else {
+                 if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
             }
-            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        }
 
-        if (db) {
-            customLeaguesUnsub = onSnapshot(collection(db, 'leagueCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<number, string>();
-                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, leagues: names } as any));
-                }
-            });
-            customTeamsUnsub = onSnapshot(collection(db, 'teamCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<number, string>();
-                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, teams: names } as any));
-                }
-            });
-        } else {
-            if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
-        }
+            // Setup favorites listener
+            const handleLocalFavoritesChange = () => {
+                if (isMounted) setFavorites(getLocalFavorites());
+            };
+
+            if (user && db) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                favsUnsub = onSnapshot(favDocRef, (doc) => {
+                    if (isMounted) {
+                        setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+                    }
+                }, (error) => {
+                    if (isMounted) setFavorites(getLocalFavorites());
+                    console.error("Error listening to favorites:", error);
+                });
+                window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            } else {
+                if (isMounted) setFavorites(getLocalFavorites());
+                window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            }
+
+            if (isMounted) setLoading(false);
+        };
+        
+        loadInitialData();
 
         return () => {
             isMounted = false;
             if (favsUnsub) favsUnsub();
-            if (customLeaguesUnsub) customLeaguesUnsub();
-            if (customTeamsUnsub) customTeamsUnsub();
-            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            window.removeEventListener('localFavoritesChanged', () => {});
         };
     }, [user, db]);
 
@@ -131,6 +132,11 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         if ((window as any).appNavigate) {
             (window as any).appNavigate('Welcome');
         }
+    }
+
+    if (loading) {
+        // You can return a loading spinner here if you want
+        return null;
     }
 
     return (

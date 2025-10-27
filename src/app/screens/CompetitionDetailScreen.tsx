@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -140,93 +141,80 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   const [standings, setStandings] = useState<Standing[]>([]);
   const [topScorers, setTopScorers] = useState<TopScorer[]>([]);
   const [teams, setTeams] = useState<{team: Team}[]>([]);
-  const [customNames, setCustomNames] = useState<{ teams: Map<number, string>, players: Map<number, string> } | null>(null);
+  const [customNames, setCustomNames] = useState<{ teams: Map<number, string>, players: Map<number, string>, leagues: Map<number, string> } | null>(null);
   const [season, setSeason] = useState<number>(CURRENT_SEASON);
   
   const listRef = useRef<HTMLDivElement>(null);
   const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-
   
-  const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: number, defaultName: string) => {
-    if (!customNames && type !== 'league') return defaultName;
-    
-    if (type === 'league') {
-        const hardcodedName = hardcodedTranslations.leagues[id];
-        if (hardcodedName) return hardcodedName;
-        return defaultName;
-    }
-    
-    const key = `${type}s` as 'teams' | 'players';
-    const firestoreMap = customNames?.[key];
-    const customName = firestoreMap?.get(id);
-    if (customName) return customName;
-    
-    const hardcodedKey = type === 'team' ? 'teams' : 'players';
-    const hardcodedName = hardcodedTranslations[hardcodedKey]?.[id];
-    if (hardcodedName) return hardcodedName;
-
-    return defaultName;
-  }, [customNames]);
-
   useEffect(() => {
-    if (!leagueId || !db) {
-        setLoading(false);
-        return;
-    };
-
     let isMounted = true;
     let favoritesUnsub: (() => void) | undefined;
-    let leagueUnsub: (() => void) | undefined;
-
-    const fetchData = async () => {
-        setLoading(true);
-        if (!isMounted) return;
-
-        // --- Setup Listeners ---
-        if (user && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            favoritesUnsub = onSnapshot(favDocRef, (doc) => {
-                if (isMounted) setFavorites(doc.data() as Favorites || {});
-            }, (error) => console.error("Error listening to favorites:", error));
-        } else {
-            setFavorites(getLocalFavorites());
+    
+    const loadInitialData = async () => {
+        if (!leagueId) {
+            setLoading(false);
+            return;
         }
 
-        const leagueDocRef = doc(db, 'leagueCustomizations', String(leagueId));
-        leagueUnsub = onSnapshot(leagueDocRef, (doc) => {
-            if (isMounted) {
-                if (doc.exists()) {
-                    setDisplayTitle(doc.data().customName);
-                } else {
-                    setDisplayTitle(getDisplayName('league', leagueId, initialTitle || ''));
-                }
-            }
-        });
-        
-        try {
-            const [teamsSnapshot, playersSnapshot] = await Promise.all([
-                getDocs(collection(db, 'teamCustomizations')),
-                getDocs(collection(db, 'playerCustomizations')),
-            ]);
-            if (!isMounted) return;
-            const teamNames = new Map<number, string>();
-            teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-            const playerNames = new Map<number, string>();
-            playersSnapshot.forEach(doc => playerNames.set(Number(doc.id), doc.data().customName));
-            setCustomNames({ teams: teamNames, players: playerNames });
-            
-            // --- Fetch API Data ---
-            const cacheKey = `competition_data_${leagueId}_${season}`;
-            const cachedData = getCachedData(cacheKey);
+        setLoading(true);
 
-            if (cachedData) {
-                setStandings(cachedData.standings || []);
-                setTopScorers(cachedData.topScorers || []);
-                setTeams(cachedData.teams || []);
-                setFixtures(cachedData.fixtures || []);
-                setLoading(false);
-            } else {
-                 const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
+        // Fetch custom names once
+        if (db) {
+            try {
+                const [teamsSnap, playersSnap, leaguesSnap] = await Promise.all([
+                    getDocs(collection(db, 'teamCustomizations')),
+                    getDocs(collection(db, 'playerCustomizations')),
+                    getDocs(collection(db, 'leagueCustomizations')),
+                ]);
+
+                if (isMounted) {
+                    const teamNames = new Map<number, string>();
+                    teamsSnap.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+                    const playerNames = new Map<number, string>();
+                    playersSnap.forEach(doc => playerNames.set(Number(doc.id), doc.data().customName));
+                    const leagueNames = new Map<number, string>();
+                    leaguesSnap.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
+                    setCustomNames({ teams: teamNames, players: playerNames, leagues: leagueNames });
+                }
+            } catch (error) {
+                if (isMounted) setCustomNames({ teams: new Map(), players: new Map(), leagues: new Map() });
+            }
+        } else {
+            if (isMounted) setCustomNames({ teams: new Map(), players: new Map(), leagues: new Map() });
+        }
+
+        // Setup favorites listener
+        const handleLocalFavoritesChange = () => {
+            if (isMounted) setFavorites(getLocalFavorites());
+        };
+
+        if (user && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            favoritesUnsub = onSnapshot(favDocRef, (doc) => {
+                if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+            }, (error) => {
+                if (isMounted) setFavorites(getLocalFavorites());
+            });
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+        } else {
+            if (isMounted) setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+        }
+
+        // Fetch API Data
+        const cacheKey = `competition_data_${leagueId}_${season}`;
+        const cachedData = getCachedData(cacheKey);
+
+        if (cachedData) {
+            setStandings(cachedData.standings || []);
+            setTopScorers(cachedData.topScorers || []);
+            setTeams(cachedData.teams || []);
+            setFixtures(cachedData.fixtures || []);
+            setLoading(false);
+        } else {
+             try {
+                const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
                     fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
                     fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
                     fetch(`/api/football/teams?league=${leagueId}&season=${season}`),
@@ -256,23 +244,42 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                     teams: newTeams,
                     fixtures: sortedFixtures,
                 });
+            } catch(e) {
+                 console.error("Failed to fetch competition details:", e);
+                if(isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
+            } finally {
+                if (isMounted) setLoading(false);
             }
-        } catch (error) {
-            console.error("Failed to fetch competition details:", error);
-            if(isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
-        } finally {
-            if (isMounted) setLoading(false);
         }
     };
 
-    fetchData();
+    loadInitialData();
 
     return () => {
         isMounted = false;
         if (favoritesUnsub) favoritesUnsub();
-        if (leagueUnsub) leagueUnsub();
+        window.removeEventListener('localFavoritesChanged', () => {});
     };
-}, [leagueId, season, db, user, initialTitle]);
+}, [leagueId, season, db, user, toast]);
+
+const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: number, defaultName: string) => {
+    if (!customNames) return defaultName;
+    const key = `${type}s` as 'teams' | 'players' | 'leagues';
+    const map = customNames[key] as Map<number, string>;
+    const customName = map?.get(id);
+    if(customName) return customName;
+    
+    const hardcodedName = hardcodedTranslations[key]?.[id];
+    if (hardcodedName) return hardcodedName;
+
+    return defaultName;
+  }, [customNames]);
+  
+  useEffect(() => {
+    if(leagueId) {
+        setDisplayTitle(getDisplayName('league', leagueId, initialTitle || ''));
+    }
+  }, [customNames, leagueId, initialTitle, getDisplayName]);
 
 
   const groupedFixtures = useMemo(() => {
@@ -313,37 +320,33 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   
     const handleFavoriteToggle = (team: Team) => {
         const itemId = team.id;
-        
-        const isCurrentlyFavorited = !!favorites?.teams?.[itemId];
+        const currentFavorites = (user && db) ? favorites : getLocalFavorites();
+        const isCurrentlyFavorited = !!currentFavorites.teams?.[itemId];
 
-        // Optimistic UI update
-        setFavorites(prev => {
-            const newFavs = JSON.parse(JSON.stringify(prev));
-            if (!newFavs.teams) newFavs.teams = {};
-            
-            if (isCurrentlyFavorited) {
-                delete newFavs.teams[itemId];
-            } else {
-                newFavs.teams[itemId] = { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-            }
+        if (user && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const updateData = {
+                [`teams.${itemId}`]: isCurrentlyFavorited ? deleteField() : { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
+            };
 
-            if (!user || user.isAnonymous) {
-                setLocalFavorites(newFavs);
-            }
-            return newFavs;
-        });
-
-        // Persist to Firestore
-        if (user && !user.isAnonymous && db) {
-            const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const fieldPath = `teams.${itemId}`;
-            const updateData = isCurrentlyFavorited 
-                ? { [fieldPath]: deleteField() } 
-                : { [fieldPath]: { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' } };
-        
-            setDoc(favRef, updateData, { merge: true }).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favRef.path, operation: 'update', requestResourceData: updateData }));
+            updateDoc(favDocRef, updateData).catch(err => {
+                if (err.code === 'not-found') {
+                    setDoc(favDocRef, { teams: { [itemId]: updateData[`teams.${itemId}`] } }, { merge: true }).catch(e => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'create', requestResourceData: updateData }));
+                    });
+                } else {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                }
             });
+        } else {
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.teams) newFavorites.teams = {};
+            if (isCurrentlyFavorited) {
+                delete newFavorites.teams[itemId];
+            } else {
+                newFavorites.teams[itemId] = { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
+            setLocalFavorites(newFavorites);
         }
     }
 
@@ -395,27 +398,22 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
-
-            setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev));
+            
+            if (db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                 const updateData = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : { teamId: teamId, name: originalData.name, logo: originalData.logo, note: newNote }};
+                updateDoc(favDocRef, updateData).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                });
+            } else {
+                 const newFavorites = JSON.parse(JSON.stringify(getLocalFavorites()));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
                     newFavorites.crownedTeams[teamId] = { teamId, name: originalData.name, logo: originalData.logo, note: newNote };
                 }
-                if (!user || user.isAnonymous) {
-                    setLocalFavorites(newFavorites);
-                }
-                return newFavorites;
-            });
-            
-            if (db && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                 const updateData = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : { teamId: teamId, name: originalData.name, logo: originalData.logo, note: newNote }};
-                setDoc(favDocRef, updateData, { merge: true }).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                });
+                setLocalFavorites(newFavorites);
             }
         }
         setRenameItem(null);
@@ -498,7 +496,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
           isOpen={!!renameItem}
           onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
           item={renameItem}
-          onSave={(type, id, name, note) => handleSaveRenameOrNote(type, Number(id), name, note)}
+          onSave={(type, id, name, note) => handleSaveRenameOrNote(type, Number(id), name, note || '')}
         />}
        <div className="flex-1 overflow-y-auto p-1">
         <CompetitionHeaderCard league={{ name: displayTitle, logo }} teamsCount={teams.length} />

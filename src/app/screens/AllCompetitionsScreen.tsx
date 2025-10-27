@@ -142,76 +142,75 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     const [nationalTeams, setNationalTeams] = useState<Team[] | null>(null);
     const [loadingClubData, setLoadingClubData] = useState(false);
     const [loadingNationalTeams, setLoadingNationalTeams] = useState(false);
+    const [isLoadingInitialData, setIsLoadingInitialData] = useState(true);
 
     
     // Centralized useEffect for fetching initial data and setting up listeners
     useEffect(() => {
         let isMounted = true;
         let favoritesUnsub: (() => void) | undefined;
-        let customLeaguesUnsub: (() => void) | undefined;
-        let customCountriesUnsub: (() => void) | undefined;
-        let customContinentsUnsub: (() => void) | undefined;
-        let customTeamsUnsub: (() => void) | undefined;
+        
+        const loadInitialData = async () => {
+            if (isMounted) setIsLoadingInitialData(true);
 
-        const handleLocalFavoritesChange = () => {
-            if (isMounted) setFavorites(getLocalFavorites());
+            // Fetch custom names once
+            if (db) {
+                try {
+                    const [leaguesSnap, countriesSnap, continentsSnap, teamsSnap] = await Promise.all([
+                        getDocs(collection(db, 'leagueCustomizations')),
+                        getDocs(collection(db, 'countryCustomizations')),
+                        getDocs(collection(db, 'continentCustomizations')),
+                        getDocs(collection(db, 'teamCustomizations')),
+                    ]);
+
+                    if (isMounted) {
+                        const names = {
+                            leagues: new Map<number, string>(),
+                            countries: new Map<string, string>(),
+                            continents: new Map<string, string>(),
+                            teams: new Map<number, string>()
+                        };
+                        leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
+                        countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
+                        continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
+                        teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
+                        setCustomNames(names);
+                    }
+                } catch (error) {
+                     if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
+                }
+            } else {
+                 if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
+            }
+
+            // Setup favorites listener
+            const handleLocalFavoritesChange = () => {
+                if (isMounted) setFavorites(getLocalFavorites());
+            };
+
+            if (user && db) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                favoritesUnsub = onSnapshot(favDocRef, (doc) => {
+                    if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+                }, (error) => {
+                    if (isMounted) setFavorites(getLocalFavorites());
+                    console.error("Error listening to favorites:", error);
+                });
+                window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            } else {
+                if (isMounted) setFavorites(getLocalFavorites());
+                window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            }
+
+            if (isMounted) setIsLoadingInitialData(false);
         };
 
-        if (user && db) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            favoritesUnsub = onSnapshot(favDocRef, (doc) => {
-                if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
-            }, (error) => {
-                if (isMounted) setFavorites(getLocalFavorites());
-                console.error("Error listening to favorites:", error);
-            });
-            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        } else {
-            if (isMounted) setFavorites(getLocalFavorites());
-            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        }
-
-        if (db) {
-            customLeaguesUnsub = onSnapshot(collection(db, 'leagueCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<number, string>();
-                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, leagues: names } as any));
-                }
-            });
-            customCountriesUnsub = onSnapshot(collection(db, 'countryCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<string, string>();
-                    snapshot.forEach(doc => names.set(doc.id, doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, countries: names } as any));
-                }
-            });
-            customContinentsUnsub = onSnapshot(collection(db, 'continentCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<string, string>();
-                    snapshot.forEach(doc => names.set(doc.id, doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, continents: names } as any));
-                }
-            });
-            customTeamsUnsub = onSnapshot(collection(db, 'teamCustomizations'), (snapshot) => {
-                if (isMounted) {
-                    const names = new Map<number, string>();
-                    snapshot.forEach(doc => names.set(Number(doc.id), doc.data().customName));
-                    setCustomNames(prev => ({ ...prev, teams: names } as any));
-                }
-            });
-        } else {
-            if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map() });
-        }
+        loadInitialData();
 
         return () => {
             isMounted = false;
             if (favoritesUnsub) favoritesUnsub();
-            if (customLeaguesUnsub) customLeaguesUnsub();
-            if (customCountriesUnsub) customCountriesUnsub();
-            if (customContinentsUnsub) customContinentsUnsub();
-            if (customTeamsUnsub) customTeamsUnsub();
-            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            window.removeEventListener('localFavoritesChanged', () => {});
         };
     }, [user, db]);
 
@@ -415,7 +414,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                  newFavorites[itemType][itemId] = { name: item.name, [`${itemType.slice(0, -1)}Id`]: itemId, logo: item.logo };
             }
             setLocalFavorites(newFavorites);
-            setFavorites(newFavorites); // Also update local state for immediate feedback
         }
     };
     
@@ -500,7 +498,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
     };
 
     const renderNationalTeams = () => {
-        if (loadingNationalTeams || customNames === null) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
+        if (loadingNationalTeams) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
         if (!groupedNationalTeams) return null;
 
         return continentOrder.filter(c => groupedNationalTeams[c]).map(continent => (
@@ -550,7 +548,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
 
     const renderClubCompetitions = () => {
-        if (loadingClubData || customNames === null) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
+        if (loadingClubData) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
         if (allLeagues.length === 0) return <p className="p-4 text-center text-muted-foreground">اضغط على زر الفتح لعرض البطولات.</p>;
         
         return continentOrder.filter(c => sortedGroupedCompetitions[c]).map(continent => (
@@ -605,6 +603,21 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
              </AccordionItem>
         ));
     };
+
+    if (isLoadingInitialData) {
+         return (
+            <div className="flex h-full flex-col bg-background">
+                <ScreenHeader 
+                    title={"البطولات"} 
+                    onBack={goBack} 
+                    canGoBack={canGoBack} 
+                />
+                <div className="flex-1 flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-full flex-col bg-background">

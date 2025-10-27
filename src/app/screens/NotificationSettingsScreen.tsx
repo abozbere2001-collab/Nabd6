@@ -27,61 +27,71 @@ export function NotificationSettingsScreen({ navigate, goBack, canGoBack, header
   const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string> } | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     let unsubscribe: (() => void) | null = null;
-    const fetchCustomNames = async () => {
+    
+    const loadInitialData = async () => {
         if (!db) {
-            setCustomNames({ leagues: new Map(), teams: new Map() });
+            if(isMounted) {
+                setCustomNames({ leagues: new Map(), teams: new Map() });
+                setLoading(false);
+            }
             return;
         };
+
+        if(isMounted) setLoading(true);
+
         try {
             const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
                 getDocs(collection(db, 'leagueCustomizations')),
                 getDocs(collection(db, 'teamCustomizations'))
             ]);
             
-            const leagueNames = new Map<number, string>();
-            leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-
-            const teamNames = new Map<number, string>();
-            teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-            
-            setCustomNames({ leagues: leagueNames, teams: teamNames });
+            if(isMounted) {
+                const leagueNames = new Map<number, string>();
+                leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
+                const teamNames = new Map<number, string>();
+                teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+                setCustomNames({ leagues: leagueNames, teams: teamNames });
+            }
 
         } catch (error) {
-            setCustomNames({ leagues: new Map(), teams: new Map() });
+            if(isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
+        }
+        
+        if (user && db) {
+            const favsRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            unsubscribe = onSnapshot(favsRef, (docSnap) => {
+              if (docSnap.exists()) {
+                if(isMounted) setFavorites(docSnap.data() as Favorites);
+              } else {
+                const defaultFavs: Favorites = { 
+                    userId: user.uid,
+                    leagues: {},
+                    teams: {},
+                    players: {},
+                    crownedTeams: {},
+                    notificationsEnabled: { news: true }
+                };
+                if(isMounted) setFavorites(defaultFavs);
+              }
+              if(isMounted) setLoading(false);
+            }, (error) => {
+              if(isMounted) {
+                  const permissionError = new FirestorePermissionError({ path: favsRef.path, operation: 'get' });
+                  errorEmitter.emit('permission-error', permissionError);
+                  setLoading(false);
+              }
+            });
+        } else {
+             if(isMounted) setLoading(false);
         }
     };
     
-    fetchCustomNames();
-
-    if (!user || !db) {
-      setLoading(false);
-      return;
-    }
-    
-    const favsRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    unsubscribe = onSnapshot(favsRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setFavorites(docSnap.data() as Favorites);
-      } else {
-        const defaultFavs: Favorites = { 
-            userId: user.uid,
-            leagues: {},
-            teams: {},
-            players: {},
-            crownedTeams: {},
-            notificationsEnabled: { news: true }
-        };
-        setFavorites(defaultFavs);
-      }
-      setLoading(false);
-    }, (error) => {
-      const permissionError = new FirestorePermissionError({ path: favsRef.path, operation: 'get' });
-      errorEmitter.emit('permission-error', permissionError);
-      setLoading(false);
-    });
+    loadInitialData();
 
     return () => {
+      isMounted = false;
       if (unsubscribe) unsubscribe();
     };
   }, [user, db]);
@@ -118,7 +128,7 @@ export function NotificationSettingsScreen({ navigate, goBack, canGoBack, header
     const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
     const updateData = { [fieldPath]: newStatus };
     
-    setDoc(docRef, updateData, { merge: true }).catch(serverError => {
+    updateDoc(docRef, updateData).catch(serverError => {
       const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'update', requestResourceData: updateData });
       errorEmitter.emit('permission-error', permissionError);
     });
