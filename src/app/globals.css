@@ -5,9 +5,9 @@
 
 @layer base {
   :root {
-    --background: 215 28% 17%; /* Dark Blue */
+    --background: 216 34% 15%; /* Very Dark Sky Blue */
     --foreground: 210 40% 96%;
-    --card: 216 34% 15%; /* Darker Blue Card */
+    --card: 215 28% 17%; /* Darker Blue Card, but lighter than new background */
     --card-foreground: 210 40% 98%;
     --popover: 222 30% 9%;
     --popover-foreground: 210 40% 98%;
@@ -33,9 +33,9 @@
   }
 
   .dark {
-    --background: 215 28% 17%; /* Dark Blue - Sky Theme */
+    --background: 216 34% 15%; /* Very Dark Sky Blue - Sky Theme */
     --foreground: 210 40% 96%;
-    --card: 216 34% 15%; 
+    --card: 215 28% 17%; 
     --card-foreground: 210 40% 98%;
     --popover: 222 30% 9%;
     --popover-foreground: 210 40% 98%;
