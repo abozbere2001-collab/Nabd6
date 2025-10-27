@@ -52,7 +52,7 @@ interface SearchableItem {
 
 
 // --- Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_competitions_cache';
+const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
 const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
 interface Cache<T> {
     data: T;
@@ -136,19 +136,23 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     if (!db) return;
     setLoading(true);
     const index: SearchableItem[] = [];
-    const competitionsCache = getCachedData<{managedCompetitions: ManagedCompetition[]}>(COMPETITIONS_CACHE_KEY);
+    const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
     const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
     
     let customTeamNames = new Map<number, string>();
     let customLeagueNames = new Map<number, string>();
 
     if(db) {
-        const [teamsSnap, leaguesSnap] = await Promise.all([
-            getDocs(collection(db, 'teamCustomizations')).catch(()=>null),
-            getDocs(collection(db, 'leagueCustomizations')).catch(()=>null)
-        ]);
-        teamsSnap?.forEach(doc => customTeamNames.set(Number(doc.id), doc.data().customName));
-        leaguesSnap?.forEach(doc => customLeagueNames.set(Number(doc.id), doc.data().customName));
+        try {
+            const [teamsSnap, leaguesSnap] = await Promise.all([
+                getDocs(collection(db, 'teamCustomizations')),
+                getDocs(collection(db, 'leagueCustomizations'))
+            ]);
+            teamsSnap?.forEach(doc => customTeamNames.set(Number(doc.id), doc.data().customName));
+            leaguesSnap?.forEach(doc => customLeagueNames.set(Number(doc.id), doc.data().customName));
+        } catch (e) {
+            // Non-admin may not have access, that's fine.
+        }
     }
 
     const getName = (type: 'team' | 'league', id: number, defaultName: string) => {
@@ -156,16 +160,17 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return customMap.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
     };
 
-    if (competitionsCache?.managedCompetitions) {
-        competitionsCache.managedCompetitions.forEach(comp => {
-            const name = getName('league', comp.leagueId, comp.name);
+    if (competitionsCache) {
+        competitionsCache.forEach(comp => {
+            const league = comp.league;
+            const name = getName('league', league.id, league.name);
             index.push({
-                id: comp.leagueId,
+                id: league.id,
                 type: 'leagues',
                 name,
                 normalizedName: normalizeArabic(name),
-                logo: comp.logo,
-                originalItem: { id: comp.leagueId, name: comp.name, logo: comp.logo }
+                logo: league.logo,
+                originalItem: { id: league.id, name: league.name, logo: league.logo }
             });
         });
     }
@@ -244,10 +249,13 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         return;
     }
     
+    // Start with local search
     const localResults = localSearchIndex.filter(item => 
         item.name.toLowerCase().includes(query.toLowerCase()) || item.normalizedName.includes(normalizedQuery)
     );
+    const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
+    // Simultaneously fetch from API
     const apiSearchPromises = [
       fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
       fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
@@ -255,7 +263,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     
     try {
         const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
-        const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
         
         teamsData.response?.forEach((r: TeamResult) => {
             if(!existingIds.has(`teams-${r.team.id}`)) {
@@ -346,37 +353,49 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
         }
     }, [user, db, favorites]);
 
-  const handleCrownToggle = (item: Item) => {
+  const handleCrownToggle = useCallback((item: Item) => {
     const team = item as Team;
-    if (!user || user.isAnonymous) {
+    const teamId = team.id;
+    if (!user) {
         toast({title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.'});
         return;
     }
-    if (!db) return;
 
+    const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+
+    // Optimistically update the UI
     setFavorites(prev => {
-        const newFavs = JSON.parse(JSON.stringify(prev));
+        const newFavs = { ...prev };
         if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
-        if (newFavs.crownedTeams[team.id]) {
-            delete newFavs.crownedTeams[team.id];
+        
+        if (isCurrentlyCrowned) {
+            delete newFavs.crownedTeams[teamId];
         } else {
-            newFavs.crownedTeams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, note: '' };
+            newFavs.crownedTeams[teamId] = { teamId, name: team.name, logo: team.logo, note: '' };
+        }
+
+        if (user.isAnonymous) {
+            setLocalFavorites(newFavs);
         }
         return newFavs;
     });
-
-    const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
-    const fieldPath = `crownedTeams.${team.id}`;
-    const isCrowned = !!favorites.crownedTeams?.[team.id];
-
-    const updateData = isCrowned 
-        ? { [fieldPath]: deleteField() }
-        : { [fieldPath]: { teamId: team.id, name: team.name, logo: team.logo, note: '' } };
     
-    updateDoc(favRef, updateData).catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
-    });
-  }
+    // Update Firestore
+    if (db && !user.isAnonymous) {
+        const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
+        const fieldPath = `crownedTeams.${teamId}`;
+        
+        const updateData = isCurrentlyCrowned 
+            ? { [fieldPath]: deleteField() }
+            : { [fieldPath]: { teamId, name: team.name, logo: team.logo, note: '' } };
+
+        setDoc(favRef, updateData, { merge: true }).catch(err => {
+            // Revert optimistic update on error
+            setFavorites(favorites); 
+            errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
+        });
+    }
+  }, [user, db, favorites, toast]);
 
 
   const handleResultClick = (result: SearchableItem) => {
@@ -498,7 +517,3 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   );
 }
 
-
-
-
-    

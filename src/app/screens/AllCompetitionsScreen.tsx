@@ -432,10 +432,15 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             return;
         }
 
+        // Determine the current state before any updates
+        const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
+
+        // Optimistically update the UI
         setFavorites(prev => {
-            const newFavs = JSON.parse(JSON.stringify(prev));
+            const newFavs = { ...prev };
             if (!newFavs.crownedTeams) newFavs.crownedTeams = {};
-            if (newFavs.crownedTeams[teamId]) {
+            
+            if (isCurrentlyCrowned) {
                 delete newFavs.crownedTeams[teamId];
             } else {
                 newFavs.crownedTeams[teamId] = { teamId, name: item.name, logo: item.logo, note: '' };
@@ -446,17 +451,19 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             }
             return newFavs;
         });
-
+        
+        // Update Firestore
         if (db && !user.isAnonymous) {
             const favRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const fieldPath = `crownedTeams.${teamId}`;
-            const isCrowned = !!favorites.crownedTeams?.[teamId];
-
-            const updateData = isCrowned 
+            
+            const updateData = isCurrentlyCrowned 
                 ? { [fieldPath]: deleteField() }
                 : { [fieldPath]: { teamId, name: item.name, logo: item.logo, note: '' } };
-            
+
             setDoc(favRef, updateData, { merge: true }).catch(err => {
+                // Revert optimistic update on error
+                setFavorites(favorites); 
                 errorEmitter.emit('permission-error', new FirestorePermissionError({path: favRef.path, operation: 'update', requestResourceData: updateData}));
             });
         }
@@ -692,10 +699,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
-
-
-    
-
-
-
 
