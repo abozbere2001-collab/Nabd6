@@ -7,7 +7,7 @@
   :root {
     --background: 215 28% 17%; /* Dark Blue */
     --foreground: 210 40% 96%;
-    --card: 216 28% 12%; /* Darker Blue Card */
+    --card: 216 34% 15%; /* Darker Blue Card */
     --card-foreground: 210 40% 98%;
     --popover: 222 30% 9%;
     --popover-foreground: 210 40% 98%;
@@ -35,7 +35,7 @@
   .dark {
     --background: 215 28% 17%; /* Dark Blue - Sky Theme */
     --foreground: 210 40% 96%;
-    --card: 216 28% 12%; 
+    --card: 216 34% 15%; 
     --card-foreground: 210 40% 98%;
     --popover: 222 30% 9%;
     --popover-foreground: 210 40% 98%;
