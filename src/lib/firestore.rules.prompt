@@ -1,0 +1,84 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // ==================================================
+    // == Helper Functions
+    // ==================================================
+    
+    // Checks if the user is an administrator.
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Checks if the user is authenticated.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Checks if the request is for the user's own data.
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // ==================================================
+    // == Admin Collection
+    // ==================================================
+    
+    // Admins have absolute power over the entire database.
+    // This single rule grants them full access everywhere.
+    match /{path=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // ==================================================
+    // == Publicly Readable Data
+    // ==================================================
+    
+    // Collections that anyone (including unauthenticated users) can read.
+    // Write access is handled by the admin rule above.
+    match /{publicCollection}/{docId}
+    where publicCollection in [
+        'news', 'competitions', 'teams', 'managedCompetitions', 
+        'iraqiLeagueTopScorers', 'pinnedIraqiMatches', 
+        'leagueCustomizations', 'teamCustomizations', 'playerCustomizations', 
+        'coachCustomizations', 'continentCustomizations', 'countryCustomizations',
+        'matchCustomizations', 'leaderboard', 'predictionFixtures'
+    ] {
+      allow read: if true;
+    }
+
+    // ==================================================
+    // == User-Specific Data
+    // ==================================================
+    
+    // A user can create their own user document.
+    // They can only read and update their own document, not delete it.
+    match /users/{userId} {
+      allow create: if isSignedIn() && isOwner(userId);
+      allow read, update: if isOwner(userId);
+      
+      // Users can read and write their own favorites subcollection.
+      match /favorites/data {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ==================================================
+    // == Predictions Logic
+    // ==================================================
+
+    match /predictionFixtures/{fixtureId}/userPredictions/{userId} {
+      // A user can read their own prediction.
+      allow read: if isOwner(userId);
+      
+      // A user can create or update their prediction ONLY if they are the owner
+      // AND the match has not started yet (checked against the timestamp stored in the document).
+      // Note: We use get() to securely access the fixture's start time from the parent document.
+      allow write: if isOwner(userId) 
+                      && request.time < get(/databases/$(database)/documents/predictionFixtures/$(fixtureId)).data.fixtureData.fixture.timestamp;
+    }
+  }
+}
