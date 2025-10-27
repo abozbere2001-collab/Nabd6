@@ -84,11 +84,10 @@ const CrownedTeamScroller = ({
 };
 
 const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: ScreenProps['navigate'] }) => {
-    const [allFixtures, setAllFixtures] = useState<Fixture[]>([]);
+    const [upcomingFixtures, setUpcomingFixtures] = useState<Fixture[]>([]);
+    const [pastFixtures, setPastFixtures] = useState<Fixture[]>([]);
     const [loading, setLoading] = useState(true);
     const { toast } = useToast();
-    const listRef = useRef<HTMLDivElement>(null);
-    const firstUpcomingMatchRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchFixtures = async () => {
@@ -100,9 +99,30 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
                 if (!res.ok) throw new Error(`API fetch failed with status: ${res.status}`);
                 
                 const data = await res.json();
-                const fixtures: Fixture[] = data.response || [];
-                fixtures.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
-                setAllFixtures(fixtures);
+                const allFixtures: Fixture[] = data.response || [];
+                
+                const now = new Date();
+                const upcoming: Fixture[] = [];
+                const past: Fixture[] = [];
+
+                allFixtures.forEach(fixture => {
+                    const fixtureDate = new Date(fixture.fixture.timestamp * 1000);
+                    if (fixtureDate >= now || isMatchLive(fixture.fixture.status)) {
+                        upcoming.push(fixture);
+                    } else {
+                        past.push(fixture);
+                    }
+                });
+
+                // Sort upcoming matches from soonest to latest
+                upcoming.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
+                
+                // Sort past matches from most recent to oldest
+                past.sort((a, b) => b.fixture.timestamp - a.fixture.timestamp);
+
+                setUpcomingFixtures(upcoming);
+                setPastFixtures(past);
+
             } catch (error) {
                 console.error("Error fetching fixtures:", error);
                 toast({
@@ -117,21 +137,6 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
         fetchFixtures();
     }, [teamId, toast]);
 
-    useEffect(() => {
-        if (!loading && allFixtures.length > 0 && listRef.current) {
-            const firstUpcomingIndex = allFixtures.findIndex(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-            if (firstUpcomingIndex !== -1 && firstUpcomingMatchRef.current) {
-                setTimeout(() => {
-                    if (firstUpcomingMatchRef.current && listRef.current) {
-                        const listTop = listRef.current.offsetTop;
-                        const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                        listRef.current.scrollTop = itemTop - listTop;
-                    }
-                }, 100);
-            }
-        }
-    }, [loading, allFixtures]);
-
     if (loading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -140,7 +145,7 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
       );
     }
 
-    if (allFixtures.length === 0) {
+    if (upcomingFixtures.length === 0 && pastFixtures.length === 0) {
       return (
         <Card className="mt-4">
             <CardContent className="p-6">
@@ -151,17 +156,27 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     }
 
     return (
-        <div ref={listRef} className="space-y-2">
-            {allFixtures.map((fixture, index) => {
-                 const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
-                 const isFirstUpcoming = isUpcomingOrLive && !allFixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-                
-                return (
-                    <div key={fixture.fixture.id} ref={isFirstUpcoming ? firstUpcomingMatchRef : null}>
-                        <FixtureItem fixture={fixture} navigate={navigate} />
+        <div className="space-y-4">
+            {upcomingFixtures.length > 0 && (
+                <div>
+                    <h3 className="font-bold text-lg mb-2 px-1">المباريات القادمة</h3>
+                    <div className="space-y-2">
+                        {upcomingFixtures.map(fixture => (
+                            <FixtureItem key={fixture.fixture.id} fixture={fixture} navigate={navigate} />
+                        ))}
                     </div>
-                );
-            })}
+                </div>
+            )}
+            {pastFixtures.length > 0 && (
+                 <div>
+                    <h3 className="font-bold text-lg mb-2 px-1">النتائج</h3>
+                    <div className="space-y-2">
+                        {pastFixtures.map(fixture => (
+                            <FixtureItem key={fixture.fixture.id} fixture={fixture} navigate={navigate} />
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -274,5 +289,3 @@ export function IraqScreen({ navigate, goBack, canGoBack }: ScreenProps) {
     </div>
   );
 }
-
-    
