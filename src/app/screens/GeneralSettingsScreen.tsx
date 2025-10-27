@@ -45,8 +45,8 @@ export function GeneralSettingsScreen({ navigate, goBack, canGoBack, headerActio
             <RadioGroup value={theme} onValueChange={setTheme} className="grid grid-cols-3 gap-2 sm:gap-4">
                <Label htmlFor="dark" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                 <RadioGroupItem value="dark" id="dark" className="sr-only" />
-                <Sparkles className="mb-2 h-5 w-5" />
-                {"سماوي"}
+                <Moon className="mb-2 h-5 w-5" />
+                {"داكن"}
               </Label>
               <Label htmlFor="light" className="flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
                 <RadioGroupItem value="light" id="light" className="sr-only" />
