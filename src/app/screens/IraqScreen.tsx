@@ -170,7 +170,7 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     );
 };
 
-export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>>}) {
+export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorites, customNames }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>}) {
   const { user } = useAuth();
   const { db } = useFirestore();
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
@@ -192,8 +192,7 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
 
   const handleRemoveCrowned = (teamId: number) => {
      setFavorites(prev => {
-        if (!prev) return null;
-        const newFavorites = JSON.parse(JSON.stringify(prev));
+        const newFavorites = JSON.parse(JSON.stringify(prev || {}));
         if (newFavorites.crownedTeams?.[teamId]) {
             delete newFavorites.crownedTeams[teamId];
         }
@@ -202,7 +201,6 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             updateDoc(favDocRef, { [`crownedTeams.${teamId}`]: deleteField() }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { [`crownedTeams.${teamId}`]: 'DELETED' } }));
-                setFavorites(prev); // Revert on failure
             });
         } else {
             setLocalFavorites(newFavorites);
@@ -240,7 +238,7 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
         canGoBack={canGoBack}
         actions={
           <div className="flex items-center gap-1">
-              <SearchSheet navigate={navigate} favorites={favorites} customNames={{}} setFavorites={setFavorites}>
+              <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
                   <Button variant="ghost" size="icon">
                       <Search className="h-5 w-5" />
                   </Button>
@@ -274,4 +272,3 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
     </div>
   );
 }
-

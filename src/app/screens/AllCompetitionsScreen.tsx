@@ -126,7 +126,7 @@ const getLeagueImportance = (leagueName: string): number => {
 
 
 // --- MAIN SCREEN COMPONENT ---
-export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>>}) {
+export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>}) {
     const { isAdmin } = useAdmin();
     const { user, db } = useAuth();
     const { toast } = useToast();
@@ -304,35 +304,35 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     }, [nationalTeams, getName, customNames]);
 
 
-    const handleFavoriteToggle = (item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
-        if (!favorites) return;
+    const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
-    
-        const newFavorites = JSON.parse(JSON.stringify(favorites));
-        if (!newFavorites[itemType]) newFavorites[itemType] = {};
-        if (isCurrentlyFavorited) {
-            delete newFavorites[itemType]![itemId];
-        } else {
-            const favData = itemType === 'leagues'
-                ? { name: item.name, leagueId: itemId, logo: item.logo }
-                : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-            newFavorites[itemType]![itemId] = favData as any;
-        }
-        setFavorites(newFavorites);
-    
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-            
-            setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
-                setFavorites(favorites);
-            });
-        } else {
-            setLocalFavorites(newFavorites);
-        }
-    };
+
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+            if (!newFavorites[itemType]) newFavorites[itemType] = {};
+
+            if (isCurrentlyFavorited) {
+                delete newFavorites[itemType][itemId];
+            } else {
+                const favData = itemType === 'leagues'
+                    ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                newFavorites[itemType][itemId] = favData as any;
+            }
+
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType][itemId] };
+                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+            return newFavorites;
+        });
+    }, [user, db, setFavorites]);
     
 
     const handleOpenCrownDialog = (team: Team) => {
@@ -352,7 +352,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
         if (!renameItem || !db) return;
-    
         const { purpose, originalData, originalName } = renameItem;
     
         if (purpose === 'rename' && isAdmin) {
@@ -386,7 +385,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                     const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                     setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                        setFavorites(prev); // Revert on failure
                     });
                 } else {
                     setLocalFavorites(newFavorites);
@@ -618,4 +616,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
-

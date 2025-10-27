@@ -446,7 +446,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 };
 
 
-export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites> | null>> }) {
+export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
     const { user, db } = useAuth();
     const { isAdmin } = useAdmin();
     const { toast } = useToast();
@@ -541,8 +541,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         const { team } = teamData;
         
         setFavorites(prev => {
-            if (!prev) return null;
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
             
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -558,7 +557,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                    setFavorites(prev); // Revert on failure
                 });
             } else {
                 setLocalFavorites(newFavorites);
@@ -634,7 +632,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                     setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-                        setFavorites(prev); // Revert on failure
                     });
                 } else {
                     setLocalFavorites(newFavorites);
@@ -721,5 +718,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-    
