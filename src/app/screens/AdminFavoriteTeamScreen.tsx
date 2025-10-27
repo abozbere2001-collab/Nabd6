@@ -35,6 +35,7 @@ export function AdminFavoriteTeamScreen({ navigate, goBack, canGoBack, teamId, t
                 
                 const data = await res.json();
                 const fixtures: Fixture[] = data.response || [];
+                // Sort all fixtures chronologically
                 fixtures.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
                 setAllFixtures(fixtures);
             } catch (error) {
@@ -51,19 +52,18 @@ export function AdminFavoriteTeamScreen({ navigate, goBack, canGoBack, teamId, t
         fetchFixtures();
     }, [teamId, toast]);
 
+    // This effect handles scrolling to the first upcoming match
     useEffect(() => {
-        if (!loading && allFixtures.length > 0 && listRef.current) {
-            const firstUpcomingIndex = allFixtures.findIndex(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-            if (firstUpcomingIndex !== -1 && firstUpcomingMatchRef.current) {
-                // Use a small timeout to ensure the DOM is ready for scrolling
-                setTimeout(() => {
-                    if (firstUpcomingMatchRef.current && listRef.current) {
-                        const listTop = listRef.current.offsetTop;
-                        const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                        listRef.current.scrollTop = itemTop - listTop;
-                    }
-                }, 100);
-            }
+        if (!loading && allFixtures.length > 0 && listRef.current && firstUpcomingMatchRef.current) {
+            // Use a small timeout to ensure the DOM is ready for scrolling
+            setTimeout(() => {
+                if (firstUpcomingMatchRef.current && listRef.current) {
+                    const listTop = listRef.current.offsetTop;
+                    const itemTop = firstUpcomingMatchRef.current.offsetTop;
+                    // Scroll the list so that the upcoming match is near the top
+                    listRef.current.scrollTop = itemTop - listTop - 10;
+                }
+            }, 100);
         }
     }, [loading, allFixtures]);
 
@@ -79,6 +79,7 @@ export function AdminFavoriteTeamScreen({ navigate, goBack, canGoBack, teamId, t
                     <div className="space-y-2">
                         {allFixtures.map((fixture, index) => {
                              const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
+                             // Find the very first upcoming/live match in the sorted list
                              const isFirstUpcoming = isUpcomingOrLive && !allFixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
                             
                             return (
@@ -99,4 +100,3 @@ export function AdminFavoriteTeamScreen({ navigate, goBack, canGoBack, teamId, t
         </div>
     );
 }
-
