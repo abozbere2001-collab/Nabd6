@@ -24,8 +24,13 @@ const PredictionCard = ({
   const [liveFixture, setLiveFixture] = useState<Fixture>(predictionMatch.fixtureData);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const [homeValue, setHomeValue] = useState(userPrediction?.homeGoals?.toString() ?? '');
-  const [awayValue, setAwayValue] = useState(userPrediction?.awayGoals?.toString() ?? '');
+  // CORRECTED: The UI is RTL, so the "home" input is on the right, but it's for the away team.
+  // We must map the stored prediction to the correct visual input.
+  // prediction.homeGoals is the prediction for the AWAY team.
+  // prediction.awayGoals is the prediction for the HOME team.
+  const [homeValue, setHomeValue] = useState(userPrediction?.awayGoals?.toString() ?? '');
+  const [awayValue, setAwayValue] = useState(userPrediction?.homeGoals?.toString() ?? '');
+
 
   const debouncedHome = useDebounce(homeValue, 500);
   const debouncedAway = useDebounce(awayValue, 500);
@@ -93,8 +98,11 @@ const PredictionCard = ({
 
     const actualHome = liveFixture.goals.home;
     const actualAway = liveFixture.goals.away;
-    const predHome = userPrediction.homeGoals;
-    const predAway = userPrediction.awayGoals;
+    
+    // As per the user, the DB is swapped.
+    const predHome = userPrediction.awayGoals;
+    const predAway = userPrediction.homeGoals;
+
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
     
@@ -124,18 +132,24 @@ const PredictionCard = ({
 
   useEffect(() => {
     if (
+      !isPredictionDisabled &&
       debouncedHome !== '' &&
       debouncedAway !== '' &&
-      (debouncedHome !== userPrediction?.homeGoals?.toString() ||
-        debouncedAway !== userPrediction?.awayGoals?.toString())
+      // Check if the staged values are different from the saved prediction
+      (debouncedHome !== userPrediction?.awayGoals?.toString() ||
+       debouncedAway !== userPrediction?.homeGoals?.toString())
     ) {
+      // The `onSave` function expects (fixtureId, homePrediction, awayPrediction).
+      // Since our UI is swapped, homeValue is the home team's prediction, and awayValue is the away team's.
+      // The function that receives this will handle swapping them for DB storage.
       onSave(liveFixture.fixture.id, debouncedHome, debouncedAway);
     }
-  }, [debouncedHome, debouncedAway, onSave, userPrediction, liveFixture.fixture.id]);
+  }, [debouncedHome, debouncedAway, onSave, userPrediction, liveFixture.fixture.id, isPredictionDisabled]);
 
   useEffect(() => {
-    setHomeValue(userPrediction?.homeGoals?.toString() ?? '');
-    setAwayValue(userPrediction?.awayGoals?.toString() ?? '');
+    // CORRECTED: Ensure the UI state is correctly set from the prop, reflecting the flipped logic.
+    setHomeValue(userPrediction?.awayGoals?.toString() ?? '');
+    setAwayValue(userPrediction?.homeGoals?.toString() ?? '');
   }, [userPrediction]);
 
   const cardColors = getPredictionStatusColors();
@@ -160,6 +174,7 @@ const PredictionCard = ({
 
           <div className="flex flex-col items-center justify-center text-center">
              <div className="flex items-center gap-1 min-w-[120px] justify-center">
+                 {/* This is the home team's prediction input */}
                  <Input
                     type="number"
                     className={cn(
@@ -176,6 +191,7 @@ const PredictionCard = ({
                     {isUpdating && <Loader2 className="h-4 w-4 animate-spin absolute -top-1" />}
                     <LiveMatchStatus fixture={liveFixture} />
                 </div>
+                {/* This is the away team's prediction input */}
                 <Input
                     type="number"
                     className={cn(
@@ -211,7 +227,7 @@ const PredictionCard = ({
           <p className={cn('text-center font-bold text-sm mt-2', getPointsColor())}>+{userPrediction.points} نقاط</p>
         )}
 
-        {!isMatchFinished && userPrediction && (
+        {!isMatchFinished && userPrediction && !isPredictionDisabled && (
           <p className={cn('text-center text-xs mt-2', isColoredCard ? 'text-green-300' : 'text-green-500')}>
             تم حفظ توقعك
           </p>
