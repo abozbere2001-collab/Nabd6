@@ -400,7 +400,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
             newFavorites[itemType]![itemId] = favData as any;
         }
 
-        setFavorites(newFavorites);
+        setFavorites(newFavorites); // Optimistic UI update
 
         if (user && !user.isAnonymous && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
@@ -431,25 +431,23 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
 
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
         if (!renameItem || !db) return;
-        
-        const { purpose, originalData } = renameItem;
+        const { purpose, originalData, originalName } = renameItem;
 
         if (purpose === 'rename' && isAdmin) {
             const collectionName = `${type}Customizations`;
             const docRef = doc(db, collectionName, String(id));
             const data = { customName: newName };
 
-            const op = (newName && newName.trim() && newName !== renameItem.originalName)
+            const op = (newName && newName.trim() && newName !== originalName)
                 ? setDoc(docRef, data)
                 : deleteDoc(docRef);
 
             op.then(() => {
-                // Manually update the customNames state to reflect the change immediately
                 setCustomNames(prev => {
                     if (!prev) return null;
                     const newCustomNames = { ...prev };
                     const mapKey = `${type}s` as 'leagues' | 'teams' | 'countries' | 'continents';
-                    if (newName && newName.trim() && newName !== renameItem.originalName) {
+                    if (newName && newName.trim() && newName !== originalName) {
                         newCustomNames[mapKey].set(Number(id), newName);
                     } else {
                         newCustomNames[mapKey].delete(Number(id));
@@ -479,7 +477,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
                 };
             }
             
-            setFavorites(newFavorites);
+            setFavorites(newFavorites); // Optimistic UI update
 
             if (user && !user.isAnonymous && db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
@@ -701,3 +699,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack }: ScreenPro
         </div>
     );
 }
+

@@ -33,11 +33,12 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
 
     // Centralized useEffect for fetching custom names and subscribing to favorites
     useEffect(() => {
+        let isMounted = true;
         let unsubscribe: (() => void) | null = null;
-
-        const fetchCustomNames = async () => {
+        
+        const fetchInitialData = async () => {
             if (!db) {
-                setCustomNames({ leagues: new Map(), teams: new Map() });
+                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
                 return;
             };
             try {
@@ -46,51 +47,58 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                     getDocs(collection(db, 'teamCustomizations'))
                 ]);
                 
-                const leagueNames = new Map<number, string>();
-                leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
+                if (isMounted) {
+                    const leagueNames = new Map<number, string>();
+                    leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
 
-                const teamNames = new Map<number, string>();
-                teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-                
-                setCustomNames({ leagues: leagueNames, teams: teamNames });
+                    const teamNames = new Map<number, string>();
+                    teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+                    
+                    setCustomNames({ leagues: leagueNames, teams: teamNames });
+                }
 
             } catch (error) {
-                setCustomNames({ leagues: new Map(), teams: new Map() });
+                if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map() });
             }
         };
 
         const handleLocalFavoritesChange = () => {
-            setFavorites(getLocalFavorites());
+            if (isMounted) setFavorites(getLocalFavorites());
         };
 
-        fetchCustomNames();
+        fetchInitialData();
         setLoading(true);
         
         if (user && db && !user.isAnonymous) {
             const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
             unsubscribe = onSnapshot(docRef, (doc) => {
-                const favs = (doc.data() as Favorites) || { userId: user.uid };
-                setFavorites(favs);
-                setLoading(false);
+                if (isMounted) {
+                    const favs = (doc.data() as Favorites) || { userId: user.uid };
+                    setFavorites(favs);
+                    setLoading(false);
+                }
             }, (error) => {
                  if (error.code === 'permission-denied') {
-                    setFavorites(getLocalFavorites());
+                    if (isMounted) setFavorites(getLocalFavorites());
                 } else {
                   const permissionError = new FirestorePermissionError({ path: docRef.path, operation: 'get' });
                   errorEmitter.emit('permission-error', permissionError);
                 }
-                setLoading(false);
+                if (isMounted) setLoading(false);
             });
              window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
-            setFavorites(getLocalFavorites());
+            if (isMounted) {
+                setFavorites(getLocalFavorites());
+                setLoading(false);
+            }
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            setLoading(false);
         }
 
         return () => {
+            isMounted = false;
             if (unsubscribe) unsubscribe();
-             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
     }, [user, db]);
 
@@ -238,11 +246,13 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
                             <TabsContent value="players" className="mt-4 px-3">
                                 <div className="grid grid-cols-4 gap-4">
                                      <div className="h-[76px] w-full">
-                                        <div className="flex flex-col items-center justify-center gap-2 text-center p-2 rounded-2xl border-2 border-dashed border-muted-foreground/50 h-full w-full cursor-pointer hover:bg-accent/50 transition-colors">
-                                            <div className="flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full">
-                                                <Plus className="h-6 w-6 text-primary" />
+                                        <SearchSheet navigate={navigate} initialItemType="teams">
+                                            <div className="flex flex-col items-center justify-center gap-2 text-center p-2 rounded-2xl border-2 border-dashed border-muted-foreground/50 h-full w-full cursor-pointer hover:bg-accent/50 transition-colors">
+                                                <div className="flex items-center justify-center h-10 w-10 bg-primary/10 rounded-full">
+                                                    <Plus className="h-6 w-6 text-primary" />
+                                                </div>
                                             </div>
-                                        </div>
+                                        </SearchSheet>
                                      </div>
                                      <div className="h-[76px] w-full col-span-3 flex items-center justify-center">
                                         <p className="text-muted-foreground text-center text-sm">قائمة اللاعبين المفضلين قيد التطوير.</p>
@@ -262,3 +272,4 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
         </div>
     );
 }
+

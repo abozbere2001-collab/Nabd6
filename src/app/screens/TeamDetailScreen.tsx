@@ -507,7 +507,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
             if(cached) {
                 if (isMounted) setTeamData(cached);
-                setLoading(false);
             }
 
             try {
@@ -528,7 +527,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 console.error("Error fetching team info:", error);
                 if (!cached && isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
             } finally {
-                if (!cached && isMounted) setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
@@ -660,18 +659,18 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
         if (!teamData || !db || !renameItem) return;
-        const { purpose, originalData } = renameItem;
+        const { purpose, originalData, originalName } = renameItem;
 
         if (purpose === 'rename' && isAdmin) {
             const docRef = doc(db, 'teamCustomizations', String(id));
-            if (newName && newName !== originalData.name) {
+            if (newName && newName !== originalName) {
                 setDoc(docRef, { customName: newName }).then(() => {
                     setDisplayTitle(newName);
                     toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
                 });
             } else {
                 deleteDoc(docRef).then(() => {
-                    setDisplayTitle(originalData.name);
+                    setDisplayTitle(originalName);
                     toast({ title: 'نجاح', description: 'تمت إزالة الاسم المخصص.' });
                 });
             }
@@ -682,6 +681,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
             const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {
