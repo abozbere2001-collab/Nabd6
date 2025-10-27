@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -538,6 +539,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const handleFavoriteToggle = useCallback(() => {
         if (!teamData) return;
+        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             const { team } = teamData;
@@ -597,7 +599,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     };
 
     const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
-        if (!teamData || !db || !renameItem || !setFavorites) return;
+        if (!teamData || !db || !renameItem) return;
         const { purpose, originalData, originalName } = renameItem;
     
         if (purpose === 'rename' && isAdmin) {
@@ -615,10 +617,9 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             const teamId = Number(id);
              setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
@@ -716,3 +717,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
+
+
+    

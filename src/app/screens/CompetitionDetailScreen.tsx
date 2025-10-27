@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -269,28 +270,30 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = useCallback((team: Team) => {
+        if (!setFavorites) return;
+        const itemId = team.id;
+        const itemType = 'teams';
+
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
-            
-            if (!newFavorites.teams) newFavorites.teams = {};
+            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+            if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
             if (isCurrentlyFavorited) {
-                delete newFavorites.teams[team.id];
+                delete newFavorites[itemType][itemId];
             } else {
-                newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                newFavorites[itemType][itemId] = { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-            
+
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
+                const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType][itemId] };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             } else {
                 setLocalFavorites(newFavorites);
             }
-
             return newFavorites;
         });
     }, [user, db, setFavorites]);
@@ -340,14 +343,13 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
 
-        } else if (purpose === 'crown' && user) {
+        } else if (purpose === 'crown' && user && setFavorites) {
             const teamId = Number(id);
-            
             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
@@ -630,3 +632,4 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
+

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -178,10 +179,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && localSearchIndex.length === 0) {
         buildLocalIndex();
     }
-  }, [isOpen, buildLocalIndex]);
+  }, [isOpen, localSearchIndex, buildLocalIndex]);
 
 
   const handleOpenChange = (open: boolean) => {
@@ -264,6 +265,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [debouncedSearchTerm, handleSearch, isOpen]);
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
+        if (!setFavorites) return;
         const itemId = item.id;
 
         setFavorites(prev => {
@@ -337,12 +339,11 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         } else {
             deleteDoc(docRef); 
         }
-    } else if (purpose === 'crown' && user) {
+    } else if (purpose === 'crown' && user && setFavorites) {
         const teamId = Number(id);
         
         setFavorites(prev => {
-            if (!prev) return null;
-            const newFavorites = JSON.parse(JSON.stringify(prev));
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
@@ -383,7 +384,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
     
-    if (!favorites || !customNames) {
+    if (!favorites) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
@@ -402,7 +403,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 
                 return <ItemRow 
                             key={`${result.type}-${result.id}`} 
-                            item={{...result.originalItem, name: result.name}} 
+                            item={{...result.originalItem, name: result.name}}
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
@@ -455,3 +456,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
+    
+
+
+

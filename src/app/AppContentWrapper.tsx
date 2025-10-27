@@ -153,7 +153,7 @@ export function AppContentWrapper() {
   const { user } = useAuth();
   const { db } = useFirestore();
   const [favorites, setFavorites] = useState<Partial<Favorites>>({ teams: {}, leagues: {}, crownedTeams: {}, players: {}});
-  const [customNames, setCustomNames] = useState<{[key: string]: Map<number | string, string>;} | null>(null);
+  const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
   
   const [navigationState, setNavigationState] = useState<{ activeTab: ScreenKey, stacks: Record<string, StackItem[]> }>({
     activeTab: 'Matches',
@@ -172,15 +172,12 @@ export function AppContentWrapper() {
   
   useEffect(() => {
     let isMounted = true;
-    let favsUnsub: (() => void) | undefined;
-    let namesUnsub: (() => void)[] = [];
+    let unsubscribers: (() => void)[] = [];
 
     const loadInitialData = async () => {
         if (!db) {
-            if (isMounted) {
-                setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
-                setFavorites(getLocalFavorites());
-            }
+            setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
+            setFavorites(getLocalFavorites());
             return;
         }
 
@@ -213,23 +210,24 @@ export function AppContentWrapper() {
              if (isMounted) setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
         }
 
-
         const handleLocalFavoritesChange = () => {
             if (isMounted) setFavorites(getLocalFavorites());
         };
 
         if (user && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            favsUnsub = onSnapshot(favDocRef, (doc) => {
+            const favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
             }, (error) => {
                  console.error("Error listening to remote favorites:", error);
                 if (isMounted) setFavorites(getLocalFavorites());
             });
+            unsubscribers.push(favsUnsub);
             window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         } else {
             if (isMounted) setFavorites(getLocalFavorites());
             window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
         }
     };
 
@@ -237,9 +235,7 @@ export function AppContentWrapper() {
 
     return () => {
         isMounted = false;
-        if (favsUnsub) favsUnsub();
-        namesUnsub.forEach(unsub => unsub());
-        window.removeEventListener('localFavoritesChanged', () => {});
+        unsubscribers.forEach(unsub => unsub());
     };
 }, [user, db]);
 
@@ -292,12 +288,14 @@ export function AppContentWrapper() {
       }
   }, [navigate]);
   
-  if (customNames === null) {
-      return (
-          <div className="flex h-full w-full items-center justify-center bg-background">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-      )
+  const isDataReady = customNames !== null;
+
+  if (!isDataReady) {
+    return (
+        <div className="flex h-full w-full items-center justify-center bg-background">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+    )
   }
 
   if (showSplashAd) {
@@ -358,4 +356,5 @@ export function AppContentWrapper() {
         </main>
   );
 }
+
 

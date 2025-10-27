@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -191,6 +192,8 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
 
 
   const handleRemoveCrowned = (teamId: number) => {
+     if (!setFavorites) return;
+
      setFavorites(prev => {
         const newFavorites = JSON.parse(JSON.stringify(prev || {}));
         if (newFavorites.crownedTeams?.[teamId]) {
@@ -272,3 +275,4 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
     </div>
   );
 }
+

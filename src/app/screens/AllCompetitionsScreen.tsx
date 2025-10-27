@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -365,14 +366,14 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
             });
     
-        } else if (purpose === 'crown' && user) {
+        } else if (purpose === 'crown' && user && setFavorites) {
             const teamId = Number(id);
             
-            setFavorites(prev => {
+             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
@@ -615,3 +616,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+
