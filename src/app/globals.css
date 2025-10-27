@@ -33,25 +33,25 @@
   }
 
   .dark {
-    --background: 40 30% 15%; /* A richer, more present golden-brown background */
-    --foreground: 40 10% 95%; /* Light, creamy off-white */
-    --card: 40 40% 18%; /* Slightly lighter card color for subtle contrast */
-    --card-foreground: 40 10% 95%; /* Light text on the dark gold cards */
-    --popover: 40 15% 10%;
-    --popover-foreground: 40 10% 95%;
-    --primary: 140 60% 45%; /* Bright, clear green for primary actions */
-    --primary-foreground: 140 10% 10%; /* Dark text for green primary buttons */
-    --secondary: 40 40% 22%; /* A secondary gold shade */
-    --secondary-foreground: 40 10% 95%;
-    --muted: 40 40% 22%;
-    --muted-foreground: 40 10% 60%;
-    --accent: 140 60% 45%; /* Accent is the same as primary for consistency */
-    --accent-foreground: 140 10% 10%;
+    --background: 220 15% 10%; /* Very dark, cool charcoal */
+    --foreground: 210 20% 98%; /* Off-white */
+    --card: 220 15% 15%; /* Slightly lighter charcoal for cards */
+    --card-foreground: 210 20% 98%;
+    --popover: 220 15% 8%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 90 80% 55%; /* Electric Lime Green */
+    --primary-foreground: 90 20% 5%; /* Very dark green for text on primary */
+    --secondary: 220 10% 25%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 220 10% 25%;
+    --muted-foreground: 210 15% 60%;
+    --accent: 90 80% 55%; /* Electric Lime Green */
+    --accent-foreground: 90 20% 5%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 40 10% 95%;
-    --border: 40 40% 25%; /* Border is a bit lighter than the card */
-    --input: 40 40% 25%;
-    --ring: 140 70% 50%; /* Ring color based on the new primary green */
+    --destructive-foreground: 210 20% 98%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 90 80% 60%; /* Ring color based on lime green */
   }
  
   .light {
