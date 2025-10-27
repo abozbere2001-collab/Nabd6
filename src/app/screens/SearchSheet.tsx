@@ -133,7 +133,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
   
   const buildLocalIndex = useCallback(async () => {
-    if (!db) return;
     setLoading(true);
     const index: SearchableItem[] = [];
     const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
@@ -315,21 +314,19 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
         const itemId = item.id;
-        const isLeague = itemType === 'leagues';
+        const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
 
         setFavorites(prev => {
             const newFavs = JSON.parse(JSON.stringify(prev));
             if (!newFavs[itemType]) newFavs[itemType] = {};
             
-            if (newFavs[itemType][itemId]) {
+            if (isCurrentlyFavorited) {
                 delete newFavs[itemType][itemId];
             } else {
-                const favData = isLeague 
+                newFavs[itemType][itemId] = itemType === 'leagues' 
                     ? { name: item.name, leagueId: itemId, logo: item.logo }
                     : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                newFavs[itemType][itemId] = favData as any;
             }
-
             if (!user || user.isAnonymous) {
                 setLocalFavorites(newFavs);
             }
@@ -338,12 +335,10 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
 
         if (user && db && !user.isAnonymous) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const isCurrentlyFavorited = !!favorites[itemType]?.[itemId];
             const fieldPath = `${itemType}.${itemId}`;
-            
             const updateData = isCurrentlyFavorited
                 ? { [fieldPath]: deleteField() }
-                : { [fieldPath]: isLeague 
+                : { [fieldPath]: itemType === 'leagues'
                     ? { name: item.name, leagueId: itemId, logo: item.logo } 
                     : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' } };
 
@@ -385,7 +380,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
   
     const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
         if (!renameItem || !db) return;
-        
         const { purpose, originalData } = renameItem;
 
         if (purpose === 'rename' && isAdmin) {
@@ -409,35 +403,36 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            // Decide based on current favorites state
             const isCurrentlyCrowned = !!favorites.crownedTeams?.[teamId];
-            const newFavorites = JSON.parse(JSON.stringify(favorites));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            
+            setFavorites(prev => {
+                const newFavorites = JSON.parse(JSON.stringify(prev));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                } else {
+                    newFavorites.crownedTeams[teamId] = {
+                        teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote,
+                    };
+                }
+                if (user.isAnonymous) {
+                   setLocalFavorites(newFavorites);
+                }
+                return newFavorites;
+            });
 
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = {
-                    teamId: teamId,
-                    name: (originalData as Team).name,
-                    logo: (originalData as Team).logo,
-                    note: newNote,
-                };
-            }
-            // Optimistic UI update
-            setFavorites(newFavorites);
-
-            // Persist to storage
-            if (user.isAnonymous) {
-                setLocalFavorites(newFavorites);
-            } else {
+            if (!user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                setDoc(favDocRef, { crownedTeams: newFavorites.crownedTeams }, { merge: true }).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: { crownedTeams: newFavorites.crownedTeams } }));
+                const updateData = {
+                    [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : {
+                        teamId: teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote,
+                    }
+                };
+                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
                 });
             }
         }
-        
         setRenameItem(null);
   };
   
@@ -524,3 +519,6 @@ export function SearchSheet({ children, navigate, initialItemType }: { children:
     </Sheet>
   );
 }
+
+
+

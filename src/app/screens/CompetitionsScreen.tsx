@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -28,53 +29,44 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
     const { toast } = useToast();
     const [favorites, setFavorites] = useState<Partial<Favorites>>({});
     const [loading, setLoading] = useState(true);
-    const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string> }>({ leagues: new Map(), teams: new Map() });
+    const [customNames, setCustomNames] = useState<{ leagues: Map<number, string>, teams: Map<number, string> } | null>(null);
 
-    const fetchAllCustomNames = useCallback(async () => {
-        if (!db) return;
-        try {
-            const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
-                getDocs(collection(db, 'leagueCustomizations')),
-                getDocs(collection(db, 'teamCustomizations'))
-            ]);
-            
-            const leagueNames = new Map<number, string>();
-            leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
-
-            const teamNames = new Map<number, string>();
-            teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
-            
-            setCustomNames({ leagues: leagueNames, teams: teamNames });
-
-        } catch (error) {
-            // This is expected for guests or users without permissions
-        }
-    }, [db]);
-
-     const getDisplayName = useCallback((type: 'league' | 'team', id: number, defaultName: string) => {
-        const key = `${type}s` as 'leagues' | 'teams';
-        const firestoreMap = customNames[key];
-        const customName = firestoreMap.get(id);
-        if (customName) return customName;
-
-        const hardcodedMap = hardcodedTranslations[key];
-        const hardcodedName = hardcodedMap[id as any];
-        if (hardcodedName) return hardcodedName;
-
-        return defaultName;
-    }, [customNames]);
-
-
+    // Centralized useEffect for fetching custom names and subscribing to favorites
     useEffect(() => {
-        setLoading(true);
-        fetchAllCustomNames();
-        
         let unsubscribe: (() => void) | null = null;
+
+        const fetchCustomNames = async () => {
+            if (!db) {
+                setCustomNames({ leagues: new Map(), teams: new Map() });
+                return;
+            };
+            try {
+                const [leaguesSnapshot, teamsSnapshot] = await Promise.all([
+                    getDocs(collection(db, 'leagueCustomizations')),
+                    getDocs(collection(db, 'teamCustomizations'))
+                ]);
+                
+                const leagueNames = new Map<number, string>();
+                leaguesSnapshot.forEach(doc => leagueNames.set(Number(doc.id), doc.data().customName));
+
+                const teamNames = new Map<number, string>();
+                teamsSnapshot.forEach(doc => teamNames.set(Number(doc.id), doc.data().customName));
+                
+                setCustomNames({ leagues: leagueNames, teams: teamNames });
+
+            } catch (error) {
+                setCustomNames({ leagues: new Map(), teams: new Map() });
+            }
+        };
+
         const handleLocalFavoritesChange = () => {
             setFavorites(getLocalFavorites());
         };
 
-        if (user && db) {
+        fetchCustomNames();
+        setLoading(true);
+        
+        if (user && db && !user.isAnonymous) {
             const docRef = doc(db, 'users', user.uid, 'favorites', 'data');
             unsubscribe = onSnapshot(docRef, (doc) => {
                 const favs = (doc.data() as Favorites) || { userId: user.uid };
@@ -100,24 +92,39 @@ export function CompetitionsScreen({ navigate, goBack, canGoBack }: ScreenProps)
             if (unsubscribe) unsubscribe();
              window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
         };
-    }, [user, db, fetchAllCustomNames]);
+    }, [user, db]);
+
+
+     const getDisplayName = useCallback((type: 'league' | 'team', id: number, defaultName: string) => {
+        if (!customNames) return defaultName;
+        const key = `${type}s` as 'leagues' | 'teams';
+        const map = customNames[key] as Map<number, string>;
+        const customName = map?.get(id);
+        if (customName) return customName;
+
+        const hardcodedMap = hardcodedTranslations[key];
+        const hardcodedName = hardcodedMap[id as any];
+        if (hardcodedName) return hardcodedName;
+
+        return defaultName;
+    }, [customNames]);
 
 
     const favoriteTeams = useMemo(() => {
-      if (!favorites?.teams) return [];
+      if (!favorites?.teams || !customNames) return [];
       return Object.values(favorites.teams).map(team => ({
         ...team,
         name: getDisplayName('team', team.teamId, team.name)
       }));
-    }, [favorites.teams, getDisplayName]);
+    }, [favorites.teams, customNames, getDisplayName]);
 
     const favoriteLeagues = useMemo(() => {
-        if (!favorites?.leagues) return [];
+        if (!favorites?.leagues || !customNames) return [];
         return Object.values(favorites.leagues).map(comp => ({
             ...comp,
             name: getDisplayName('league', comp.leagueId, comp.name)
         }));
-    }, [favorites.leagues, getDisplayName]);
+    }, [favorites.leagues, customNames, getDisplayName]);
 
     const favoritePlayers = useMemo(() => favorites?.players ? Object.values(favorites.players) : [], [favorites.players]);
     
