@@ -28,70 +28,47 @@
   }
 
   .dark {
-    --background: 220 20% 12%;
-    --foreground: 0 0% 98%;
-    --card: 220 20% 18%;
-    --card-foreground: 0 0% 98%;
+    --background: 220 20% 10%; /* Very dark blue-gray */
+    --foreground: 220 15% 95%; /* Light gray */
+    --card: 220 20% 15%; /* Slightly lighter dark blue-gray */
+    --card-foreground: 220 15% 95%;
     --popover: 220 20% 8%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 150 70% 55%;
+    --popover-foreground: 220 15% 95%;
+    --primary: 205 90% 60%; /* Electric blue */
     --primary-foreground: 220 20% 10%;
     --secondary: 220 20% 25%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 220 20% 25%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 150 80% 65%;
-    --accent-foreground: 220 20% 10%;
-    --destructive: 0 62.8% 30.6%;
+    --secondary-foreground: 220 15% 95%;
+    --muted: 220 20% 20%;
+    --muted-foreground: 220 15% 60%;
+    --accent: 205 80% 55%;
+    --accent-foreground: 220 15% 95%;
+    --destructive: 0 62.8% 50.6%;
     --destructive-foreground: 0 0% 100%;
     --border: 220 20% 25%;
     --input: 220 20% 22%;
-    --ring: 150 70% 55%;
+    --ring: 205 90% 60%;
   }
  
   .light {
-    --background: 220 20% 97%;
-    --foreground: 0 0% 8%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --background: 210 40% 98%; /* Off-white with a hint of blue */
+    --foreground: 220 15% 20%; /* Dark blue-gray text */
+    --card: 0 0% 100%; /* Pure white */
+    --card-foreground: 220 15% 20%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 210 90% 55%;
+    --popover-foreground: 220 15% 20%;
+    --primary: 210 90% 55%; /* Bright sky blue */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 10% 90%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 220 10% 92%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 30 90% 60%;
+    --secondary: 210 30% 94%;
+    --secondary-foreground: 220 15% 20%;
+    --muted: 210 30% 94%;
+    --muted-foreground: 210 15% 45%;
+    --accent: 30 90% 60%; /* Bright orange for accent */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 93%;
-    --input: 0 0% 93%;
+    --border: 210 20% 90%;
+    --input: 210 20% 90%;
     --ring: 210 90% 55%;
-    --radius: 1.5rem;
-  }
-  
-  .national {
-    --background: 220 15% 96%;
-    --foreground: 0 0% 8%;
-    --card: 0 70% 35%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 0 0% 8%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 220 10% 90%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 220 10% 92%;
-    --muted-foreground: 0 0% 40%;
-    --accent: 0 80% 55%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 100%;
-    --input: 0 0% 93%;
-    --ring: 0 0% 8%;
     --radius: 1.5rem;
   }
 }
