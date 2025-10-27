@@ -221,7 +221,7 @@ const TeamPlayersTab = ({ teamId, navigate }: { teamId: number, navigate: Screen
     );
 };
 
-const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs }: { teamId: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}> }) => {
+const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}> }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
@@ -259,7 +259,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             try {
                 const [fixturesRes, statsRes] = await Promise.all([
                     fetch(`/api/football/fixtures?team=${teamId}&season=${CURRENT_SEASON}`),
-                    fetch(`/api/football/teams/statistics?team=${teamId}&season=${CURRENT_SEASON}`)
+                    fetch(`/api/football/teams/statistics?team=${teamId}&season=${CURRENT_SEASON}${leagueId ? `&league=${leagueId}` : ''}`)
                 ]);
 
                 const fixturesData = await fixturesRes.json();
@@ -269,10 +269,10 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
                 setFixtures(sortedFixtures);
                 setStats(statsData.response);
 
-                const leagueId = statsData?.response?.league?.id;
+                const effectiveLeagueId = leagueId || statsData?.response?.league?.id;
 
-                if (leagueId) {
-                    const standingsRes = await fetch(`/api/football/standings?league=${leagueId}&season=${CURRENT_SEASON}`);
+                if (effectiveLeagueId) {
+                    const standingsRes = await fetch(`/api/football/standings?league=${effectiveLeagueId}&season=${CURRENT_SEASON}`);
                     const standingsData = await standingsRes.json();
                     setStandings(standingsData.response?.[0]?.league?.standings?.[0] || []);
                 }
@@ -284,7 +284,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
             }
         };
         fetchData();
-    }, [teamId, fetchAllCustomNames]);
+    }, [teamId, leagueId, fetchAllCustomNames]);
 
     const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
         if (!customNames) return defaultName;
@@ -466,7 +466,7 @@ const TeamDetailsTabs = ({ teamId, navigate, onPinToggle, pinnedPredictionMatche
 };
 
 
-export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: ScreenProps & { teamId: number }) {
+export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId }: ScreenProps & { teamId: number, leagueId?: number }) {
     const { user, db } = useAuth();
     const { isAdmin } = useAdmin();
     const { toast } = useToast();
@@ -765,7 +765,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} />
+                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} />
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
                     <TeamPlayersTab teamId={teamId} navigate={navigate} />
@@ -775,5 +775,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId }: Screen
         </div>
     );
 }
+
 
 

@@ -580,7 +580,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                             if (!s.team?.id) return null;
                             const displayName = getDisplayName('team', s.team.id, s.team.name);
                             return (
-                            <TableRow key={s.team.id} className="cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: s.team.id })}>
+                            <TableRow key={s.team.id} className="cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: s.team.id, leagueId: leagueId })}>
                                 <TableCell className="text-center font-bold">{s.points}</TableCell>
                                 <TableCell className="text-center">{s.all.lose}</TableCell>
                                 <TableCell className="text-center">{s.all.draw}</TableCell>
@@ -663,7 +663,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                         const isCrowned = !!favorites.crownedTeams?.[team.id];
                         
                         return (
-                        <div key={team.id} className="relative flex flex-col items-center gap-2 rounded-lg border bg-card p-4 text-center cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id })}>
+                        <div key={team.id} className="relative flex flex-col items-center gap-2 rounded-lg border bg-card p-4 text-center cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id, leagueId: leagueId })}>
                              <Avatar className="h-16 w-16">
                                 <AvatarImage src={team.logo} alt={team.name} />
                                 <AvatarFallback>{team.name.substring(0, 2)}</AvatarFallback>
@@ -693,5 +693,6 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
   );
 }
     
+
 
 
