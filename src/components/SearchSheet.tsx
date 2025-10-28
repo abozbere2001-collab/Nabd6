@@ -19,7 +19,7 @@ import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam, FavoriteTeam, FavoriteLeague, Fixture } from '@/lib/types';
+import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { useToast } from '@/hooks/use-toast';
@@ -200,18 +200,63 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
       return;
     }
     setLoading(true);
-
-    // 1. Search local index first
+    const finalResults: SearchableItem[] = [];
+    const seen = new Set<string>();
     const normalizedQuery = normalizeArabic(query);
-    const localResults = localSearchIndex.filter(item => {
+
+    // 1. Search local index (leagues and national teams)
+    localSearchIndex.forEach(item => {
         const normalizedDisplayName = normalizeArabic(item.name);
         const normalizedOriginalName = normalizeArabic(item.originalName);
-        return normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery);
+        if (normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery)) {
+            const key = `${item.type}-${item.id}`;
+            if (!seen.has(key)) {
+                finalResults.push(item);
+                seen.add(key);
+            }
+        }
     });
-    const seen = new Set(localResults.map(r => `${r.type}-${r.id}`));
-    
 
-    // 2. Search API for additional results
+    // 2. Search translated club teams from Firestore
+    if (db) {
+        try {
+            const teamsCustomSnap = await getDocs(collection(db, 'teamCustomizations'));
+            const matchedTeamIds: number[] = [];
+            teamsCustomSnap.forEach(doc => {
+                const name = doc.data().customName;
+                if (normalizeArabic(name).includes(normalizedQuery)) {
+                    matchedTeamIds.push(Number(doc.id));
+                }
+            });
+            
+            if(matchedTeamIds.length > 0) {
+                const teamPromises = matchedTeamIds.map(id => fetch(`/api/football/teams?id=${id}`).then(res => res.json()));
+                const teamResults = await Promise.all(teamPromises);
+                teamResults.forEach(data => {
+                    if (data.response?.[0]) {
+                        const team = data.response[0].team;
+                        const key = `teams-${team.id}`;
+                        if (!seen.has(key)) {
+                             finalResults.push({
+                                id: team.id,
+                                type: 'teams',
+                                name: getDisplayName('team', team.id, team.name),
+                                originalName: team.name,
+                                logo: team.logo,
+                                originalItem: team,
+                            });
+                            seen.add(key);
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error searching Firestore team customizations:", e);
+        }
+    }
+
+
+    // 3. Search API for additional results
     const apiSearchPromises = [
       fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] }),
       fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] })
@@ -223,7 +268,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         teamsData.response?.forEach((r: TeamResult) => {
             const key = `teams-${r.team.id}`;
             if (!seen.has(key)) {
-                localResults.push({
+                finalResults.push({
                     id: r.team.id,
                     type: 'teams',
                     name: getDisplayName('team', r.team.id, r.team.name),
@@ -238,7 +283,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         leaguesData.response?.forEach((r: LeagueResult) => {
             const key = `leagues-${r.league.id}`;
             if (!seen.has(key)) {
-                localResults.push({
+                finalResults.push({
                     id: r.league.id,
                     type: 'leagues',
                     name: getDisplayName('league', r.league.id, r.league.name),
@@ -250,13 +295,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             }
         });
     } catch(e) {
-        console.error("API search failed, showing local results only.", e);
-        toast({ variant: 'destructive', title: "خطأ في البحث", description: "فشلت عملية البحث عبر الشبكة." });
+        console.error("API search failed", e);
     } finally {
-        setSearchResults(localResults);
+        setSearchResults(finalResults);
         setLoading(false);
     }
-  }, [getDisplayName, localSearchIndex, toast]);
+  }, [getDisplayName, localSearchIndex, db]);
 
 
   useEffect(() => {
@@ -401,7 +445,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
         return {
             id: item.id,
-            type: type,
+            type: type as ItemType,
             name: getDisplayName(type.slice(0, -1) as 'team' | 'league', item.id, item.name),
             originalName: item.name,
             logo: item.logo,
@@ -493,3 +537,4 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
