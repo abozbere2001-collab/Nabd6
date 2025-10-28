@@ -438,17 +438,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const [activeTab, setActiveTab] = useState('details');
 
-    // This state will hold the latest version of favorites after an update.
-    const [updatedFavorites, setUpdatedFavorites] = useState<Partial<Favorites> | null>(null);
-    
-    // Sync local storage only when updatedFavorites changes.
-    useEffect(() => {
-        if (updatedFavorites && !user) {
-            setLocalFavorites(updatedFavorites);
-        }
-    }, [updatedFavorites, user]);
-
-
     useEffect(() => {
         if (!teamId) return;
         let isMounted = true;
@@ -522,35 +511,31 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     
         const { team } = teamData;
         const teamId = team.id;
-    
-        setFavorites(prev => {
-            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites.teams) newFavorites.teams = {};
-            const isCurrentlyFavorited = !!newFavorites.teams[teamId];
-    
-            if (isCurrentlyFavorited) {
-                delete newFavorites.teams[teamId];
-            } else {
-                newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-            }
+        
+        const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
+        if (!newFavorites.teams) newFavorites.teams = {};
+        const isCurrentlyFavorited = !!newFavorites.teams[teamId];
 
-            // For logged-in users, update Firestore directly.
-            if (user && db) {
-                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updatePayload = {
-                    [`teams.${teamId}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[teamId]
-                };
-                setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-                });
-            } else {
-                // For guest users, trigger the useEffect to save to local storage
-                setUpdatedFavorites(newFavorites);
-            }
-    
-            return newFavorites;
-        });
-    }, [teamData, user, db, setFavorites]);
+        if (isCurrentlyFavorited) {
+            delete newFavorites.teams[teamId];
+        } else {
+            newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+        }
+
+        if (user && db) {
+            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+            const updatePayload = {
+                [`teams.${teamId}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[teamId]
+            };
+            setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+            });
+        } else {
+            setLocalFavorites(newFavorites);
+        }
+        setFavorites(newFavorites);
+
+    }, [teamData, user, db, favorites, setFavorites]);
 
 
     const handleOpenCrownDialog = () => {
@@ -625,7 +610,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             } else {
-                setUpdatedFavorites(newFavorites);
+                 setLocalFavorites(newFavorites);
             }
 
             return newFavorites;

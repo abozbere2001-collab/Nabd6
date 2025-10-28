@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { Fixture, Prediction, PredictionMatch } from '@/lib/types';
-import { PredictionOdds } from './PredictionOdds';
 import { LiveMatchStatus } from './LiveMatchStatus';
 import { Loader2 } from 'lucide-react';
 
@@ -204,15 +203,6 @@ const PredictionCard = ({
           )}
         >
           <span className={cn(isColoredCard && 'text-white/90')}>{liveFixture.league.name}</span>
-        </div>
-
-        <div className="mt-1">
-          <PredictionOdds 
-            fixtureId={liveFixture.fixture.id} 
-            homeTeam={liveFixture.teams.home}
-            awayTeam={liveFixture.teams.away}
-            reversed={true} 
-          />
         </div>
 
         {isMatchFinished && userPrediction?.points !== undefined && userPrediction.points >= 0 && (
