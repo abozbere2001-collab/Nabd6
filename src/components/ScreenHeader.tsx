@@ -29,7 +29,7 @@ export function ScreenHeader({ title, canGoBack, onBack, actions, secondaryActio
         "bg-card text-card-foreground rounded-b-lg mb-1 mx-1 shadow-md border-x border-b"
     )}>
       <div className="flex items-center gap-1">
-         <NabdAlMalaebLogo className="h-6" />
+         <NabdAlMalaebLogo className="h-6 mr-1" />
          {canGoBack && (
             <Button
             variant="ghost"

@@ -244,7 +244,7 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
 type TabName = 'my-results' | 'all-matches';
 
 const tabs: {id: TabName, label: string}[] = [
-    { id: 'all-matches', label: 'مباشر' },
+    // { id: 'all-matches', label: 'مباشر' },
     { id: 'my-results', label: 'نتائجي' },
 ];
 
@@ -431,7 +431,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                   >
                     <span className="text-xs font-mono select-none">1x2</span>
                   </div>
-                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
+                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
                       </Button>
@@ -444,13 +444,13 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-1 flex-col min-h-0">
             <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                 <div className="bg-card text-card-foreground rounded-b-lg border-x border-b shadow-md">
-                    <TabsList className={cn("grid w-full bg-transparent p-0 h-11", `grid-cols-${tabs.length}`)}>
+                    <TabsList className={cn("grid w-full bg-transparent p-0 h-11", `grid-cols-1`)}>
                         {tabs.map(tab => (
                             <TabsTrigger key={tab.id} value={tab.id} className="data-[state=active]:shadow-none">{tab.label}</TabsTrigger>
                         ))}
                     </TabsList>
                 </div>
-                 {selectedDateKey && activeTab === 'my-results' && (
+                 {selectedDateKey && (
                      <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
                         <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
                         <Button 
