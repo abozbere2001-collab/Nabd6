@@ -110,7 +110,7 @@ export function PredictionOdds({ fixtureId }: { fixtureId: number }) {
                     <span>تعادل</span>
                     <span>فوز الضيف</span>
                 </div>
-                <div className="flex w-full h-2 rounded-full overflow-hidden">
+                <div className="flex w-full h-2 rounded-full overflow-hidden" dir="ltr">
                      <Tooltip>
                         <TooltipTrigger asChild>
                             <div style={{ width: `${percentHome}%` }} className="bg-primary h-full transition-all duration-500 flex items-center justify-center text-xs font-bold text-primary-foreground">
