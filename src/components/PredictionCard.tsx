@@ -207,7 +207,7 @@ const PredictionCard = ({
         </div>
 
         <div className="mt-1">
-          <PredictionOdds fixtureId={liveFixture.fixture.id} />
+          <PredictionOdds fixtureId={liveFixture.fixture.id} reversed />
         </div>
 
         {isMatchFinished && userPrediction?.points !== undefined && userPrediction.points >= 0 && (
