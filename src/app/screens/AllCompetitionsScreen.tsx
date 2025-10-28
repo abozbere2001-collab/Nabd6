@@ -43,10 +43,7 @@ const getCachedData = <T>(key: string): T | null => {
         const cachedData = sessionStorage.getItem(key); // Use sessionStorage
         if (!cachedData) return null;
         const parsed: CacheItem<T> = JSON.parse(cachedData);
-        if (!parsed || !parsed.lastFetched || Date.now() - parsed.lastFetched > CACHE_EXPIRATION_MS) {
-            sessionStorage.removeItem(key);
-            return null;
-        }
+        // No expiration check needed for sessionStorage as it's session-bound
         return parsed.data;
     } catch (error) {
         return null;
@@ -164,6 +161,12 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
 
     const fetchAllCompetitions = useCallback(async () => {
+        const cached = getCachedData<FullLeague[]>(COMPETITIONS_CACHE_KEY);
+        if (cached) {
+            setAllLeagues(cached);
+            return;
+        }
+
         setLoadingClubData(true);
         toast({ title: 'جاري جلب بيانات البطولات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
         
@@ -173,6 +176,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const data = await res.json();
             const leaguesData: FullLeague[] = data.response || [];
             
+            setCachedData(COMPETITIONS_CACHE_KEY, leaguesData);
             setAllLeagues(leaguesData);
         } catch (error) {
              console.error("Error fetching all leagues:", error);
@@ -184,7 +188,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     
     const sortedGroupedCompetitions = useMemo(() => {
-        if (!customNames) return {};
+        if (!customNames || allLeagues.length === 0) return {};
         const grouped: NestedGroupedCompetitions = {};
 
         allLeagues
@@ -232,6 +236,12 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     
     const fetchNationalTeams = useCallback(async () => {
+        const cached = getCachedData<Team[]>(TEAMS_CACHE_KEY);
+        if (cached) {
+            setNationalTeams(cached);
+            return;
+        }
+
         setLoadingNationalTeams(true);
         toast({ title: 'جاري جلب بيانات المنتخبات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
     
@@ -258,6 +268,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const results = await Promise.all(teamPromises);
             const nationalTeamsData = results.flat();
             
+            setCachedData(TEAMS_CACHE_KEY, nationalTeamsData);
             setNationalTeams(nationalTeamsData);
 
         } catch (error) {
@@ -618,4 +629,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
-

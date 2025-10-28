@@ -114,7 +114,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
         const docRef = doc(db, 'playerCustomizations', String(id));
         const originalName = renameItem.originalName;
         
-        const op = (newName && newName.trim() !== originalName) ? setDoc(docRef, { customName: newName }) : deleteDoc(docRef);
+        const op = (newName && newName.trim() && newName.trim() !== originalName) ? setDoc(docRef, { customName: newName }) : deleteDoc(docRef);
 
         op.then(() => {
             toast({ title: "نجاح", description: "تم تحديث اسم اللاعب." });
@@ -512,14 +512,16 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         // Directly interact with localStorage for guests
         if (!user) {
             const currentFavorites = getLocalFavorites();
-            const isCurrentlyFavorited = !!currentFavorites.teams?.[teamId];
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.teams) newFavorites.teams = {};
+            const isCurrentlyFavorited = !!newFavorites.teams[teamId];
+    
             if (isCurrentlyFavorited) {
-                delete currentFavorites.teams![teamId];
+                delete newFavorites.teams[teamId];
             } else {
-                 if (!currentFavorites.teams) currentFavorites.teams = {};
-                 currentFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                 newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-            setLocalFavorites(currentFavorites); // This now dispatches an event
+            setLocalFavorites(newFavorites);
             return;
         }
 
@@ -689,4 +691,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-

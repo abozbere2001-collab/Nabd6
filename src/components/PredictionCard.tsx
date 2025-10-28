@@ -11,6 +11,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import type { Fixture, Prediction, PredictionMatch } from '@/lib/types';
 import { LiveMatchStatus } from './LiveMatchStatus';
 import { Loader2 } from 'lucide-react';
+import { PredictionOdds } from './PredictionOdds';
 
 const PredictionCard = ({
   predictionMatch,

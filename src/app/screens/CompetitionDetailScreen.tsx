@@ -226,19 +226,20 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
   
     const handleFavoriteToggle = useCallback((team: Team) => {
         const teamId = team.id;
-        
+    
         if (!user) { // Guest mode logic
             const currentFavorites = getLocalFavorites();
-            if (!currentFavorites.teams) currentFavorites.teams = {};
-            
-            const isCurrentlyFavorited = !!currentFavorites.teams[teamId];
-            
+            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.teams) newFavorites.teams = {};
+
+            const isCurrentlyFavorited = !!newFavorites.teams[teamId];
+    
             if (isCurrentlyFavorited) {
-                delete currentFavorites.teams[teamId];
+                delete newFavorites.teams[teamId];
             } else {
-                currentFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-            setLocalFavorites(currentFavorites);
+            setLocalFavorites(newFavorites);
             return;
         }
 
@@ -260,16 +261,17 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     
         if (!user) { // Guest mode logic
             const currentFavorites = getLocalFavorites();
-            if (!currentFavorites.leagues) currentFavorites.leagues = {};
+             const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
+            if (!newFavorites.leagues) newFavorites.leagues = {};
 
-            const isCurrentlyFavorited = !!currentFavorites.leagues?.[leagueId];
+            const isCurrentlyFavorited = !!newFavorites.leagues?.[leagueId];
     
             if (isCurrentlyFavorited) {
-                delete currentFavorites.leagues[leagueId];
+                delete newFavorites.leagues[leagueId];
             } else {
-                 currentFavorites.leagues[leagueId] = { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true };
+                 newFavorites.leagues[leagueId] = { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true };
             }
-            setLocalFavorites(currentFavorites);
+            setLocalFavorites(newFavorites);
             return;
         }
 
@@ -634,3 +636,4 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
 
     
+
