@@ -626,14 +626,15 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     
         if (purpose === 'rename' && isAdmin) {
             const docRef = doc(db, 'teamCustomizations', String(id));
-            const data = { customName: newName };
-            const op = (newName && newName.trim() && newName !== originalName) ? setDoc(docRef, data) : deleteDoc(docRef);
+            const op = (newName && newName.trim() && newName.trim() !== originalName) 
+                ? setDoc(docRef, { customName: newName }) 
+                : deleteDoc(docRef);
 
             op.then(() => {
                 toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
                 onCustomNameChange();
             }).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
+                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: { customName: newName } }));
             });
 
         } else if (purpose === 'crown' && user) {
@@ -651,7 +652,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 }
 
-                if (!user.isAnonymous) {
+                if (user && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                     const updatePayload = {
                         [`crownedTeams.${teamId}`]: isCurrentlyCrowned
@@ -747,17 +748,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-    
-
-    
-
-
-
-
-    
-
-
-    
-
-    

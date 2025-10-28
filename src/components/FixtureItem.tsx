@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React from 'react';
@@ -43,7 +42,7 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
 
             <div
                 className="flex-1 p-2 cursor-pointer"
-                onClick={() => navigate('MatchDetails', { fixtureId: fixture.fixture.id, fixture })}
+                onClick={() => navigate('MatchDetails', { fixtureId: fixture.fixture.id })}
             >
                 <main dir="rtl" className="flex items-start justify-between gap-1">
                     <TeamDisplay team={fixture.teams.home} />
@@ -55,7 +54,12 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
             </div>
              {showOdds && (
                 <div className="px-2 pb-2">
-                    <PredictionOdds fixtureId={fixture.fixture.id} reversed={true} />
+                    <PredictionOdds 
+                        fixtureId={fixture.fixture.id} 
+                        homeTeam={fixture.teams.home}
+                        awayTeam={fixture.teams.away}
+                        reversed={true} 
+                    />
                 </div>
             )}
         </div>

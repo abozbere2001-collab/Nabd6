@@ -29,21 +29,10 @@ interface OddsApiResponse {
     bookmakers: Bookmaker[];
 }
 
-interface FixtureInfo {
-    teams: {
-        home: { name: string; logo: string };
-        away: { name: string; logo: string };
-    }
-}
-
 interface ProcessedOdds {
     home: number;
     draw: number;
     away: number;
-    homeTeamName: string;
-    awayTeamName: string;
-    homeTeamLogo: string;
-    awayTeamLogo: string;
 }
 
 const OddRow = ({ label, logo, percentage }: { label: string; logo?: string; percentage: number }) => (
@@ -60,7 +49,7 @@ const OddRow = ({ label, logo, percentage }: { label: string; logo?: string; per
 );
 
 
-export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: number, reversed?: boolean }) {
+export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false }: { fixtureId: number, homeTeam: {name: string, logo: string}, awayTeam: {name: string, logo: string}, reversed?: boolean }) {
     const [odds, setOdds] = useState<ProcessedOdds | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -68,25 +57,19 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
         let isMounted = true;
         setLoading(true);
 
-        Promise.all([
-            fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`),
-            fetch(`/api/football/fixtures?id=${fixtureId}`)
-        ])
-        .then(async ([oddsRes, fixtureRes]) => {
+        fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`)
+        .then(async (res) => {
             if (!isMounted) return;
-            if (!oddsRes.ok || !fixtureRes.ok) {
-                throw new Error('Failed to fetch match data');
+            if (!res.ok) {
+                throw new Error('Failed to fetch odds data');
             }
-            const oddsData = await oddsRes.json();
-            const fixtureData = await fixtureRes.json();
+            const oddsData = await res.json();
             
             const oddsResponse: OddsApiResponse | undefined = oddsData.response?.[0];
-            const fixtureInfo: FixtureInfo | undefined = fixtureData.response?.[0];
-
             const bookmaker = oddsResponse?.bookmakers?.find((b: Bookmaker) => b.id === 8);
             const matchWinnerBet = bookmaker?.bets.find((b: Bet) => b.id === 1);
 
-            if (matchWinnerBet && fixtureInfo) {
+            if (matchWinnerBet) {
                 const currentOdds: { [key: string]: number } = {};
                 matchWinnerBet.values.forEach((v: OddValue) => {
                     const key = v.value.toLowerCase().replace(' ', '');
@@ -97,10 +80,6 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
                     home: currentOdds.home,
                     draw: currentOdds.draw,
                     away: currentOdds.away,
-                    homeTeamName: fixtureInfo.teams.home.name,
-                    awayTeamName: fixtureInfo.teams.away.name,
-                    homeTeamLogo: fixtureInfo.teams.home.logo,
-                    awayTeamLogo: fixtureInfo.teams.away.logo,
                 });
             } else {
                 setOdds(null);
@@ -133,8 +112,8 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
     const percentDraw = (probDraw / totalProb) * 100;
     const percentAway = (probAway / totalProb) * 100;
 
-    const homeRow = <OddRow label={odds.homeTeamName} logo={odds.homeTeamLogo} percentage={percentHome} />;
-    const awayRow = <OddRow label={odds.awayTeamName} logo={odds.awayTeamLogo} percentage={percentAway} />;
+    const homeRow = <OddRow label={homeTeam.name} logo={homeTeam.logo} percentage={percentHome} />;
+    const awayRow = <OddRow label={awayTeam.name} logo={awayTeam.logo} percentage={percentAway} />;
     const drawRow = <OddRow label="تعادل" percentage={percentDraw} />;
 
     return (
