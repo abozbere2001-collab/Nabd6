@@ -1,7 +1,8 @@
 
 import type { Favorites } from './types';
 
-const LOCAL_FAVORITES_KEY = 'goalstack_local_favorites';
+export const LOCAL_FAVORITES_KEY = 'goalstack_local_favorites';
+export const GUEST_MODE_KEY = 'goalstack_guest_mode_active';
 
 // This function now only handles starred favorites for guests.
 export const getLocalFavorites = (): Partial<Favorites> => {

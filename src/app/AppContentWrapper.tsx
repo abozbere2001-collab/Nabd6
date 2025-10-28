@@ -47,7 +47,7 @@ import { IraqScreen } from './screens/IraqScreen';
 import { PredictionsScreen } from './screens/PredictionsScreen';
 import { doc, onSnapshot, getDocs, collection } from 'firebase/firestore';
 import type { Favorites } from '@/lib/types';
-import { getLocalFavorites } from '@/lib/local-favorites';
+import { getLocalFavorites, GUEST_MODE_KEY } from '@/lib/local-favorites';
 
 
 const screenConfig: Record<string, { component: React.ComponentType<any>;}> = {
@@ -100,9 +100,8 @@ export const ProfileButton = () => {
     };
     
     const navigateToLogin = () => {
-         if ((window as any).appNavigate) {
-            (window as any).appNavigate('Welcome');
-        }
+        localStorage.removeItem(GUEST_MODE_KEY);
+        window.location.reload();
     }
 
 
@@ -203,50 +202,40 @@ export function AppContentWrapper() {
   }, [db]);
   
   useEffect(() => {
-    let isMounted = true;
     let favsUnsub: (() => void) | null = null;
     let localFavsListener: (() => void) | null = null;
 
     const cleanup = () => {
         if (favsUnsub) favsUnsub();
-        if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener);
+        if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener as any);
         favsUnsub = null;
         localFavsListener = null;
     };
     
     const loadData = async () => {
-        if (!isMounted) return;
-
-        // Always fetch custom names, regardless of user state
+        
         await fetchCustomNames();
+        cleanup(); 
 
-        cleanup(); // Clean up previous listeners before setting up new ones
-
-        if (user && !user.isAnonymous && db) {
-            // Logged-in user: listen to Firestore for favorites
+        if (user && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             favsUnsub = onSnapshot(favDocRef, (doc) => {
-                if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+                setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
             }, (error) => {
                 console.error("Error listening to remote favorites:", error);
-                if (isMounted) setFavorites(getLocalFavorites()); // Fallback to local on error
+                setFavorites(getLocalFavorites());
             });
         } else {
-            // Guest or anonymous user: get from local storage and listen for local changes
-            if (isMounted) setFavorites(getLocalFavorites());
-            localFavsListener = () => {
-                if (isMounted) setFavorites(getLocalFavorites());
-            };
-            window.addEventListener('localFavoritesChanged', localFavsListener);
+            setFavorites(getLocalFavorites());
+            localFavsListener = () => setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', localFavsListener as any);
         }
     };
     
     loadData();
 
-    return () => {
-        isMounted = false;
-        cleanup();
-    };
+    return () => cleanup();
+
 }, [user, db, fetchCustomNames]);
 
 
@@ -370,3 +359,4 @@ export function AppContentWrapper() {
     
 
     
+
