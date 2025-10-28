@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -424,9 +425,12 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             onBack={() => {}} 
             actions={
                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowOdds(prev => !prev)}>
-                    <span className="text-xs font-mono">1x2</span>
-                  </Button>
+                  <div
+                    onClick={() => setShowOdds(prev => !prev)}
+                    className={cn("flex items-center justify-center h-7 w-7 rounded-md cursor-pointer", showOdds ? 'bg-accent' : 'hover:bg-accent/50')}
+                  >
+                    <span className="text-xs font-mono select-none">1x2</span>
+                  </div>
                   <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />

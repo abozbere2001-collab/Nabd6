@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -236,7 +237,9 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
             
-            if (user && db && !user.isAnonymous) {
+            if (!user) {
+                setLocalFavorites(newFavorites);
+            } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`teams.${teamId}`]: isCurrentlyFavorited
@@ -246,8 +249,6 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
 
             return newFavorites;
@@ -268,7 +269,9 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                  newFavorites.leagues[leagueId] = { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true };
             }
             
-            if (user && db && !user.isAnonymous) {
+            if (!user) {
+                setLocalFavorites(newFavorites);
+            } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`leagues.${leagueId}`]: isCurrentlyFavorited 
@@ -278,8 +281,6 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
 
             return newFavorites;
@@ -347,14 +348,14 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
 
-            if (user && db && !user.isAnonymous) {
+            if (!user) {
+                setLocalFavorites(newFavorites);
+            } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : newFavorites.crownedTeams[teamId] };
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
             
             return newFavorites;

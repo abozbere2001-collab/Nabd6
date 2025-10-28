@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -325,7 +326,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 }
             }
             
-            if (!user || user.isAnonymous) {
+            if (!user) {
                 setLocalFavorites(newFavorites);
             } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');

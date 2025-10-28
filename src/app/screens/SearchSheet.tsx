@@ -282,14 +282,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 newFavorites[itemType]![itemId] = favData as any;
             }
 
-            if (user && db && !user.isAnonymous) {
+            if (!user) {
+                setLocalFavorites(newFavorites);
+            } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
                 updateDoc(favDocRef, updateData).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
 
             return newFavorites;
@@ -455,3 +455,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
+    
+
+
+
