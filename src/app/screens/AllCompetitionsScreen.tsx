@@ -40,10 +40,13 @@ interface CacheItem<T> {
 const getCachedData = <T>(key: string): T | null => {
     if (typeof window === 'undefined') return null;
     try {
-        const cachedData = sessionStorage.getItem(key); // Use sessionStorage
+        const cachedData = localStorage.getItem(key);
         if (!cachedData) return null;
         const parsed: CacheItem<T> = JSON.parse(cachedData);
-        // No expiration check needed for sessionStorage as it's session-bound
+        if (Date.now() - parsed.lastFetched > CACHE_EXPIRATION_MS) {
+            localStorage.removeItem(key);
+            return null;
+        }
         return parsed.data;
     } catch (error) {
         return null;
@@ -54,9 +57,9 @@ const setCachedData = <T>(key: string, data: T) => {
     if (typeof window === 'undefined') return;
     try {
         const cacheData: CacheItem<T> = { data, lastFetched: Date.now() };
-        sessionStorage.setItem(key, JSON.stringify(cacheData)); // Use sessionStorage
+        localStorage.setItem(key, JSON.stringify(cacheData));
     } catch (error) {
-        console.warn(`Could not set sessionStorage for key "${key}"`, error);
+        console.warn(`Could not set localStorage for key "${key}"`, error);
     }
 };
 
@@ -421,9 +424,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
     const handleAdminRefresh = async () => {
         if (!isAdmin) return;
-        sessionStorage.removeItem(COMPETITIONS_CACHE_KEY);
-        sessionStorage.removeItem(TEAMS_CACHE_KEY);
-        sessionStorage.removeItem(COUNTRIES_CACHE_KEY);
+        localStorage.removeItem(COMPETITIONS_CACHE_KEY);
+        localStorage.removeItem(TEAMS_CACHE_KEY);
+        localStorage.removeItem(COUNTRIES_CACHE_KEY);
         toast({ title: 'بدء التحديث...', description: 'جاري تحديث بيانات البطولات والمنتخبات.' });
         await fetchAllCompetitions();
         await fetchNationalTeams();
