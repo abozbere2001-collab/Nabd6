@@ -529,7 +529,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             });
         }
         
-        // This is now the single source of truth for local changes for guests
         setLocalFavorites(newFavorites);
         
     }, [teamData, user, db, favorites]);
@@ -687,4 +686,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-

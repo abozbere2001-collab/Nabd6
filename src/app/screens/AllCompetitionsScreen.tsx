@@ -164,12 +164,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
 
     const fetchAllCompetitions = useCallback(async () => {
-        const cached = getCachedData<FullLeague[]>(COMPETITIONS_CACHE_KEY);
-        if (cached && cached.length > 0) {
-            setAllLeagues(cached);
-            return;
-        }
-
         setLoadingClubData(true);
         toast({ title: 'جاري جلب بيانات البطولات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
         
@@ -180,8 +174,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const leaguesData: FullLeague[] = data.response || [];
             
             setAllLeagues(leaguesData);
-            setCachedData(COMPETITIONS_CACHE_KEY, leaguesData);
-
         } catch (error) {
              console.error("Error fetching all leagues:", error);
             toast({ variant: 'destructive', title: "خطأ", description: "فشل في جلب بيانات البطولات." });
@@ -240,12 +232,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     
     const fetchNationalTeams = useCallback(async () => {
-        const cached = getCachedData<Team[]>(TEAMS_CACHE_KEY);
-        if (cached && cached.length > 0) {
-            setNationalTeams(cached);
-            return;
-        }
-
         setLoadingNationalTeams(true);
         toast({ title: 'جاري جلب بيانات المنتخبات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
     
@@ -272,7 +258,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const results = await Promise.all(teamPromises);
             const nationalTeamsData = results.flat();
             
-            setCachedData(TEAMS_CACHE_KEY, nationalTeamsData);
             setNationalTeams(nationalTeamsData);
 
         } catch (error) {

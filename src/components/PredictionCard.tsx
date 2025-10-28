@@ -95,16 +95,21 @@ const PredictionCard = ({
     const actualHome = liveFixture.goals.home;
     const actualAway = liveFixture.goals.away;
     
+    // UI values are swapped, so userPrediction stores them swapped.
+    // userPrediction.homeGoals is for the AWAY team on the UI.
+    // userPrediction.awayGoals is for the HOME team on the UI.
     const predHome = userPrediction.awayGoals;
     const predAway = userPrediction.homeGoals;
 
 
     if (actualHome === null || actualAway === null) return 'bg-card text-foreground';
     
+    // Exact score (3 points)
     if (actualHome === predHome && actualAway === predAway) {
         return 'bg-green-500/80 text-white';
     }
 
+    // Correct outcome (1 point)
     const actualWinner = actualHome > actualAway ? 'home' : actualHome < actualAway ? 'away' : 'draw';
     const predWinner = predHome > predAway ? 'home' : predHome < predAway ? 'away' : 'draw';
 
@@ -112,6 +117,7 @@ const PredictionCard = ({
         return 'bg-yellow-500/80 text-white';
     }
     
+    // Incorrect outcome (0 points)
     return 'bg-destructive/80 text-white';
   }, [isMatchFinished, userPrediction, liveFixture.goals]);
 
