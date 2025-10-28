@@ -203,46 +203,41 @@ export function AppContentWrapper() {
   }, [db]);
   
   useEffect(() => {
-    let unsubscribers: (() => void)[] = [];
     let isMounted = true;
+    let favsUnsub: (() => void) | null = null;
+    let localFavsListener: (() => void) | null = null;
 
     const cleanup = () => {
-        unsubscribers.forEach(unsub => unsub());
-        unsubscribers = [];
-        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+        if (favsUnsub) favsUnsub();
+        if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener);
+        favsUnsub = null;
+        localFavsListener = null;
     };
-
-    const handleLocalFavoritesChange = () => {
-        if (isMounted) setFavorites(getLocalFavorites());
-    };
-
+    
     const loadData = async () => {
         if (!isMounted) return;
 
-        // If user logs out, clean up listeners immediately
-        if (!user) {
-            cleanup();
-            if (isMounted) setFavorites(getLocalFavorites());
-            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
-            return;
-        }
-
+        // Always fetch custom names, regardless of user state
         await fetchCustomNames();
 
-        if (user.isAnonymous || !db) {
-            if (isMounted) setFavorites(getLocalFavorites());
-            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
-        } else {
+        cleanup(); // Clean up previous listeners before setting up new ones
+
+        if (user && !user.isAnonymous && db) {
+            // Logged-in user: listen to Firestore for favorites
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const favsUnsub = onSnapshot(favDocRef, (doc) => {
+            favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
             }, (error) => {
                 console.error("Error listening to remote favorites:", error);
-                if (isMounted) setFavorites(getLocalFavorites());
+                if (isMounted) setFavorites(getLocalFavorites()); // Fallback to local on error
             });
-            unsubscribers.push(favsUnsub);
+        } else {
+            // Guest or anonymous user: get from local storage and listen for local changes
+            if (isMounted) setFavorites(getLocalFavorites());
+            localFavsListener = () => {
+                if (isMounted) setFavorites(getLocalFavorites());
+            };
+            window.addEventListener('localFavoritesChanged', localFavsListener);
         }
     };
     
