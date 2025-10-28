@@ -427,8 +427,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             canGoBack={false}
             onBack={() => {}} 
             actions={
-               <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs font-mono px-2" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
+               <div className="flex items-center gap-0.5">
+                  <Button variant="outline" size="sm" className="h-7 text-xs font-mono" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
                   <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
@@ -500,3 +500,5 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
+
+    

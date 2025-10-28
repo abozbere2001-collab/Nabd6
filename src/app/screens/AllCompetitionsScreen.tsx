@@ -306,38 +306,38 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
 
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
-        const itemId = item.id;
-        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
-
+            const itemId = item.id;
+            
+            if (!newFavorites[itemType]) {
+                newFavorites[itemType] = {};
+            }
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
-    
+
             if (isCurrentlyFavorited) {
                 delete newFavorites[itemType]![itemId];
             } else {
-                if (itemType === 'leagues') {
+                 if (itemType === 'leagues') {
                      newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
                 } else {
                      newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
                 }
             }
             
-            if (user && db && !user.isAnonymous) {
+            // If it's a guest or no user, save to localStorage. Otherwise, save to Firestore.
+            if (!user || user.isAnonymous) {
+                setLocalFavorites(newFavorites);
+            } else if (db) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`${itemType}.${itemId}`]: isCurrentlyFavorited
                         ? deleteField()
-                        : (itemType === 'leagues'
-                            ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
-                            : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' })
+                        : newFavorites[itemType]![itemId]
                 };
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
 
             return newFavorites;
@@ -631,3 +631,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+
+    
