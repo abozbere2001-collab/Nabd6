@@ -19,13 +19,34 @@ import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam, FavoriteTeam, FavoriteLeague } from '@/lib/types';
+import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam, FavoriteTeam, FavoriteLeague, Fixture } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { useToast } from '@/hooks/use-toast';
 import { POPULAR_TEAMS, POPULAR_LEAGUES } from '@/lib/popular-data';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
+
+
+// --- Cache Logic ---
+const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
+const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
+interface Cache<T> {
+    data: T;
+    lastFetched: number;
+}
+const getCachedData = <T>(key: string): T | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const cachedData = localStorage.getItem(key);
+        if (!cachedData) return null;
+        const parsed = JSON.parse(cachedData) as Cache<T>;
+        return parsed.data;
+    } catch (error) {
+        return null;
+    }
+};
+
 
 // --- Types ---
 interface TeamResult {
@@ -113,6 +134,55 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
 
+
+  const localSearchIndex = useMemo(() => {
+    if (!customNames) return [];
+    
+    const index: SearchableItem[] = [];
+    const seen = new Set<string>();
+
+    const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
+    const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
+
+    if (competitionsCache) {
+      competitionsCache.forEach(comp => {
+        const league = comp.league;
+        const key = `leagues-${league.id}`;
+        if (seen.has(key)) return;
+
+        index.push({
+          id: league.id,
+          type: 'leagues',
+          name: getDisplayName('league', league.id, league.name),
+          originalName: league.name,
+          logo: league.logo,
+          originalItem: { id: league.id, name: league.name, logo: league.logo }
+        });
+        seen.add(key);
+      });
+    }
+
+    if (nationalTeamsCache) {
+      nationalTeamsCache.forEach(team => {
+        const key = `teams-${team.id}`;
+        if (seen.has(key)) return;
+
+        index.push({
+          id: team.id,
+          type: 'teams',
+          name: getDisplayName('team', team.id, team.name),
+          originalName: team.name,
+          logo: team.logo,
+          originalItem: { ...team }
+        });
+        seen.add(key);
+      });
+    }
+
+    return index;
+  }, [customNames, getDisplayName]);
+
+
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
     if (!open) {
@@ -131,6 +201,17 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
     setLoading(true);
 
+    // 1. Search local index first
+    const normalizedQuery = normalizeArabic(query);
+    const localResults = localSearchIndex.filter(item => {
+        const normalizedDisplayName = normalizeArabic(item.name);
+        const normalizedOriginalName = normalizeArabic(item.originalName);
+        return normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery);
+    });
+    const seen = new Set(localResults.map(r => `${r.type}-${r.id}`));
+    
+
+    // 2. Search API for additional results
     const apiSearchPromises = [
       fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] }),
       fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] })
@@ -138,49 +219,44 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     try {
         const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
-        const results: SearchableItem[] = [];
-        const seen = new Set<string>();
-
-        const processItem = (item: any, type: 'teams' | 'leagues') => {
-            const id = type === 'teams' ? item.team.id : item.league.id;
-            const originalName = type === 'teams' ? item.team.name : item.league.name;
-            const logo = type === 'teams' ? item.team.logo : item.league.logo;
-            const originalItem = type === 'teams' ? item.team : item.league;
-            
-            const key = `${type}-${id}`;
-            if (seen.has(key)) return;
-
-            const displayName = getDisplayName(type.slice(0, -1) as 'team' | 'league', id, originalName);
-            
-            // Centralized matching logic for both Arabic and English
-            const normalizedQuery = normalizeArabic(query);
-            const normalizedDisplayName = normalizeArabic(displayName);
-            const normalizedOriginalName = normalizeArabic(originalName);
-
-            if (normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery) || originalName.toLowerCase().includes(query.toLowerCase())) {
-                results.push({
-                    id: id,
-                    type: type,
-                    name: displayName,
-                    originalName: originalName,
-                    logo: logo,
-                    originalItem: originalItem,
+        
+        teamsData.response?.forEach((r: TeamResult) => {
+            const key = `teams-${r.team.id}`;
+            if (!seen.has(key)) {
+                localResults.push({
+                    id: r.team.id,
+                    type: 'teams',
+                    name: getDisplayName('team', r.team.id, r.team.name),
+                    originalName: r.team.name,
+                    logo: r.team.logo,
+                    originalItem: r.team,
                 });
                 seen.add(key);
             }
-        };
+        });
 
-        teamsData.response?.forEach((r: TeamResult) => processItem(r, 'teams'));
-        leaguesData.response?.forEach((r: LeagueResult) => processItem(r, 'leagues'));
-        
-        setSearchResults(results);
+        leaguesData.response?.forEach((r: LeagueResult) => {
+            const key = `leagues-${r.league.id}`;
+            if (!seen.has(key)) {
+                localResults.push({
+                    id: r.league.id,
+                    type: 'leagues',
+                    name: getDisplayName('league', r.league.id, r.league.name),
+                    originalName: r.league.name,
+                    logo: r.league.logo,
+                    originalItem: r.league,
+                });
+                seen.add(key);
+            }
+        });
     } catch(e) {
-        console.error("API search failed.", e);
+        console.error("API search failed, showing local results only.", e);
         toast({ variant: 'destructive', title: "خطأ في البحث", description: "فشلت عملية البحث عبر الشبكة." });
     } finally {
+        setSearchResults(localResults);
         setLoading(false);
     }
-  }, [getDisplayName, toast]);
+  }, [getDisplayName, localSearchIndex, toast]);
 
 
   useEffect(() => {
@@ -314,20 +390,19 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
   
   const popularItems = useMemo(() => {
-    if (!customNames) return { teams: [], leagues: [] };
+    if (!customNames) return [];
     const seen = new Set<string>();
 
-    const allPopular = [...POPULAR_TEAMS.map(t => ({...t, type: 'teams' as const})), ...POPULAR_LEAGUES.map(l => ({...l, type: 'leagues' as const}))];
-    
-    return allPopular.map(item => {
-        const key = `${item.type}-${item.id}`;
+    return [...POPULAR_TEAMS, ...POPULAR_LEAGUES].map(item => {
+        const type = 'national' in item || 'type' in item ? 'teams' : 'leagues';
+        const key = `${type}-${item.id}`;
         if (seen.has(key)) return null;
         seen.add(key);
 
         return {
             id: item.id,
-            type: item.type,
-            name: getDisplayName(item.type.slice(0, -1) as 'team' | 'league', item.id, item.name),
+            type: type,
+            name: getDisplayName(type.slice(0, -1) as 'team' | 'league', item.id, item.name),
             originalName: item.name,
             logo: item.logo,
             originalItem: item as Item,
