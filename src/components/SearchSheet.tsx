@@ -116,7 +116,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
   
-    // New comprehensive buildLocalIndex
     const buildLocalIndex = useCallback(() => {
         if (!customNames) return;
         setLoading(true);
@@ -138,11 +137,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             }
         };
 
-        // Process all popular teams and leagues
         POPULAR_TEAMS.forEach(team => processItem(team, 'teams'));
         POPULAR_LEAGUES.forEach(league => processItem(league, 'leagues'));
         
-        // Also add user's favorites to ensure they are searchable
         Object.values(favorites?.teams || {}).forEach(team => processItem({id: team.teamId, name: team.name, logo: team.logo}, 'teams'));
         Object.values(favorites?.leagues || {}).forEach(league => processItem({id: league.leagueId, name: league.name, logo: league.logo}, 'leagues'));
 
@@ -169,70 +166,20 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   };
 
-    const handleSearch = useCallback(async (query: string) => {
+    const handleSearch = useCallback((query: string) => {
         setLoading(true);
         const normalizedQuery = normalizeArabic(query);
         const isArabic = /[\u0600-\u06FF]/.test(normalizedQuery);
         
-        // --- 1. Immediate local search from the pre-built index ---
         const localMatches = searchIndex.filter(item => {
              const nameToSearch = isArabic ? normalizeArabic(item.name) : item.originalName.toLowerCase();
              const queryToUse = isArabic ? normalizedQuery : query.toLowerCase();
              return nameToSearch.includes(queryToUse);
         });
+        
         setSearchResults(localMatches);
-
-        // --- 2. Background API search for new items ---
-        const teamPromise = fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] });
-        const leaguePromise = fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] });
-
-        try {
-            const [teamsData, leaguesData] = await Promise.all([teamPromise, leaguePromise]);
-
-            const newItems: SearchableItem[] = [];
-            const existingIds = new Set(localMatches.map(item => `${item.type}-${item.id}`));
-
-            (teamsData.response || []).forEach((r: TeamResult) => {
-                const key = `teams-${r.team.id}`;
-                if (!existingIds.has(key)) {
-                    newItems.push({
-                        id: r.team.id,
-                        type: 'teams',
-                        name: getDisplayName('team', r.team.id, r.team.name),
-                        originalName: r.team.name,
-                        logo: r.team.logo,
-                        originalItem: r.team,
-                    });
-                    existingIds.add(key);
-                }
-            });
-
-            (leaguesData.response || []).forEach((r: LeagueResult) => {
-                const key = `leagues-${r.league.id}`;
-                if (!existingIds.has(key)) {
-                    newItems.push({
-                        id: r.league.id,
-                        type: 'leagues',
-                        name: getDisplayName('league', r.league.id, r.league.name),
-                        originalName: r.league.name,
-                        logo: r.league.logo,
-                        originalItem: r.league,
-                    });
-                    existingIds.add(key);
-                }
-            });
-            
-            // --- 3. Merge results ---
-            if (newItems.length > 0) {
-                 setSearchResults(prev => [...prev, ...newItems]);
-            }
-
-        } catch (error) {
-            console.error("API search failed:", error);
-        } finally {
-             setLoading(false);
-        }
-    }, [searchIndex, getDisplayName]);
+        setLoading(false);
+    }, [searchIndex]);
 
   useEffect(() => {
     if (debouncedSearchTerm && isOpen) {
@@ -448,4 +395,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
 

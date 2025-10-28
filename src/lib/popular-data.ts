@@ -96,6 +96,10 @@ export const POPULAR_TEAMS = [
     { id: 247, name: "Rangers", logo: "https://media.api-sports.io/football/teams/247.png", type: 'Club' },
     { id: 585, name: "Galatasaray", logo: "https://media.api-sports.io/football/teams/585.png", type: 'Club' },
     { id: 645, name: "Fenerbahce", logo: "https://media.api-sports.io/football/teams/645.png", type: 'Club' },
+    { id: 17, name: "Australia", logo: "https://media.api-sports.io/football/teams/17.png", type: 'National' },
+    { id: 22, name: "Iran", logo: "https://media.api-sports.io/football/teams/22.png", type: 'National' },
+    { id: 23, name: "Nigeria", logo: "https://media.api-sports.io/football/teams/23.png", type: 'National' },
+    { id: 31, name: "Senegal", logo: "https://media.api-sports.io/football/teams/31.png", type: 'National' },
 ];
 
 export const POPULAR_LEAGUES = [
