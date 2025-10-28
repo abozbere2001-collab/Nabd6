@@ -325,7 +325,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 }
             }
             
-            // If it's a guest or no user, save to localStorage. Otherwise, save to Firestore.
             if (!user || user.isAnonymous) {
                 setLocalFavorites(newFavorites);
             } else if (db) {
@@ -631,5 +630,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+
+    
 
     

@@ -328,7 +328,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             let fixtures: FixtureType[] = [];
             const favTeamIds = Object.keys(currentFavorites?.teams || {}).map(Number);
             const favLeagueIds = Object.keys(currentFavorites?.leagues || {}).map(Number);
-            const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
             
             if (activeTab === 'all-matches') {
                 const liveRes = await fetch('/api/football/fixtures?live=all', { signal: abortSignal });
@@ -337,17 +336,14 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                     fixtures = liveData.response || [];
                 }
             } else if(dateKey) { // Fetch by date for 'my-results'
-                const allTeamIds = Array.from(new Set([...favTeamIds]));
-                const allLeagueIds = Array.from(new Set([...favLeagueIds]));
-
-                if (allTeamIds.length === 0 && allLeagueIds.length === 0) {
-                    fixtures = [];
-                } else {
-                    // Optimized fetch: get all fixtures for the day and filter client-side
-                    const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
-                    if(res.ok) {
-                        const data = await res.json();
-                        const allFixturesToday: FixtureType[] = data.response || [];
+                // Optimized fetch: get all fixtures for the day and filter client-side
+                const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
+                if(res.ok) {
+                    const data = await res.json();
+                    const allFixturesToday: FixtureType[] = data.response || [];
+                    if (favTeamIds.length === 0 && favLeagueIds.length === 0) {
+                        fixtures = allFixturesToday.filter(f => popularLeagueIds.has(f.league.id));
+                    } else {
                         fixtures = allFixturesToday.filter(f => 
                             favTeamIds.includes(f.teams.home.id) || 
                             favTeamIds.includes(f.teams.away.id) ||
@@ -428,7 +424,9 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             onBack={() => {}} 
             actions={
                <div className="flex items-center gap-0.5">
-                  <Button variant="outline" size="sm" className="h-7 text-xs font-mono" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowOdds(prev => !prev)}>
+                    <span className="text-xs font-mono">1x2</span>
+                  </Button>
                   <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
@@ -500,5 +498,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
+
+    
 
     

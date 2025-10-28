@@ -546,32 +546,23 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             } else {
                 newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
+            
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updateData = {
+                    [`teams.${team.id}`]: isCurrentlyFavorited
+                        ? deleteField()
+                        : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
+                };
+                updateDoc(favDocRef, updateData).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+
             return newFavorites;
         });
-
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = {
-                [`teams.${team.id}`]: isCurrentlyFavorited
-                    ? deleteField()
-                    : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
-            };
-            updateDoc(favDocRef, updateData).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-            });
-        } else {
-             setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-                if (!newFavorites.teams) newFavorites.teams = {};
-                if (isCurrentlyFavorited) {
-                    delete newFavorites.teams[team.id];
-                } else {
-                    newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-                }
-                setLocalFavorites(newFavorites);
-                return newFavorites;
-            });
-        }
     }, [teamData, user, db, setFavorites, favorites]);
 
 
@@ -623,42 +614,34 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const isCurrentlyCrowned = !!favorites?.crownedTeams?.[teamId];
             
             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+                
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
                 } else {
                     newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 }
+
+                if (user && db && !user.isAnonymous) {
+                    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updatePayload = {
+                        [`crownedTeams.${teamId}`]: isCurrentlyCrowned
+                            ? deleteField()
+                            : { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
+                    };
+                    updateDoc(favDocRef, updatePayload).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                    });
+                } else {
+                    setLocalFavorites(newFavorites);
+                }
+                
                 return newFavorites;
             });
-
-            if (user && db && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updatePayload = {
-                    [`crownedTeams.${teamId}`]: isCurrentlyCrowned
-                        ? deleteField()
-                        : { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
-                };
-                updateDoc(favDocRef, updatePayload).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-                });
-            } else {
-                setFavorites(prev => {
-                    const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-                    if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                    if (isCurrentlyCrowned) {
-                        delete newFavorites.crownedTeams[teamId];
-                    } else {
-                        newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-                    }
-                    setLocalFavorites(newFavorites);
-                    return newFavorites;
-                });
-            }
         }
         setRenameItem(null);
     };
@@ -739,5 +722,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
+
+    
 
     
