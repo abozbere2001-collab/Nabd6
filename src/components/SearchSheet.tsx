@@ -139,65 +139,76 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
 
-    const buildLocalIndex = useCallback(async () => {
-        if (!customNames || localSearchIndex.length > 0) return;
-        setLoading(true);
-        const index: SearchableItem[] = [];
-        const existingIds = new Set<string>();
+  const buildLocalIndex = useCallback(async () => {
+    if (!customNames || localSearchIndex.length > 0) return;
+    setLoading(true);
 
-        const processTeam = (team: Team) => {
-            if (!team.id || existingIds.has(`teams-${team.id}`)) return;
-            const name = getDisplayName('team', team.id, team.name);
-            index.push({
-                id: team.id,
-                type: 'teams',
-                name,
-                originalName: team.name,
-                logo: team.logo,
-                normalizedName: normalizeArabic(name),
-                normalizedOriginalName: normalizeArabic(team.name),
-                originalItem: team,
-            });
-            existingIds.add(`teams-${team.id}`);
-        };
-        
-        const processLeague = (league: LeagueResult['league']) => {
-            if (!league.id || existingIds.has(`leagues-${league.id}`)) return;
-            const name = getDisplayName('league', league.id, league.name);
-            index.push({
-                id: league.id,
-                type: 'leagues',
-                name,
-                originalName: league.name,
-                logo: league.logo,
-                normalizedName: normalizeArabic(name),
-                normalizedOriginalName: normalizeArabic(league.name),
-                originalItem: league,
-            });
-            existingIds.add(`leagues-${league.id}`);
-        }
+    const index: SearchableItem[] = [];
+    const existingIds = new Set<string>();
 
-        // Process all popular teams (clubs and nationals)
-        POPULAR_TEAMS.forEach(team => processTeam(team as Team));
+    const processTeam = (team: Team) => {
+      if (!team?.id || existingIds.has(`teams-${team.id}`)) return;
+      const name = getDisplayName('team', team.id, team.name);
+      index.push({
+        id: team.id,
+        type: 'teams',
+        name,
+        originalName: team.name,
+        logo: team.logo,
+        normalizedName: normalizeArabic(name),
+        normalizedOriginalName: normalizeArabic(team.name),
+        originalItem: team,
+      });
+      existingIds.add(`teams-${team.id}`);
+    };
+    
+    const processLeague = (league: LeagueResult['league']) => {
+      if (!league?.id || existingIds.has(`leagues-${league.id}`)) return;
+      const name = getDisplayName('league', league.id, league.name);
+      index.push({
+        id: league.id,
+        type: 'leagues',
+        name,
+        originalName: league.name,
+        logo: league.logo,
+        normalizedName: normalizeArabic(name),
+        normalizedOriginalName: normalizeArabic(league.name),
+        originalItem: league,
+      });
+      existingIds.add(`leagues-${league.id}`);
+    };
+    
+    // Add National Teams from cache
+    const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
+    if (nationalTeamsCache) {
+      nationalTeamsCache.forEach(team => processTeam(team));
+    }
 
-        // Process popular leagues
-        POPULAR_LEAGUES.forEach(league => processLeague(league));
-        
-        // Add national teams from cache if available
-        const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
-        if (nationalTeamsCache) {
-            nationalTeamsCache.forEach(team => processTeam(team));
-        }
+    // Fetch all leagues, then extract all associated teams
+    const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
+    if (competitionsCache) {
+        // Process all leagues
+        competitionsCache.forEach(comp => processLeague(comp.league));
 
-        // Add all competitions from cache if available
-        const competitionsCache = getCachedData<LeagueResult[]>(COMPETITIONS_CACHE_KEY);
-        if (competitionsCache) {
-            competitionsCache.forEach(comp => processLeague(comp.league));
-        }
-        
-        setLocalSearchIndex(index);
-        setLoading(false);
-    }, [customNames, getDisplayName, localSearchIndex.length]);
+        // Asynchronously fetch teams for each league to build a comprehensive club index
+        const teamPromises = competitionsCache.map(comp => 
+            fetch(`/api/football/teams?league=${comp.league.id}&season=${new Date().getFullYear()}`)
+                .then(res => res.ok ? res.json() : { response: [] })
+                .then(data => (data.response || []).map((r: TeamResult) => r.team))
+                .catch(() => [])
+        );
+
+        const allTeamsFromLeagues = (await Promise.all(teamPromises)).flat();
+        allTeamsFromLeagues.forEach(team => processTeam(team as Team));
+    }
+    
+    // Add popular items just in case they aren't in the main cache
+    POPULAR_TEAMS.forEach(team => processTeam(team as Team));
+    POPULAR_LEAGUES.forEach(league => processLeague(league));
+    
+    setLocalSearchIndex(index);
+    setLoading(false);
+}, [customNames, getDisplayName, localSearchIndex.length]);
 
 
   useEffect(() => {
@@ -227,7 +238,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     const normalizedQuery = normalizeArabic(query);
     
-    // Prioritize local index search
+    // Search the comprehensive local index
     const localResults = localSearchIndex.filter(item => 
         item.normalizedName.includes(normalizedQuery) || 
         item.normalizedOriginalName.includes(normalizedQuery) ||
@@ -236,42 +247,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     );
 
     setSearchResults(localResults);
-    
-    // Perform API search in the background to find items not in local index
-    Promise.all([
-        fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
-        fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
-    ]).then(([teamsData, leaguesData]) => {
-        const currentResults = new Map(localResults.map(r => [`${r.type}-${r.id}`, r]));
+    setLoading(false);
 
-        const processApiResult = (item: TeamResult | LeagueResult, type: 'teams' | 'leagues') => {
-            const entity = 'team' in item ? item.team : item.league;
-            if (!currentResults.has(`${type}-${entity.id}`)) {
-                const name = getDisplayName(type.slice(0, -1) as 'team' | 'league', entity.id, entity.name);
-                currentResults.set(`${type}-${entity.id}`, {
-                    id: entity.id,
-                    type: type,
-                    name,
-                    originalName: entity.name,
-                    logo: entity.logo,
-                    normalizedName: normalizeArabic(name),
-                    normalizedOriginalName: normalizeArabic(entity.name),
-                    originalItem: entity,
-                });
-            }
-        };
-
-        teamsData.response?.forEach((r: TeamResult) => processApiResult(r, 'teams'));
-        leaguesData.response?.forEach((r: LeagueResult) => processApiResult(r, 'leagues'));
-        
-        setSearchResults(Array.from(currentResults.values()));
-    }).catch(error => {
-        console.error("API search failed, showing local results only.", error);
-    }).finally(() => {
-        setLoading(false);
-    });
-
-  }, [localSearchIndex, getDisplayName]);
+  }, [localSearchIndex]);
 
 
   useEffect(() => {
@@ -490,6 +468,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
 
 
 
