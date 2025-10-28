@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { doc, setDoc, updateDoc, deleteField, getDocs, collection, deleteDoc, getDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Fixture, Standing, TopScorer, Team, Favorites, CrownedTeam } from '@/lib/types';
+import type { Fixture, Standing, TopScorer, Team, Favorites, CrownedTeam, FavoriteLeague } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -279,33 +279,55 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
             } else {
                 newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
+            
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updatePayload = {
+                    [`teams.${team.id}`]: isCurrentlyFavorited
+                        ? deleteField()
+                        : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
+                };
+                updateDoc(favDocRef, updatePayload).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+
             return newFavorites;
         });
-
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updateData = {
-                [`teams.${team.id}`]: isCurrentlyFavorited
-                    ? deleteField()
-                    : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
-            };
-            updateDoc(favDocRef, updateData).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
-            });
-        } else {
-            setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-                if (!newFavorites.teams) newFavorites.teams = {};
-                if (isCurrentlyFavorited) {
-                    delete newFavorites.teams[team.id];
-                } else {
-                    newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-                }
-                setLocalFavorites(newFavorites);
-                return newFavorites;
-            });
-        }
     }, [user, db, setFavorites, favorites]);
+    
+    const handleLeagueFavoriteToggle = useCallback(() => {
+        if (!leagueId || !displayTitle || !logo) return;
+        const isCurrentlyFavorited = !!favorites?.leagues?.[leagueId];
+        
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!newFavorites.leagues) newFavorites.leagues = {};
+
+            if (isCurrentlyFavorited) {
+                delete newFavorites.leagues[leagueId];
+            } else {
+                 newFavorites.leagues[leagueId] = { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true };
+            }
+            
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updatePayload = {
+                    [`leagues.${leagueId}`]: isCurrentlyFavorited ? deleteField() : { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true }
+                };
+                updateDoc(favDocRef, updatePayload).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+
+            return newFavorites;
+        });
+    }, [leagueId, displayTitle, logo, initialTitle, user, db, setFavorites, favorites]);
+
 
   const handleOpenCrownDialog = (team: Team) => {
     if (!user) {
@@ -354,43 +376,30 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
         });
 
     } else if (purpose === 'crown' && user) {
-        const teamId = Number(id);
-        const isCurrentlyCrowned = !!favorites?.crownedTeams?.[teamId];
-
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+            const teamId = Number(id);
+            const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+            
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
             } else {
                 newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
+
+            if (user && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updatePayload = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : newFavorites.crownedTeams[teamId] };
+                updateDoc(favDocRef, updatePayload).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+            
             return newFavorites;
         });
-
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updatePayload = {
-                [`crownedTeams.${teamId}`]: isCurrentlyCrowned
-                    ? deleteField()
-                    : { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
-            };
-            updateDoc(favDocRef, updatePayload).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-            });
-        } else {
-            setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-                if (isCurrentlyCrowned) {
-                    delete newFavorites.crownedTeams[teamId];
-                } else {
-                    newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-                }
-                setLocalFavorites(newFavorites);
-                return newFavorites;
-            });
-        }
     }
     setRenameItem(null);
   };
@@ -420,6 +429,11 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
   const secondaryActions = (
     <div className="flex items-center gap-1">
+      {leagueId && (
+        <Button variant="ghost" size="icon" onClick={handleLeagueFavoriteToggle}>
+            <Star className={cn("h-5 w-5 text-muted-foreground", favorites?.leagues?.[leagueId] && "fill-current text-yellow-400")} />
+        </Button>
+      )}
       {isAdmin && leagueId && (
         <>
             <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
@@ -655,5 +669,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
+
+    
 
     
