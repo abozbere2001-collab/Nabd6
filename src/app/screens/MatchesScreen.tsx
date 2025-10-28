@@ -260,14 +260,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   const [showOdds, setShowOdds] = useState(false);
 
   
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string>(formatDateKey(new Date()));
   
-  useEffect(() => {
-    if (!selectedDateKey && typeof window !== 'undefined') {
-      setSelectedDateKey(formatDateKey(new Date()));
-    }
-  }, [selectedDateKey]);
-
   const [matchesCache, setMatchesCache] = useState<Map<string, FixtureType[]>>(new Map());
   const [loading, setLoading] = useState(true);
     
@@ -386,7 +380,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                 setLoading(false);
             }
         }
-    }, [db, activeTab, getDisplayName]);
+    }, [activeTab, getDisplayName]);
   
   
   useEffect(() => {
@@ -450,7 +444,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                         ))}
                     </TabsList>
                 </div>
-                 {selectedDateKey && (
+                 {selectedDateKey && activeTab === 'my-results' && (
                      <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
                         <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
                         <Button 

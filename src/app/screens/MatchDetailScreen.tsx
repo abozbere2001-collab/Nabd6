@@ -569,7 +569,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
     const [customNames, setCustomNames] = useState<{ [key: string]: Map<number, string> } | null>(null);
 
     const [loadingFixture, setLoadingFixture] = useState(true);
-    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [loadingDetails, setLoadingDetails] = useState(true);
     const [loadingStandings, setLoadingStandings] = useState(true);
     
     const { isAdmin, db } = useAdmin();
@@ -607,7 +607,9 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
 
 
     const getDisplayName = useCallback((type: 'league' | 'team' | 'player' | 'coach', id: number, defaultName: string) => {
-        const customName = customNames?.[`${type}s`]?.get(id);
+        if (!customNames || !id) return defaultName;
+        const key = `${type}s` as 'leagues' | 'teams' | 'players' | 'coaches';
+        const customName = customNames[key]?.get(id);
         if (customName) return customName;
         
         const hardcodedName = hardcodedTranslations?.[`${type}s`]?.[id];
@@ -802,7 +804,7 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
         return lineups.map(l => ({
             ...l,
             team: { ...l.team, name: getDisplayName('team', l.team.id, l.team.name) },
-            coach: { ...l.coach, name: getDisplayName('coach', l.coach.id, l.coach.name) },
+            coach: l.coach ? { ...l.coach, name: getDisplayName('coach', l.coach.id, l.coach.name) } : l.coach,
             startXI: l.startXI.map(p => ({ ...p, player: { ...p.player, name: getDisplayName('player', p.player.id, p.player.name) }})),
             substitutes: l.substitutes.map(p => ({ ...p, player: { ...p.player, name: getDisplayName('player', p.player.id, p.player.name) }})),
         }));
@@ -929,4 +931,5 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
 }
 
     
+
 
