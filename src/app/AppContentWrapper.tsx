@@ -268,16 +268,22 @@ export function AppContentWrapper() {
 
   const navigate = useCallback((screen: ScreenKey, props?: Record<string, any>) => {
       const newKey = `${screen}-${keyCounter.current++}`;
-      const newItem = { key: newKey, screen, props };
-
+      
       setNavigationState(prevState => {
           if (mainTabs.includes(screen)) {
+               // If it's a main tab, reset its stack to the root and switch to it
               return {
                   ...prevState,
                   activeTab: screen,
+                  stacks: {
+                      ...prevState.stacks,
+                      [screen]: [{ key: `${screen}-0`, screen: screen, props }]
+                  }
               };
           }
           
+          // If it's a sub-screen, push it onto the current active stack
+          const newItem = { key: newKey, screen, props };
           const currentStack = prevState.stacks[prevState.activeTab] || [];
           return {
               ...prevState,
@@ -308,79 +314,81 @@ export function AppContentWrapper() {
   const activeStack = navigationState.stacks[navigationState.activeTab] || [];
   
   const pageVariants = {
-      initial: {
-          x: '100%',
-          opacity: 0,
-      },
-      in: {
-          x: 0,
-          opacity: 1,
-      },
-      out: {
-          x: '-100%',
-          opacity: 0,
-      }
+      initial: { x: '100%', opacity: 0 },
+      in: { x: 0, opacity: 1 },
+      out: { x: '-100%', opacity: 0 },
   };
 
-  const pageTransition = {
-      type: 'tween',
-      ease: 'anticipate',
-      duration: 0.4
-  };
+  const tabVariants = {
+      initial: { opacity: 0 },
+      in: { opacity: 1 },
+      out: { opacity: 0 },
+  }
+
+  const pageTransition = { type: 'tween', ease: 'anticipate', duration: 0.4 };
+  const tabTransition = { type: 'tween', ease: 'easeIn', duration: 0.2 };
 
   return (
         <main className="h-screen w-screen bg-background flex flex-col">
         <div className="relative flex-1 flex flex-col overflow-hidden">
-            {Object.entries(navigationState.stacks).map(([tabKey, stack]) => {
-                if (stack.length === 0) return null;
-                const isActiveTab = navigationState.activeTab === tabKey;
-            
-                return (
-                    <div 
-                        key={tabKey} 
-                        className="absolute inset-0 flex flex-col"
-                        style={{ display: isActiveTab ? 'flex' : 'none' }}
-                    >
-                         <AnimatePresence initial={false}>
-                            {stack.map((stackItem, index) => {
-                                const isVisible = index === stack.length - 1;
-                                const Component = screenConfig[stackItem.screen]?.component;
-                                if (!Component) return null;
-                                
-                                const screenProps = {
-                                    ...stackItem.props,
-                                    navigate,
-                                    goBack,
-                                    canGoBack: stack.length > 1,
-                                    isVisible,
-                                    favorites,
-                                    customNames,
-                                    setFavorites,
-                                    onCustomNameChange: fetchCustomNames,
-                                };
+             <AnimatePresence initial={false}>
+                {mainTabs.map(tabKey => {
+                    const stack = navigationState.stacks[tabKey];
+                    if (!stack || stack.length === 0) return null;
+                    const isActiveTab = navigationState.activeTab === tabKey;
+                    if (!isActiveTab) return null;
 
-                                return (
-                                     <motion.div
-                                        key={stackItem.key}
-                                        className="absolute inset-0 flex flex-col bg-background"
-                                        initial="initial"
-                                        animate={isVisible ? "in" : "out"}
-                                        exit="out"
-                                        variants={pageVariants}
-                                        transition={pageTransition}
-                                        style={{
-                                            zIndex: index + 1,
-                                            pointerEvents: isVisible ? 'auto' : 'none',
-                                        }}
-                                    >
-                                        <Component {...screenProps} />
-                                    </motion.div>
-                                )
-                            })}
-                         </AnimatePresence>
-                    </div>
-                )
-            })}
+                    return (
+                         <motion.div
+                            key={tabKey}
+                            className="absolute inset-0 flex flex-col"
+                            initial="initial"
+                            animate="in"
+                            exit="out"
+                            variants={tabVariants}
+                            transition={tabTransition}
+                        >
+                             <AnimatePresence initial={false}>
+                                {stack.map((stackItem, index) => {
+                                    const isVisible = index === stack.length - 1;
+                                    const Component = screenConfig[stackItem.screen]?.component;
+                                    if (!Component) return null;
+                                    
+                                    const screenProps = {
+                                        ...stackItem.props,
+                                        navigate,
+                                        goBack,
+                                        canGoBack: stack.length > 1,
+                                        isVisible,
+                                        favorites,
+                                        customNames,
+                                        setFavorites,
+                                        onCustomNameChange: fetchCustomNames,
+                                    };
+
+                                    return (
+                                        <motion.div
+                                            key={stackItem.key}
+                                            className="absolute inset-0 flex flex-col bg-background"
+                                            initial="initial"
+                                            animate={isVisible ? "in" : "out"}
+                                            exit="out"
+                                            variants={pageVariants}
+                                            transition={pageTransition}
+                                            style={{
+                                                zIndex: index + 1,
+                                                pointerEvents: isVisible ? 'auto' : 'none',
+                                            }}
+                                        >
+                                            <Component {...screenProps} />
+                                        </motion.div>
+                                    )
+                                })}
+                             </AnimatePresence>
+                        </motion.div>
+                    )
+                })}
+            </AnimatePresence>
         </div>
         
         {showBannerAd && <BannerAd />}
@@ -388,7 +396,3 @@ export function AppContentWrapper() {
         </main>
   );
 }
-
-    
-
-    

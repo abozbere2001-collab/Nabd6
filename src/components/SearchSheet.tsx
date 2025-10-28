@@ -44,7 +44,8 @@ type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coac
 interface SearchableItem {
     id: number;
     type: ItemType;
-    name: string;
+    name: string; // Translated name
+    originalName: string; // Original English name
     normalizedName: string;
     logo: string;
     originalItem: Item;
@@ -152,6 +153,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 id: league.id,
                 type: 'leagues',
                 name,
+                originalName: league.name,
                 normalizedName: normalizeArabic(name),
                 logo: league.logo,
                 originalItem: { id: league.id, name: league.name, logo: league.logo }
@@ -166,6 +168,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 id: team.id,
                 type: 'teams',
                 name,
+                originalName: team.name,
                 normalizedName: normalizeArabic(name),
                 logo: team.logo,
                 originalItem: { ...team }
@@ -199,6 +202,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const handleSearch = useCallback(async (query: string) => {
     setLoading(true);
     const normalizedQuery = normalizeArabic(query);
+    const lowerCaseQuery = query.toLowerCase();
 
     if (!normalizedQuery) {
         setSearchResults([]);
@@ -207,7 +211,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
     
     const localResults = localSearchIndex.filter(item => 
-        item.name.toLowerCase().includes(query.toLowerCase()) || item.normalizedName.includes(normalizedQuery)
+        item.originalName.toLowerCase().includes(lowerCaseQuery) || item.normalizedName.includes(normalizedQuery)
     );
     const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
@@ -226,6 +230,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                     id: r.team.id,
                     type: 'teams',
                     name: name,
+                    originalName: r.team.name,
                     normalizedName: normalizeArabic(name),
                     logo: r.team.logo,
                     originalItem: r.team,
@@ -240,6 +245,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                     id: r.league.id,
                     type: 'leagues',
                     name: name,
+                    originalName: r.league.name,
                     normalizedName: normalizeArabic(name),
                     logo: r.league.logo,
                     originalItem: r.league,
@@ -310,7 +316,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
             return newFavorites;
         });
-    }, [user, db, setFavorites, toast]);
+    }, [user, db, setFavorites, toast, favorites]);
 
 
   const handleOpenCrownDialog = (team: Item) => {
@@ -391,6 +397,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         id: item.id,
         type: itemType,
         name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
+        originalName: item.name,
         logo: item.logo,
         originalItem: item,
         normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
@@ -417,7 +424,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 
                 return <ItemRow 
                             key={`${result.type}-${result.id}`} 
-                            item={result.originalItem}
+                            item={{...result.originalItem, name: result.name}}
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
@@ -470,10 +477,3 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
-
-    
-
-
-
-
-    
