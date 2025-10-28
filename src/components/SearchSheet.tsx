@@ -113,7 +113,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 }
 
 
-export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites, onCustomNameChange }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange?: () => void }) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
@@ -212,8 +212,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
     const apiSearchPromises = [
-      fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
-      fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
+      fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] }),
+      fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] })
     ];
     
     try {
@@ -266,13 +266,29 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
         const itemId = item.id;
-
+    
+        if (!user) { // Guest mode logic
+            const isPopular = itemType === 'teams'
+                ? POPULAR_TEAMS.some(t => t.id === itemId)
+                : POPULAR_LEAGUES.some(l => l.id === itemId);
+    
+            if (!isPopular) {
+                toast({
+                    title: 'ميزة للمستخدمين المسجلين',
+                    description: 'تفضيل هذا العنصر متاح فقط للمستخدمين المسجلين. يمكنك تفضيل الفرق والبطولات الشائعة كزائر.',
+                });
+                return;
+            }
+        }
+    
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
-
+            if (!newFavorites[itemType]) {
+                newFavorites[itemType] = {};
+            }
+    
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
-
+    
             if (isCurrentlyFavorited) {
                 delete newFavorites[itemType]![itemId];
             } else {
@@ -281,20 +297,20 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                     : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
                 newFavorites[itemType]![itemId] = favData as any;
             }
-
-            if (user && db && !user.isAnonymous) {
+    
+            if (!user) { // Guest mode: save to local storage
+                setLocalFavorites(newFavorites);
+            } else if (db) { // Logged-in user: update Firestore
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                updateDoc(favDocRef, updateData).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
                 });
-            } else {
-                setLocalFavorites(newFavorites);
             }
-
+    
             return newFavorites;
         });
-    }, [user, db, setFavorites]);
+    }, [user, db, setFavorites, toast]);
 
 
   const handleOpenCrownDialog = (team: Item) => {
@@ -339,11 +355,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         } else {
             deleteDoc(docRef); 
         }
+        if (onCustomNameChange) onCustomNameChange();
     } else if (purpose === 'crown' && user) {
         const teamId = Number(id);
         
         setFavorites(prev => {
-            if (!prev) return null;
+            if (!prev) return {};
             const newFavorites = JSON.parse(JSON.stringify(prev));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
@@ -357,7 +374,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                updateDoc(favDocRef, updateData).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             } else {
@@ -381,12 +398,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || !customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-    }
-    
-    if (!favorites) {
-        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
     const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
@@ -461,3 +474,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
 
 
+
+
+    

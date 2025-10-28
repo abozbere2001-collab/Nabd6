@@ -47,6 +47,7 @@ import { PredictionsScreen } from './screens/PredictionsScreen';
 import { doc, onSnapshot, getDocs, collection } from 'firebase/firestore';
 import type { Favorites } from '@/lib/types';
 import { getLocalFavorites, GUEST_MODE_KEY } from '@/lib/local-favorites';
+import { AnimatePresence, motion } from 'framer-motion';
 
 
 const screenConfig: Record<string, { component: React.ComponentType<any>;}> = {
@@ -305,6 +306,27 @@ export function AppContentWrapper() {
   }
   
   const activeStack = navigationState.stacks[navigationState.activeTab] || [];
+  
+  const pageVariants = {
+      initial: {
+          x: '100%',
+          opacity: 0,
+      },
+      in: {
+          x: 0,
+          opacity: 1,
+      },
+      out: {
+          x: '-100%',
+          opacity: 0,
+      }
+  };
+
+  const pageTransition = {
+      type: 'tween',
+      ease: 'anticipate',
+      duration: 0.4
+  };
 
   return (
         <main className="h-screen w-screen bg-background flex flex-col">
@@ -319,36 +341,43 @@ export function AppContentWrapper() {
                         className="absolute inset-0 flex flex-col"
                         style={{ display: isActiveTab ? 'flex' : 'none' }}
                     >
-                        {stack.map((stackItem, index) => {
-                            const isVisible = index === stack.length - 1;
-                            const Component = screenConfig[stackItem.screen]?.component;
-                            if (!Component) return null;
-                            
-                            const screenProps = {
-                                ...stackItem.props,
-                                navigate,
-                                goBack,
-                                canGoBack: stack.length > 1,
-                                isVisible,
-                                favorites,
-                                customNames,
-                                setFavorites,
-                                onCustomNameChange: fetchCustomNames,
-                            };
+                         <AnimatePresence initial={false}>
+                            {stack.map((stackItem, index) => {
+                                const isVisible = index === stack.length - 1;
+                                const Component = screenConfig[stackItem.screen]?.component;
+                                if (!Component) return null;
+                                
+                                const screenProps = {
+                                    ...stackItem.props,
+                                    navigate,
+                                    goBack,
+                                    canGoBack: stack.length > 1,
+                                    isVisible,
+                                    favorites,
+                                    customNames,
+                                    setFavorites,
+                                    onCustomNameChange: fetchCustomNames,
+                                };
 
-                            return (
-                                <div 
-                                    key={stackItem.key} 
-                                    className="absolute inset-0 flex flex-col"
-                                    style={{ 
-                                        display: isVisible ? 'flex' : 'none',
-                                        zIndex: isVisible ? 10 : 0
-                                    }}
-                                >
-                                    <Component {...screenProps} />
-                                </div>
-                            )
-                        })}
+                                return (
+                                     <motion.div
+                                        key={stackItem.key}
+                                        className="absolute inset-0 flex flex-col bg-background"
+                                        initial="initial"
+                                        animate={isVisible ? "in" : "out"}
+                                        exit="out"
+                                        variants={pageVariants}
+                                        transition={pageTransition}
+                                        style={{
+                                            zIndex: index + 1,
+                                            pointerEvents: isVisible ? 'auto' : 'none',
+                                        }}
+                                    >
+                                        <Component {...screenProps} />
+                                    </motion.div>
+                                )
+                            })}
+                         </AnimatePresence>
                     </div>
                 )
             })}
@@ -359,5 +388,7 @@ export function AppContentWrapper() {
         </main>
   );
 }
+
+    
 
     
