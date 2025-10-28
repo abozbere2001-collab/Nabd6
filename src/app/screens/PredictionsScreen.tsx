@@ -8,7 +8,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProfileButton } from '../AppContentWrapper';
 import { Button } from '@/components/ui/button';
-import { Crown, Search, X, Loader2, Trophy, BarChart, Users as UsersIcon, RefreshCw, CalendarDays, ThumbsUp } from 'lucide-react';
+import { Crown, Search, X, Loader2, Trophy, BarChart, Users as UsersIcon, RefreshCw, CalendarDays, ThumbsUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SearchSheet } from '@/components/SearchSheet';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import type { CrownedTeam, Favorites, Fixture, Standing, TopScorer, Prediction, Team, Player, UserScore, PredictionMatch, UserProfile } from '@/lib/types';
@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import PredictionCard from '@/components/PredictionCard';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, addDays, isToday, isYesterday, isTomorrow } from 'date-fns';
+import { format, addDays, subDays, isToday, isYesterday, isTomorrow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -159,8 +159,16 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     }, [selectedDateKey]);
 
     return (
-        <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
-            <div ref={scrollerRef} className="flex flex-row-reverse overflow-x-auto pb-1 pr-10" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1 flex items-center justify-center">
+             <Button 
+                variant="ghost" 
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => onDateSelect(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
+             >
+                <ChevronRight className="h-5 w-5" />
+             </Button>
+            <div ref={scrollerRef} className="flex flex-row-reverse overflow-x-auto pb-1 px-10" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {dates.map(date => {
                     const dateKey = formatDateKey(date);
                     const isSelected = dateKey === selectedDateKey;
@@ -183,13 +191,12 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
                 })}
             </div>
              <Button 
-                variant="outline" 
-                size="sm"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
-                onClick={() => onDateSelect(formatDateKey(new Date()))}
-                disabled={isToday(new Date(selectedDateKey))}
+                variant="ghost" 
+                size="icon"
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => onDateSelect(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
              >
-                عودة
+                <ChevronLeft className="h-5 w-5" />
              </Button>
         </div>
     );

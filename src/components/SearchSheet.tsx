@@ -144,7 +144,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         ]);
 
         teamsData.response?.forEach((r: TeamResult) => {
-            if (!existingIds.has(`teams-${r.team.id}`)) {
+            if (r.team.id && !existingIds.has(`teams-${r.team.id}`)) {
                 const name = getDisplayName('team', r.team.id, r.team.name);
                 allResults.push({
                     id: r.team.id,
@@ -160,7 +160,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         });
 
         leaguesData.response?.forEach((r: LeagueResult) => {
-            if (!existingIds.has(`leagues-${r.league.id}`)) {
+            if (r.league.id && !existingIds.has(`leagues-${r.league.id}`)) {
                 const name = getDisplayName('league', r.league.id, r.league.name);
                 allResults.push({
                     id: r.league.id,

@@ -6,11 +6,11 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import type { ScreenProps } from '@/app/page';
-import { format, addDays, isToday, isYesterday, isTomorrow } from 'date-fns';
+import { format, addDays, subDays, isToday, isYesterday, isTomorrow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useAdmin, useAuth, useFirestore } from '@/firebase/provider';
 import { doc, onSnapshot, collection, getDocs, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp } from 'lucide-react';
+import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -410,18 +410,25 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         <div className="flex flex-1 flex-col min-h-0">
              <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                  {selectedDateKey && (
-                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md">
-                        <div className="pr-10">
+                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
+                        <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                            onClick={() => handleDateChange(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
+                         >
+                            <ChevronRight className="h-5 w-5" />
+                         </Button>
+                        <div className="flex-1 overflow-hidden px-10">
                             <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
                         </div>
                         <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
-                            onClick={() => handleDateChange(formatDateKey(new Date()))}
-                            disabled={isToday(new Date(selectedDateKey))}
+                            variant="ghost" 
+                            size="icon"
+                            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                            onClick={() => handleDateChange(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
                          >
-                            عودة
+                            <ChevronLeft className="h-5 w-5" />
                          </Button>
                     </div>
                  )}
