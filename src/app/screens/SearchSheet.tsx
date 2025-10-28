@@ -265,12 +265,13 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [debouncedSearchTerm, handleSearch, isOpen]);
 
     const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
-        const itemId = item.id;
-
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
-
+            const itemId = item.id;
+            
+            if (!newFavorites[itemType]) {
+                newFavorites[itemType] = {};
+            }
             const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
 
             if (isCurrentlyFavorited) {
@@ -370,9 +371,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
   
   const popularItems = useMemo(() => {
-    if (!customNames) return [];
-    const source = itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES;
-    return source.map(item => ({
+    return (itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES).map(item => ({
         id: item.id,
         type: itemType,
         name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
@@ -380,7 +379,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         originalItem: item,
         normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
     }))
-  }, [itemType, getDisplayName, customNames]);
+  }, [itemType, getDisplayName]);
 
   const renderContent = () => {
     if (loading || !customNames || !favorites) {
@@ -457,5 +456,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 }
 
     
+
 
 

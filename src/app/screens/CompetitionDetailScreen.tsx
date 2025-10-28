@@ -224,11 +224,13 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = useCallback((team: Team) => {
-        const teamId = team.id;
-        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites.teams) newFavorites.teams = {};
+            const teamId = team.id;
+
+            if (!newFavorites.teams) {
+                newFavorites.teams = {};
+            }
             const isCurrentlyFavorited = !!newFavorites.teams[teamId];
 
             if (isCurrentlyFavorited) {
@@ -633,3 +635,4 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     
 
     
+

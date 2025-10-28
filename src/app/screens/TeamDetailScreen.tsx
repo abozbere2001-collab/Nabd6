@@ -535,12 +535,12 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const handleFavoriteToggle = useCallback(() => {
         if (!teamData) return;
-        
         const { team } = teamData;
-        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            if (!newFavorites.teams) newFavorites.teams = {};
+            if (!newFavorites.teams) {
+                newFavorites.teams = {};
+            }
             const isCurrentlyFavorited = !!newFavorites.teams[team.id];
 
             if (isCurrentlyFavorited) {
@@ -553,13 +553,13 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 setLocalFavorites(newFavorites);
             } else if (db) { // Logged-in user
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = {
+                const updatePayload = {
                     [`teams.${team.id}`]: isCurrentlyFavorited
                         ? deleteField()
                         : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
                 };
-                updateDoc(favDocRef, updateData).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
+                updateDoc(favDocRef, updatePayload).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             }
 
@@ -728,3 +728,4 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     
 
     
+
