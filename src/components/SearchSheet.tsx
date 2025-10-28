@@ -359,24 +359,20 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
-    const itemsToRender = debouncedSearchTerm 
+    const itemsToDisplay = debouncedSearchTerm 
         ? searchResults 
         : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
         
-    const filteredItemsToRender = debouncedSearchTerm ? itemsToRender : itemsToRender.filter(item => item.type === itemType);
+    const finalItems = debouncedSearchTerm ? itemsToDisplay : itemsToDisplay.filter(item => item.type === itemType);
 
-    if (filteredItemsToRender.length === 0 && debouncedSearchTerm) {
-        return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
-    }
-    
-    if (filteredItemsToRender.length === 0 && !debouncedSearchTerm) {
-        return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>
+    if (finalItems.length === 0) {
+        return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج.</p>;
     }
 
     return (
         <div className="space-y-2">
             {!debouncedSearchTerm && <h3 className="font-bold text-md text-center text-muted-foreground">{itemType === 'teams' ? 'الفرق الأكثر شعبية' : 'البطولات الأكثر شعبية'}</h3>}
-             {filteredItemsToRender.map(result => {
+             {finalItems.map(result => {
                     const isFavorited = !!favorites[result.type]?.[result.id];
                     const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
                     return <ItemRow 

@@ -185,17 +185,24 @@ export function AppContentWrapper({ showHints, onHintsDismissed }: { showHints: 
             getDocs(collection(db, 'coachCustomizations')),
         ]);
 
-        const names: { [key: string]: Map<number | string, string> } = {
-            leagues: new Map(), countries: new Map(), continents: new Map(),
-            teams: new Map(), players: new Map(), coaches: new Map()
+        const newNames = {
+            leagues: new Map<number | string, string>(),
+            countries: new Map<number | string, string>(),
+            continents: new Map<number | string, string>(),
+            teams: new Map<number | string, string>(),
+            players: new Map<number | string, string>(),
+            coaches: new Map<number | string, string>()
         };
-        leaguesSnap.forEach(doc => names.leagues.set(Number(doc.id), doc.data().customName));
-        countriesSnap.forEach(doc => names.countries.set(doc.id, doc.data().customName));
-        continentsSnap.forEach(doc => names.continents.set(doc.id, doc.data().customName));
-        teamsSnap.forEach(doc => names.teams.set(Number(doc.id), doc.data().customName));
-        playersSnap.forEach(doc => names.players.set(Number(doc.id), doc.data().customName));
-        coachesSnap.forEach(doc => names.coaches.set(Number(doc.id), doc.data().customName));
-        setCustomNames(names);
+        leaguesSnap.forEach(doc => newNames.leagues.set(Number(doc.id), doc.data().customName));
+        countriesSnap.forEach(doc => newNames.countries.set(doc.id, doc.data().customName));
+        continentsSnap.forEach(doc => newNames.continents.set(doc.id, doc.data().customName));
+        teamsSnap.forEach(doc => newNames.teams.set(Number(doc.id), doc.data().customName));
+        playersSnap.forEach(doc => newNames.players.set(Number(doc.id), doc.data().customName));
+        coachesSnap.forEach(doc => newNames.coaches.set(Number(doc.id), doc.data().customName));
+        
+        // **FIX:** Create a new object to force state update in React
+        setCustomNames(newNames);
+
     } catch (error) {
         console.warn("Failed to fetch custom names, using empty maps.", error);
         setCustomNames({ leagues: new Map(), teams: new Map(), countries: new Map(), continents: new Map(), players: new Map(), coaches: new Map() });
