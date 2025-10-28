@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { RenameDialog } from '@/components/RenameDialog';
 import { LeagueHeaderItem } from '@/components/LeagueHeaderItem';
 import { CURRENT_SEASON } from '@/lib/constants';
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 
 
 interface GroupedFixtures {
@@ -191,50 +192,43 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     }, []);
     
     const scrollerRef = useRef<HTMLDivElement>(null);
-    const selectedButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
-        const scroller = scrollerRef.current;
-        const selectedButton = selectedButtonRef.current;
-
-        if (scroller && selectedButton) {
-            const scrollerRect = scroller.getBoundingClientRect();
-            const selectedRect = selectedButton.getBoundingClientRect();
-            // Calculate the center of the selected button relative to the scroller viewport
-            const scrollOffset = selectedRect.left - scrollerRect.left - (scrollerRect.width / 2) + (selectedRect.width / 2);
-            scroller.scrollTo({
-                left: scroller.scrollLeft + scrollOffset,
-                behavior: 'smooth'
-            });
+        const todayElement = document.getElementById('date-scroller-today');
+        if (todayElement && scrollerRef.current) {
+            todayElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         }
-    }, [selectedDateKey]);
+    }, []);
 
     return (
-        <div ref={scrollerRef} className="flex flex-row-reverse justify-end overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {dates.map(date => {
-                const dateKey = formatDateKey(date);
-                const isSelected = dateKey === selectedDateKey;
-                return (
-                     <button
-                        key={dateKey}
-                        ref={isSelected ? selectedButtonRef : null}
-                        className={cn(
-                            "relative flex flex-col items-center justify-center h-auto py-1 px-2 min-w-[40px] rounded-lg transition-colors ml-2",
-                            "text-foreground/80 hover:text-primary",
-                            isSelected && "text-primary"
-                        )}
-                        onClick={() => onDateSelect(dateKey)}
-                        data-state={isSelected ? 'active' : 'inactive'}
-                    >
-                        <span className="text-[10px] font-normal">{getDayLabel(date)}</span>
-                        <span className="font-semibold text-sm">{format(date, 'd')}</span>
-                        {isSelected && (
-                          <span className="absolute bottom-0 h-0.5 w-3 rounded-full bg-primary transition-transform" />
-                        )}
-                    </button>
-                )
-            })}
-        </div>
+        <ScrollArea ref={scrollerRef} className="w-full whitespace-nowrap">
+            <div className="flex flex-row-reverse justify-start">
+                {dates.map(date => {
+                    const dateKey = formatDateKey(date);
+                    const isSelected = dateKey === selectedDateKey;
+                    return (
+                        <button
+                            key={dateKey}
+                            id={isToday(date) ? 'date-scroller-today' : `date-scroller-${dateKey}`}
+                            className={cn(
+                                "relative flex flex-col items-center justify-center h-auto py-1 px-2 min-w-[40px] rounded-lg transition-colors ml-2",
+                                "text-foreground/80 hover:text-primary",
+                                isSelected && "text-primary"
+                            )}
+                            onClick={() => onDateSelect(dateKey)}
+                            data-state={isSelected ? 'active' : 'inactive'}
+                        >
+                            <span className="text-[10px] font-normal">{getDayLabel(date)}</span>
+                            <span className="font-semibold text-sm">{format(date, 'd')}</span>
+                            {isSelected && (
+                            <span className="absolute bottom-0 h-0.5 w-3 rounded-full bg-primary transition-transform" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+            <ScrollBar orientation="horizontal" className="h-0" />
+        </ScrollArea>
     );
 }
 
@@ -350,8 +344,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             
             setMatchesCache(prev => new Map(prev).set(dateKey, processedFixtures));
 
-        } catch (error) {
-            if ((error as Error).name !== 'AbortError') {
+        } catch (error: any) {
+            if (error.name !== 'AbortError') {
                 console.error("Failed to fetch and process data:", error);
                  toast({ variant: 'destructive', title: 'خطأ في الشبكة', description: 'فشل في جلب المباريات. تحقق من اتصالك بالإنترنت.' });
                 setMatchesCache(prev => new Map(prev).set(dateKey, []));
@@ -457,3 +451,4 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
+

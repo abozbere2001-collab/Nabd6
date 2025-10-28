@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -116,12 +117,22 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
     const awayRow = <OddRow label={awayTeam.name} logo={awayTeam.logo} percentage={percentAway} />;
     const drawRow = <OddRow label="تعادل" percentage={percentDraw} />;
 
-    // This logic handles the RTL display correctly for both scenarios.
     return (
         <div className="space-y-1.5 rounded-md border bg-background/50 p-2">
-            {homeRow}
-            {drawRow}
-            {awayRow}
+            {reversed ? (
+                <>
+                    {awayRow}
+                    {drawRow}
+                    {homeRow}
+                </>
+            ) : (
+                <>
+                    {homeRow}
+                    {drawRow}
+                    {awayRow}
+                </>
+            )}
         </div>
     );
 }
+
