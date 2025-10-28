@@ -282,9 +282,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 newFavorites[itemType]![itemId] = favData as any;
             }
 
-            if (!user) {
+            if (!user) { // Guest Mode
                 setLocalFavorites(newFavorites);
-            } else if (db) {
+            } else if (db) { // Logged-in User
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
                 updateDoc(favDocRef, updateData).catch(err => {
@@ -457,6 +457,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 }
 
     
-
 
 

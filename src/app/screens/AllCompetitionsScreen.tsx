@@ -326,9 +326,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 }
             }
             
-            if (!user) {
+            if (!user && db) { // Guest mode
                 setLocalFavorites(newFavorites);
-            } else if (db) {
+            } else if (user && db) { // Logged-in user
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`${itemType}.${itemId}`]: isCurrentlyFavorited

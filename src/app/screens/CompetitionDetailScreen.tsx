@@ -237,9 +237,9 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
             
-            if (!user) {
+            if (!user) { // Guest mode
                 setLocalFavorites(newFavorites);
-            } else if (db) {
+            } else if (db) { // Logged-in user
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`teams.${teamId}`]: isCurrentlyFavorited
@@ -269,9 +269,9 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                  newFavorites.leagues[leagueId] = { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true };
             }
             
-            if (!user) {
+            if (!user) { // Guest mode
                 setLocalFavorites(newFavorites);
-            } else if (db) {
+            } else if (db) { // Logged-in user
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`leagues.${leagueId}`]: isCurrentlyFavorited 

@@ -207,22 +207,24 @@ export function AppContentWrapper() {
   
   useEffect(() => {
     let favsUnsub: (() => void) | null = null;
-    let localFavsListener: (() => void) | null = null;
-  
-    const cleanup = () => {
-      if (favsUnsub) favsUnsub();
-      if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener as any);
-      favsUnsub = null;
-      localFavsListener = null;
+    const localFavsListener = () => {
+        setFavorites(getLocalFavorites());
     };
-  
-    // If user state is still loading, do nothing.
+
+    const cleanup = () => {
+      if (favsUnsub) {
+        favsUnsub();
+        favsUnsub = null;
+      }
+      window.removeEventListener('localFavoritesChanged', localFavsListener);
+    };
+
     if (isUserLoading) {
       return;
     }
-  
-    // When user logs in
+
     if (user && db) {
+      cleanup(); // Clean up previous listener if any
       const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
       favsUnsub = onSnapshot(
         favDocRef,
@@ -234,14 +236,12 @@ export function AppContentWrapper() {
           setFavorites(getLocalFavorites()); // Fallback to local on error
         }
       );
-    } else { // When user logs out or is a guest
+    } else { // Guest mode or logged out
+      cleanup(); // Clean up previous listener if any
       setFavorites(getLocalFavorites());
-      localFavsListener = () => setFavorites(getLocalFavorites());
-      window.addEventListener('localFavoritesChanged', localFavsListener as any);
+      window.addEventListener('localFavoritesChanged', localFavsListener);
     }
-  
-    // The cleanup function will be called when the user logs in/out,
-    // correctly unsubscribing from the old listener.
+
     return () => cleanup();
   }, [user, db, isUserLoading]);
 
@@ -359,3 +359,5 @@ export function AppContentWrapper() {
         </main>
   );
 }
+
+    

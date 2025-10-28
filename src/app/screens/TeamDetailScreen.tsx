@@ -549,9 +549,9 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
             
-            if (!user) {
+            if (!user) { // Guest mode
                 setLocalFavorites(newFavorites);
-            } else if (db) {
+            } else if (db) { // Logged-in user
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = {
                     [`teams.${team.id}`]: isCurrentlyFavorited
@@ -628,9 +628,9 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 }
 
-                if (!user) {
+                if (!user) { // Guest mode
                     setLocalFavorites(newFavorites);
-                } else if (db) {
+                } else if (db) { // Logged-in user
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                     const updatePayload = {
                         [`crownedTeams.${teamId}`]: isCurrentlyCrowned
