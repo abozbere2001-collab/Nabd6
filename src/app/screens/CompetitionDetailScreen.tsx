@@ -162,16 +162,21 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
         const cachedData = getCachedData(cacheKey);
 
         const fixturesRes = fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`);
+        const teamsRes = fetch(`/api/football/teams?league=${leagueId}&season=${season}`);
+
 
         if (cachedData) {
             setStandings(cachedData.standings || []);
             setTopScorers(cachedData.topScorers || []);
-            setTeams(cachedData.teams || []);
             
-            fixturesRes.then(res => res.json()).then(data => {
-                if (isMounted) {
-                    const sortedFixtures = [...(data.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
+            // Fetch dynamic data even if cache exists
+            const parallelFetches = [fixturesRes.then(res => res.json()), teamsRes.then(res => res.json())];
+            
+            Promise.all(parallelFetches).then(([fixturesData, teamsData]) => {
+                 if (isMounted) {
+                    const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
                     setFixtures(sortedFixtures);
+                    setTeams(teamsData.response || []);
                 }
             }).finally(() => {
                 if(isMounted) setLoading(false);
@@ -179,18 +184,17 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
 
         } else {
              try {
-                const [standingsRes, scorersRes, teamsRes, fixturesData] = await Promise.all([
+                const [standingsRes, scorersRes, fixturesData, teamsData] = await Promise.all([
                     fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
                     fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
-                    fetch(`/api/football/teams?league=${leagueId}&season=${season}`),
-                    fixturesRes.then(res => res.json())
+                    fixturesRes.then(res => res.json()),
+                    teamsRes.then(res => res.json())
                 ]);
 
                 if (!isMounted) return;
 
                 const standingsData = await standingsRes.json();
                 const scorersData = await scorersRes.json();
-                const teamsData = await teamsRes.json();
 
                 const newStandings = standingsData.response[0]?.league?.standings[0] || [];
                 const newTopScorers = scorersData.response || [];
@@ -202,11 +206,10 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                 setTeams(newTeams);
                 setFixtures(sortedFixtures);
 
-                // Cache only non-fixture data to avoid quota issues
+                // Cache only small, non-volatile data
                 setCachedData(cacheKey, {
                     standings: newStandings,
                     topScorers: newTopScorers,
-                    teams: newTeams,
                 });
             } catch(e) {
                  console.error("Failed to fetch competition details:", e);
@@ -282,6 +285,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
   
     const handleFavoriteToggle = useCallback((team: Team) => {
         const teamId = team.id;
+        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.teams) newFavorites.teams = {};
@@ -392,6 +396,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
     } else if (purpose === 'crown' && user) {
         const teamId = Number(id);
+        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
@@ -403,7 +408,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
 
-            if (user && !user.isAnonymous) {
+            if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = { [`crownedTeams.${teamId}`]: isCurrentlyCrowned ? deleteField() : newFavorites.crownedTeams[teamId] };
                 updateDoc(favDocRef, updatePayload).catch(err => {
@@ -684,3 +689,4 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
+
