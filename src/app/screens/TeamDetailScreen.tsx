@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -507,33 +506,38 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         if (!teamData?.team) return;
     
         const { team } = teamData;
-        const teamId = team.id;
     
         // Directly interact with localStorage for guests
         if (!user) {
             const currentFavorites = getLocalFavorites();
-            const newFavorites = JSON.parse(JSON.stringify(currentFavorites));
-            if (!newFavorites.teams) newFavorites.teams = {};
-            const isCurrentlyFavorited = !!newFavorites.teams[teamId];
+            if (!currentFavorites.teams) currentFavorites.teams = {};
+            const isCurrentlyFavorited = !!currentFavorites.teams[team.id];
     
             if (isCurrentlyFavorited) {
-                delete newFavorites.teams[teamId];
+                delete currentFavorites.teams[team.id];
             } else {
-                 newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                 currentFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-            setLocalFavorites(newFavorites);
+            setLocalFavorites(currentFavorites);
+            // Manually trigger a re-render by updating the parent state if needed.
+            // This depends on how `favorites` is passed down and used.
+            // A simple way is to make `setFavorites` also update local state.
+            setFavorites(currentFavorites);
             return;
         }
 
         // For logged-in users, continue using the setFavorites prop which updates firestore
-         const isCurrentlyFavorited = !!favorites?.teams?.[teamId];
-         const newFavorites: Partial<Favorites> = { ...favorites };
-         if (!newFavorites.teams) newFavorites.teams = {};
+        const currentFavorites = favorites || { teams: {} };
+        const isCurrentlyFavorited = !!currentFavorites.teams?.[team.id];
+        const newFavorites: Partial<Favorites> = { 
+            ...currentFavorites,
+            teams: { ...currentFavorites.teams }
+        };
 
          if (isCurrentlyFavorited) {
-             delete newFavorites.teams[teamId];
+             delete newFavorites.teams![team.id];
          } else {
-             newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+             newFavorites.teams![team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
          }
          setFavorites(newFavorites);
 
@@ -691,3 +695,5 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
+
+    
