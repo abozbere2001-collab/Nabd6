@@ -147,8 +147,7 @@ const OnboardingFlow = ({ user, isGuest }: { user: User | null, isGuest: boolean
 
     return (
         <AdProvider>
-            {showHints && <OnboardingHints onDismiss={onHintsDismissed} />}
-            <AppContentWrapper />
+            <AppContentWrapper showHints={showHints} onHintsDismissed={onHintsDismissed} />
         </AdProvider>
     );
 };

@@ -9,25 +9,26 @@ import { cn } from '@/lib/utils';
 
 interface OnboardingHintsProps {
     onDismiss: () => void;
+    activeTab: string;
 }
 
-export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
+export function OnboardingHints({ onDismiss, activeTab }: OnboardingHintsProps) {
     const [visibleHints, setVisibleHints] = useState({ predictions: true, crown: true });
 
     useEffect(() => {
         const predictionTimer = setTimeout(() => {
-            handleDismiss('predictions');
+            if(visibleHints.predictions) handleDismiss('predictions');
         }, 8000); // Hide after 8 seconds
 
         const crownTimer = setTimeout(() => {
-            handleDismiss('crown');
+            if(visibleHints.crown) handleDismiss('crown');
         }, 12000); // Hide after 12 seconds
 
         return () => {
             clearTimeout(predictionTimer);
             clearTimeout(crownTimer);
         };
-    }, []);
+    }, [visibleHints]);
 
     const handleDismiss = (hintKey: keyof typeof visibleHints) => {
         setVisibleHints(prev => {
@@ -38,8 +39,11 @@ export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
             return newHints;
         });
     };
+    
+    const showPredictionsHint = activeTab === 'Predictions' && visibleHints.predictions;
+    const showCrownHint = activeTab === 'MyCountry' && visibleHints.crown;
 
-    if (!visibleHints.predictions && !visibleHints.crown) {
+    if (!showPredictionsHint && !showCrownHint) {
         return null;
     }
 
@@ -51,10 +55,10 @@ export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
                 className="fixed bottom-0 z-40"
                 style={{
                     left: '50%',
-                    transform: 'translateX(calc(-50% - 0px))' // Centered on the middle icon
+                    transform: 'translateX(calc(-50% + 58px))' // Positioned on the "Predictions" tab
                 }}
             >
-                <Popover open={visibleHints.predictions}>
+                <Popover open={showPredictionsHint}>
                     <PopoverTrigger asChild>
                         <div className="h-16 w-[60px]"></div>
                     </PopoverTrigger>
@@ -75,22 +79,22 @@ export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
                 </Popover>
             </div>
             
-             {/* Crown Hint */}
+             {/* Crown/MyCountry Hint */}
             <div
-                data-id="crown-hint-anchor"
+                data-id="mycountry-hint-anchor"
                 className={cn(
-                    "fixed top-[150px] z-40 transition-opacity duration-500",
-                    visibleHints.crown ? 'opacity-100' : 'opacity-0'
+                    "fixed bottom-0 z-40"
                 )}
                 style={{
-                    right: '10px'
+                    left: '50%',
+                    transform: 'translateX(calc(-50% - 62px))' // Positioned on the "MyCountry" tab
                 }}
              >
-                <Popover open={visibleHints.crown}>
+                <Popover open={showCrownHint}>
                     <PopoverTrigger asChild>
-                        <div className="h-8 w-8"></div>
+                        <div className="h-16 w-[60px]"></div>
                     </PopoverTrigger>
-                    <PopoverContent side="left" align="start" className="w-56 p-2 rounded-xl shadow-lg">
+                    <PopoverContent side="top" align="center" className="w-56 p-2 rounded-xl shadow-lg">
                        <div className="flex items-start">
                             <div className="p-2">
                                 <Crown className="h-5 w-5 text-yellow-400" />
@@ -98,7 +102,7 @@ export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
                             <div className="flex-1">
                                 <p className="text-sm font-semibold">توّج فريقك!</p>
                                 <p className="text-xs text-muted-foreground">
-                                   اضغط على التاج لمتابعة فريقك في شاشة "ملعبي".
+                                   تابع فريقك المفضل هنا بالضغط على أيقونة التاج.
                                 </p>
                             </div>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDismiss('crown')}><X className="h-4 w-4" /></Button>
@@ -109,4 +113,3 @@ export function OnboardingHints({ onDismiss }: OnboardingHintsProps) {
         </>
     );
 }
-

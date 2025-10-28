@@ -48,6 +48,7 @@ import { doc, onSnapshot, getDocs, collection } from 'firebase/firestore';
 import type { Favorites } from '@/lib/types';
 import { getLocalFavorites, GUEST_MODE_KEY } from '@/lib/local-favorites';
 import { AnimatePresence, motion } from 'framer-motion';
+import { OnboardingHints } from '@/components/OnboardingHints';
 
 
 const screenConfig: Record<string, { component: React.ComponentType<any>;}> = {
@@ -148,7 +149,7 @@ export const ProfileButton = () => {
 };
 
 
-export function AppContentWrapper() {
+export function AppContentWrapper({ showHints, onHintsDismissed }: { showHints: boolean, onHintsDismissed: () => void }) {
   const { user, isUserLoading } = useAuth();
   const { db } = useFirestore();
   const [favorites, setFavorites] = useState<Partial<Favorites>>({});
@@ -330,6 +331,7 @@ export function AppContentWrapper() {
 
   return (
         <main className="h-screen w-screen bg-background flex flex-col">
+        {showHints && <OnboardingHints onDismiss={onHintsDismissed} activeTab={navigationState.activeTab} />}
         <div className="relative flex-1 flex flex-col overflow-hidden">
              <AnimatePresence initial={false}>
                 {mainTabs.map(tabKey => {
