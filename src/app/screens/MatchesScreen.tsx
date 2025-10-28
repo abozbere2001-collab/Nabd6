@@ -192,43 +192,69 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     }, []);
     
     const scrollerRef = useRef<HTMLDivElement>(null);
+    const todayButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
-        const todayElement = document.getElementById('date-scroller-today');
-        if (todayElement && scrollerRef.current) {
-            todayElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        if (todayButtonRef.current && scrollerRef.current) {
+            const scroller = scrollerRef.current;
+            const button = todayButtonRef.current;
+            const scrollerRect = scroller.getBoundingClientRect();
+            const buttonRect = button.getBoundingClientRect();
+            
+            const scrollOffset = buttonRect.left - scrollerRect.left - (scrollerRect.width / 2) + (buttonRect.width / 2);
+            scroller.scrollTo({ left: scroller.scrollLeft + scrollOffset, behavior: 'smooth' });
         }
     }, []);
 
     return (
-        <ScrollArea ref={scrollerRef} className="w-full whitespace-nowrap">
-            <div className="flex flex-row-reverse justify-start">
-                {dates.map(date => {
-                    const dateKey = formatDateKey(date);
-                    const isSelected = dateKey === selectedDateKey;
-                    return (
-                        <button
-                            key={dateKey}
-                            id={isToday(date) ? 'date-scroller-today' : `date-scroller-${dateKey}`}
-                            className={cn(
-                                "relative flex flex-col items-center justify-center h-auto py-1 px-2 min-w-[40px] rounded-lg transition-colors ml-2",
-                                "text-foreground/80 hover:text-primary",
-                                isSelected && "text-primary"
-                            )}
-                            onClick={() => onDateSelect(dateKey)}
-                            data-state={isSelected ? 'active' : 'inactive'}
-                        >
-                            <span className="text-[10px] font-normal">{getDayLabel(date)}</span>
-                            <span className="font-semibold text-sm">{format(date, 'd')}</span>
-                            {isSelected && (
-                            <span className="absolute bottom-0 h-0.5 w-3 rounded-full bg-primary transition-transform" />
-                            )}
-                        </button>
-                    )
-                })}
-            </div>
-            <ScrollBar orientation="horizontal" className="h-0" />
-        </ScrollArea>
+         <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
+            <Button 
+                variant="ghost" 
+                size="icon"
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => onDateSelect(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
+                >
+                <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <ScrollArea ref={scrollerRef} className="w-full whitespace-nowrap">
+                <div className="flex flex-row-reverse justify-start px-10">
+                    {dates.map(date => {
+                        const dateKey = formatDateKey(date);
+                        const isSelected = dateKey === selectedDateKey;
+                        const isTodayDate = isToday(date);
+
+                        return (
+                            <button
+                                key={dateKey}
+                                ref={isTodayDate ? todayButtonRef : null}
+                                className={cn(
+                                    "relative flex flex-col items-center justify-center h-auto py-1 px-2 min-w-[40px] rounded-lg transition-colors ml-2",
+                                    "text-foreground/80 hover:text-primary",
+                                    isSelected && "text-primary"
+                                )}
+                                onClick={() => onDateSelect(dateKey)}
+                                data-state={isSelected ? 'active' : 'inactive'}
+                            >
+                                <span className="text-[10px] font-normal">{getDayLabel(date)}</span>
+                                <span className="font-semibold text-sm">{format(date, 'd')}</span>
+                                {isSelected && (
+                                <span className="absolute bottom-0 h-0.5 w-3 rounded-full bg-primary transition-transform" />
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+                <ScrollBar orientation="horizontal" className="h-0" />
+            </ScrollArea>
+             <Button 
+                variant="ghost" 
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                onClick={() => onDateSelect(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
+                >
+                <ChevronRight className="h-5 w-5" />
+            </Button>
+        </div>
     );
 }
 
@@ -238,7 +264,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   const { db, isAdmin } = useAdmin();
   const { toast } = useToast();
   const [showOdds, setShowOdds] = useState(false);
-
   
   const [selectedDateKey, setSelectedDateKey] = useState<string>(formatDateKey(new Date()));
   
@@ -246,7 +271,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   const [loading, setLoading] = useState(true);
     
   const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
-
 
   useEffect(() => {
     if (!db || !isAdmin) return;
@@ -297,48 +321,38 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     }
   }, [db, pinnedPredictionMatches, toast]);
 
-    const fetchAndProcessData = useCallback(async (dateKey: string, currentFavorites: Partial<Favorites>, abortSignal: AbortSignal) => {
+    const fetchAndProcessData = useCallback(async (dateKey: string, abortSignal: AbortSignal) => {
         setLoading(true);
+        const currentFavorites = favorites || getLocalFavorites();
+
         try {
-            let fixtures: FixtureType[] = [];
+            const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
+            if (!res.ok) throw new Error(`API fetch failed with status ${res.status}`);
+            
+            const data = await res.json();
+            if (abortSignal.aborted) return;
+            
+            const allFixturesToday: FixtureType[] = data.response || [];
             const favTeamIds = Object.keys(currentFavorites?.teams || {}).map(Number);
             const favLeagueIds = Object.keys(currentFavorites?.leagues || {}).map(Number);
             
-            if(dateKey) { // Fetch by date
-                const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
-                if (!res.ok) {
-                     throw new Error(`API fetch failed with status ${res.status}`);
-                }
-                const data = await res.json();
-                const allFixturesToday: FixtureType[] = data.response || [];
-                if (favTeamIds.length === 0 && favLeagueIds.length === 0) {
-                    fixtures = allFixturesToday.filter(f => popularLeagueIds.has(f.league.id));
-                } else {
-                    fixtures = allFixturesToday.filter(f => 
-                        favTeamIds.includes(f.teams.home.id) || 
-                        favTeamIds.includes(f.teams.away.id) ||
-                        favLeagueIds.includes(f.league.id)
-                    );
-                }
+            let filteredFixtures: FixtureType[];
+            if (favTeamIds.length === 0 && favLeagueIds.length === 0) {
+                filteredFixtures = allFixturesToday.filter(f => popularLeagueIds.has(f.league.id));
+            } else {
+                filteredFixtures = allFixturesToday.filter(f => 
+                    favTeamIds.includes(f.teams.home.id) || 
+                    favTeamIds.includes(f.teams.away.id) ||
+                    favLeagueIds.includes(f.league.id)
+                );
             }
 
-            if (abortSignal.aborted) return;
-            
-            const processedFixtures = fixtures.map(fixture => ({
+            const processedFixtures = filteredFixtures.map(fixture => ({
                 ...fixture,
-                league: {
-                    ...fixture.league,
-                    name: getDisplayName('league', fixture.league.id, fixture.league.name)
-                },
+                league: { ...fixture.league, name: getDisplayName('league', fixture.league.id, fixture.league.name) },
                 teams: {
-                    home: {
-                        ...fixture.teams.home,
-                        name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name)
-                    },
-                    away: {
-                        ...fixture.teams.away,
-                        name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name)
-                    }
+                    home: { ...fixture.teams.home, name: getDisplayName('team', fixture.teams.home.id, fixture.teams.home.name) },
+                    away: { ...fixture.teams.away, name: getDisplayName('team', fixture.teams.away.id, fixture.teams.away.name) }
                 }
             }));
             
@@ -346,28 +360,76 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
 
         } catch (error: any) {
             if (error.name !== 'AbortError') {
-                console.error("Failed to fetch and process data:", error);
-                 toast({ variant: 'destructive', title: 'خطأ في الشبكة', description: 'فشل في جلب المباريات. تحقق من اتصالك بالإنترنت.' });
-                setMatchesCache(prev => new Map(prev).set(dateKey, []));
+                console.error(`Failed to fetch data for ${dateKey}:`, error);
+                setMatchesCache(prev => new Map(prev).set(dateKey, [])); // Cache empty array on error
             }
         } finally {
-            if (!abortSignal.aborted) {
-                setLoading(false);
-            }
+            if (!abortSignal.aborted) setLoading(false);
         }
-    }, [getDisplayName, toast]);
-  
+    }, [favorites, getDisplayName]);
+
+    const updateLiveData = useCallback(async (dateKey: string, abortSignal: AbortSignal) => {
+        const cachedFixtures = matchesCache.get(dateKey);
+        if (!cachedFixtures) return; // No data to update
+
+        const liveFixtureIds = cachedFixtures
+            .filter(f => f.fixture.status.short !== 'FT' && f.fixture.status.short !== 'PST' && f.fixture.status.short !== 'CANC')
+            .map(f => f.fixture.id);
+
+        if (liveFixtureIds.length === 0) return; // No live matches to update
+        
+        try {
+            const res = await fetch(`/api/football/fixtures?ids=${liveFixtureIds.join('-')}`, { signal: abortSignal });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            if (abortSignal.aborted || !data.response) return;
+
+            const updatedFixturesMap = new Map(data.response.map((f: FixtureType) => [f.fixture.id, f]));
+            
+            const newFixtures = cachedFixtures.map(oldFixture => {
+                const updatedFixture = updatedFixturesMap.get(oldFixture.fixture.id);
+                return updatedFixture ? {
+                    ...updatedFixture,
+                    league: { ...updatedFixture.league, name: getDisplayName('league', updatedFixture.league.id, updatedFixture.league.name) },
+                    teams: {
+                        home: { ...updatedFixture.teams.home, name: getDisplayName('team', updatedFixture.teams.home.id, updatedFixture.teams.home.name) },
+                        away: { ...updatedFixture.teams.away, name: getDisplayName('team', updatedFixture.teams.away.id, updatedFixture.teams.away.name) }
+                    }
+                } : oldFixture;
+            });
+            
+            setMatchesCache(prev => new Map(prev).set(dateKey, newFixtures));
+
+        } catch (error: any) {
+            if (error.name !== 'AbortError') console.error("Live update failed:", error);
+        }
+
+    }, [matchesCache, getDisplayName]);
+
   
   useEffect(() => {
-      const currentFavorites = favorites;
+      if (!isVisible || !customNames) return;
+
+      const controller = new AbortController();
       
-      if (isVisible && selectedDateKey && customNames && currentFavorites) {
-          const cacheKey = selectedDateKey;
-          const controller = new AbortController();
-          fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
-          return () => controller.abort();
+      if (!matchesCache.has(selectedDateKey)) {
+          fetchAndProcessData(selectedDateKey, controller.signal);
+      } else {
+          setLoading(false); // Already cached
       }
-  }, [selectedDateKey, isVisible, fetchAndProcessData, favorites, customNames]);
+      
+      // Setup interval for live updates
+      const interval = setInterval(() => {
+          updateLiveData(selectedDateKey, controller.signal);
+      }, 60000); // 60 seconds
+
+      return () => {
+          controller.abort();
+          clearInterval(interval);
+      };
+
+  }, [selectedDateKey, isVisible, customNames, matchesCache, fetchAndProcessData, updateLiveData]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -378,8 +440,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
   
-  const cacheKey = selectedDateKey || '';
-  const currentFixtures = matchesCache.get(cacheKey) || [];
+  const currentFixtures = matchesCache.get(selectedDateKey) || [];
     
   return (
     <div className="flex h-full flex-col bg-background">
@@ -407,29 +468,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         
         <div className="flex flex-1 flex-col min-h-0">
              <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
-                 {selectedDateKey && (
-                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
-                        <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                            onClick={() => handleDateChange(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
-                         >
-                            <ChevronLeft className="h-5 w-5" />
-                         </Button>
-                        <div className="flex-1 overflow-hidden px-10">
-                            <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
-                        </div>
-                        <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                            onClick={() => handleDateChange(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
-                         >
-                            <ChevronRight className="h-5 w-5" />
-                         </Button>
-                    </div>
-                 )}
+                 <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
             </div>
             
             <div className="flex-1 overflow-y-auto p-1 space-y-4 mt-2">
@@ -452,3 +491,4 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   );
 }
 
+    
