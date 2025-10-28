@@ -29,43 +29,6 @@ import { format, isToday, startOfToday } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { POPULAR_TEAMS } from '@/lib/popular-data';
 
-// --- Caching Logic ---
-const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-const getCachedData = (key: string) => {
-    if (typeof window === 'undefined') return null;
-    const itemStr = localStorage.getItem(key);
-    if (!itemStr) return null;
-    try {
-        const item = JSON.parse(itemStr);
-        const now = new Date();
-        if (now.getTime() > item.expiry) {
-            localStorage.removeItem(key);
-            return null;
-        }
-        return item.value;
-    } catch (e) {
-        // If parsing fails, remove the invalid item
-        localStorage.removeItem(key);
-        return null;
-    }
-};
-
-const setCachedData = (key: string, value: any, ttl = CACHE_DURATION_MS) => {
-    if (typeof window === 'undefined') return;
-    try {
-        const now = new Date();
-        const item = {
-            value: value,
-            expiry: now.getTime() + ttl,
-        };
-        localStorage.setItem(key, JSON.stringify(item));
-    } catch (error) {
-        console.warn(`Could not set cache for key "${key}":`, error);
-    }
-};
-// --------------------
-
 
 interface TeamData {
     team: Team;
@@ -131,13 +94,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
     useEffect(() => {
         const fetchPlayers = async () => {
             setLoading(true);
-            const cacheKey = `team_players_${teamId}_${CURRENT_SEASON}`;
-            
-            // Caching is now purely for performance, not for offline persistence.
-            // Avoids using localStorage for large objects.
-            // A more robust solution might use IndexedDB for larger data.
-            // For now, this is a safe in-memory cache for the session.
-            const sessionCacheKey = `session_${cacheKey}`;
+            const sessionCacheKey = `session_team_players_${teamId}_${CURRENT_SEASON}`;
             const cachedPlayersStr = sessionStorage.getItem(sessionCacheKey);
 
             if (cachedPlayersStr) {
@@ -157,7 +114,6 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
                 if (data.response) {
                     const fetchedPlayers = data.response.map((p: any) => p.player);
                     setPlayers(fetchedPlayers);
-                    // Use sessionStorage for lighter, temporary caching
                     sessionStorage.setItem(sessionCacheKey, JSON.stringify(fetchedPlayers));
                 }
             } catch (error) {

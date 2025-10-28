@@ -200,7 +200,6 @@ export function AppContentWrapper({ showHints, onHintsDismissed }: { showHints: 
         playersSnap.forEach(doc => newNames.players.set(Number(doc.id), doc.data().customName));
         coachesSnap.forEach(doc => newNames.coaches.set(Number(doc.id), doc.data().customName));
         
-        // **FIX:** Create a new object to force state update in React
         setCustomNames(newNames);
 
     } catch (error) {
