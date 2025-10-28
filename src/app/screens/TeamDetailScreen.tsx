@@ -509,31 +509,33 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         const { team } = teamData;
         const teamId = team.id;
     
-        const newFavorites: Partial<Favorites> = getLocalFavorites();
-        if (!newFavorites.teams) {
-            newFavorites.teams = {};
+        // Directly interact with localStorage for guests
+        if (!user) {
+            const currentFavorites = getLocalFavorites();
+            const isCurrentlyFavorited = !!currentFavorites.teams?.[teamId];
+            if (isCurrentlyFavorited) {
+                delete currentFavorites.teams![teamId];
+            } else {
+                 if (!currentFavorites.teams) currentFavorites.teams = {};
+                 currentFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+            }
+            setLocalFavorites(currentFavorites); // This now dispatches an event
+            return;
         }
-        
-        const isCurrentlyFavorited = !!newFavorites.teams[teamId];
-    
-        if (isCurrentlyFavorited) {
-            delete newFavorites.teams[teamId];
-        } else {
-            newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-        }
-    
-        if (user && db) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updatePayload = {
-                [`teams.${teamId}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[teamId]
-            };
-            setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-            });
-        }
-        
-        setLocalFavorites(newFavorites);
-    }, [teamData, user, db]);
+
+        // For logged-in users, continue using the setFavorites prop which updates firestore
+         const isCurrentlyFavorited = !!favorites?.teams?.[teamId];
+         const newFavorites: Partial<Favorites> = { ...favorites };
+         if (!newFavorites.teams) newFavorites.teams = {};
+
+         if (isCurrentlyFavorited) {
+             delete newFavorites.teams[teamId];
+         } else {
+             newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+         }
+         setFavorites(newFavorites);
+
+    }, [teamData, user, db, favorites, setFavorites]);
 
 
     const handleOpenCrownDialog = () => {
