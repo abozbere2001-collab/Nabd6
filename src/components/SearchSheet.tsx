@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -115,36 +116,39 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
   
-  const buildLocalIndex = useCallback(() => {
-    if (!customNames) return;
-    setLoading(true);
+    // New comprehensive buildLocalIndex
+    const buildLocalIndex = useCallback(() => {
+        if (!customNames) return;
+        setLoading(true);
 
-    const index: Map<string, SearchableItem> = new Map();
+        const index: Map<string, SearchableItem> = new Map();
 
-    const processItem = (item: any, type: ItemType) => {
-        const name = getDisplayName(type.slice(0,-1) as 'team'|'league', item.id, item.name);
-        const key = `${type}-${item.id}`;
-        if (!index.has(key)) {
-            index.set(key, {
-                id: item.id,
-                type: type,
-                name: name,
-                originalName: item.name,
-                logo: item.logo,
-                originalItem: item
-            });
-        }
-    };
-    
-    POPULAR_TEAMS.forEach(team => processItem(team, 'teams'));
-    POPULAR_LEAGUES.forEach(league => processItem(league, 'leagues'));
-    
-    Object.values(favorites?.teams || {}).forEach(team => processItem({id: team.teamId, name: team.name, logo: team.logo}, 'teams'));
-    Object.values(favorites?.leagues || {}).forEach(league => processItem({id: league.leagueId, name: league.name, logo: league.logo}, 'leagues'));
+        const processItem = (item: any, type: ItemType) => {
+            const name = getDisplayName(type.slice(0, -1) as 'team' | 'league', item.id, item.name);
+            const key = `${type}-${item.id}`;
+            if (!index.has(key)) {
+                index.set(key, {
+                    id: item.id,
+                    type: type,
+                    name: name,
+                    originalName: item.name,
+                    logo: item.logo,
+                    originalItem: item
+                });
+            }
+        };
 
-    setSearchIndex(Array.from(index.values()));
-    setLoading(false);
-  }, [customNames, getDisplayName, favorites]);
+        // Process all popular teams and leagues
+        POPULAR_TEAMS.forEach(team => processItem(team, 'teams'));
+        POPULAR_LEAGUES.forEach(league => processItem(league, 'leagues'));
+        
+        // Also add user's favorites to ensure they are searchable
+        Object.values(favorites?.teams || {}).forEach(team => processItem({id: team.teamId, name: team.name, logo: team.logo}, 'teams'));
+        Object.values(favorites?.leagues || {}).forEach(league => processItem({id: league.leagueId, name: league.name, logo: league.logo}, 'leagues'));
+
+        setSearchIndex(Array.from(index.values()));
+        setLoading(false);
+    }, [customNames, getDisplayName, favorites]);
 
   
   useEffect(() => {
@@ -165,29 +169,70 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   };
 
-  const handleSearch = useCallback((query: string) => {
-    setLoading(true);
-    const normalizedQuery = normalizeArabic(query);
-    const isArabicQuery = /[\u0600-\u06FF]/.test(query);
+    const handleSearch = useCallback(async (query: string) => {
+        setLoading(true);
+        const normalizedQuery = normalizeArabic(query);
+        const isArabic = /[\u0600-\u06FF]/.test(normalizedQuery);
+        
+        // --- 1. Immediate local search from the pre-built index ---
+        const localMatches = searchIndex.filter(item => {
+             const nameToSearch = isArabic ? normalizeArabic(item.name) : item.originalName.toLowerCase();
+             const queryToUse = isArabic ? normalizedQuery : query.toLowerCase();
+             return nameToSearch.includes(queryToUse);
+        });
+        setSearchResults(localMatches);
 
-    if (!normalizedQuery) {
-        setSearchResults([]);
-        setLoading(false);
-        return;
-    }
+        // --- 2. Background API search for new items ---
+        const teamPromise = fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] });
+        const leaguePromise = fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] });
 
-    const filteredResults = searchIndex.filter(item => {
-        if (isArabicQuery) {
-            return normalizeArabic(item.name).includes(normalizedQuery);
-        } else {
-            return item.originalName.toLowerCase().includes(query.toLowerCase());
+        try {
+            const [teamsData, leaguesData] = await Promise.all([teamPromise, leaguePromise]);
+
+            const newItems: SearchableItem[] = [];
+            const existingIds = new Set(localMatches.map(item => `${item.type}-${item.id}`));
+
+            (teamsData.response || []).forEach((r: TeamResult) => {
+                const key = `teams-${r.team.id}`;
+                if (!existingIds.has(key)) {
+                    newItems.push({
+                        id: r.team.id,
+                        type: 'teams',
+                        name: getDisplayName('team', r.team.id, r.team.name),
+                        originalName: r.team.name,
+                        logo: r.team.logo,
+                        originalItem: r.team,
+                    });
+                    existingIds.add(key);
+                }
+            });
+
+            (leaguesData.response || []).forEach((r: LeagueResult) => {
+                const key = `leagues-${r.league.id}`;
+                if (!existingIds.has(key)) {
+                    newItems.push({
+                        id: r.league.id,
+                        type: 'leagues',
+                        name: getDisplayName('league', r.league.id, r.league.name),
+                        originalName: r.league.name,
+                        logo: r.league.logo,
+                        originalItem: r.league,
+                    });
+                    existingIds.add(key);
+                }
+            });
+            
+            // --- 3. Merge results ---
+            if (newItems.length > 0) {
+                 setSearchResults(prev => [...prev, ...newItems]);
+            }
+
+        } catch (error) {
+            console.error("API search failed:", error);
+        } finally {
+             setLoading(false);
         }
-    });
-
-    setSearchResults(filteredResults);
-    setLoading(false);
-  }, [searchIndex]);
-
+    }, [searchIndex, getDisplayName]);
 
   useEffect(() => {
     if (debouncedSearchTerm && isOpen) {
@@ -324,6 +369,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         id: item.id,
         type: itemType,
         name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
+        originalName: item.name,
         logo: item.logo,
         originalItem: item,
     }))
@@ -402,3 +448,4 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
