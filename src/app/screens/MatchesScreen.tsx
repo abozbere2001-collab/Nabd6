@@ -207,17 +207,17 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     }, [selectedDateKey]);
 
     return (
-         <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
+        <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
             <Button 
                 variant="ghost" 
                 size="icon"
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                className="h-8 w-8 z-10"
                 onClick={() => onDateSelect(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
-                >
+            >
                 <ChevronLeft className="h-5 w-5" />
             </Button>
-            <ScrollArea ref={scrollerRef} className="w-full whitespace-nowrap">
-                <div className="flex flex-row-reverse justify-start px-10">
+            <ScrollArea ref={scrollerRef} className="w-full whitespace-nowrap mx-1">
+                <div className="flex flex-row-reverse justify-start">
                     {dates.map(date => {
                         const dateKey = formatDateKey(date);
                         const isSelected = dateKey === selectedDateKey;
@@ -248,9 +248,9 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
              <Button 
                 variant="ghost" 
                 size="icon"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                className="h-8 w-8 z-10"
                 onClick={() => onDateSelect(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
-                >
+            >
                 <ChevronRight className="h-5 w-5" />
             </Button>
         </div>
@@ -489,5 +489,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
+
+    
 
     
