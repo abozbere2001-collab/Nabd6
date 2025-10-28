@@ -323,9 +323,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
+                const updatePayload = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
+                setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
                 });
             } else {
                 setLocalFavorites(newFavorites);
@@ -371,7 +371,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const teamId = Number(id);
 
             setFavorites(prev => {
-                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                const newFavorites = { ...prev };
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
                 
