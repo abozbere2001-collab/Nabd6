@@ -26,43 +26,6 @@ import { cn } from '@/lib/utils';
 import { collection } from 'firebase/firestore';
 import { POPULAR_LEAGUES, POPULAR_TEAMS } from '@/lib/popular-data';
 
-// --- Persistent Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache_v2';
-const COUNTRIES_CACHE_KEY = 'goalstack_countries_cache_v2';
-const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache_v2';
-const CACHE_EXPIRATION_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
-
-interface CacheItem<T> {
-    data: T;
-    lastFetched: number;
-}
-
-const getCachedData = <T>(key: string): T | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-        const cachedData = localStorage.getItem(key);
-        if (!cachedData) return null;
-        const parsed: CacheItem<T> = JSON.parse(cachedData);
-        if (Date.now() - parsed.lastFetched > CACHE_EXPIRATION_MS) {
-            localStorage.removeItem(key);
-            return null;
-        }
-        return parsed.data;
-    } catch (error) {
-        return null;
-    }
-};
-
-const setCachedData = <T>(key: string, data: T) => {
-    if (typeof window === 'undefined') return;
-    try {
-        const cacheData: CacheItem<T> = { data, lastFetched: Date.now() };
-        localStorage.setItem(key, JSON.stringify(cacheData));
-    } catch (error) {
-        console.warn(`Could not set localStorage for key "${key}"`, error);
-    }
-};
-
 
 // --- TYPE DEFINITIONS ---
 interface FullLeague {
@@ -142,7 +105,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     const [renameItem, setRenameItem] = useState<RenameState | null>(null);
     const [isAddOpen, setAddOpen] = useState(false);
 
-    const [allLeagues, setAllLeagues] = useState<FullLeague[]>([]);
+    const [allLeagues, setAllLeagues] = useState<FullLeague[] | null>(null);
     const [nationalTeams, setNationalTeams] = useState<Team[] | null>(null);
     const [loadingClubData, setLoadingClubData] = useState(false);
     const [loadingNationalTeams, setLoadingNationalTeams] = useState(false);
@@ -164,11 +127,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
 
     const fetchAllCompetitions = useCallback(async () => {
-        const cached = getCachedData<FullLeague[]>(COMPETITIONS_CACHE_KEY);
-        if (cached) {
-            setAllLeagues(cached);
-            return;
-        }
+        if (allLeagues) return; // Already fetched
 
         setLoadingClubData(true);
         toast({ title: 'جاري جلب بيانات البطولات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
@@ -179,7 +138,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const data = await res.json();
             const leaguesData: FullLeague[] = data.response || [];
             
-            setCachedData(COMPETITIONS_CACHE_KEY, leaguesData);
             setAllLeagues(leaguesData);
         } catch (error) {
              console.error("Error fetching all leagues:", error);
@@ -187,11 +145,11 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         } finally {
             setLoadingClubData(false);
         }
-    }, [toast]);
+    }, [toast, allLeagues]);
 
     
     const sortedGroupedCompetitions = useMemo(() => {
-        if (!customNames || allLeagues.length === 0) return {};
+        if (!customNames || !allLeagues) return {};
         const grouped: NestedGroupedCompetitions = {};
 
         allLeagues
@@ -239,39 +197,18 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     
     const fetchNationalTeams = useCallback(async () => {
-        const cached = getCachedData<Team[]>(TEAMS_CACHE_KEY);
-        if (cached) {
-            setNationalTeams(cached);
-            return;
-        }
+        if (nationalTeams) return; // Already fetched
 
         setLoadingNationalTeams(true);
         toast({ title: 'جاري جلب بيانات المنتخبات...', description: 'قد تستغرق هذه العملية دقيقة في المرة الأولى.' });
     
         try {
-            let countries: { name: string }[] = [];
-            const cachedCountries = getCachedData<{ name: string }[]>(COUNTRIES_CACHE_KEY);
-            if (cachedCountries) {
-                countries = cachedCountries;
-            } else {
-                const countriesRes = await fetch('/api/football/countries');
-                if (!countriesRes.ok) throw new Error('Failed to fetch countries');
-                const countriesData = await countriesRes.json();
-                countries = countriesData.response || [];
-                setCachedData(COUNTRIES_CACHE_KEY, countries);
-            }
+            // Since this is a massive fetch, we do it without caching countries first
+            const res = await fetch('/api/football/teams?country=');
+            if(!res.ok) throw new Error("Failed to fetch teams");
 
-            const teamPromises = countries.map(country => 
-                fetch(`/api/football/teams?country=${country.name}`)
-                    .then(res => res.ok ? res.json() : { response: [] })
-                    .then(data => (data.response || []).filter((r: { team: Team }) => r.team.national).map((r: { team: Team}) => r.team))
-                    .catch(() => [])
-            );
-    
-            const results = await Promise.all(teamPromises);
-            const nationalTeamsData = results.flat();
-            
-            setCachedData(TEAMS_CACHE_KEY, nationalTeamsData);
+            const data = await res.json();
+            const nationalTeamsData = (data.response || []).filter((r: { team: Team }) => r.team.national).map((r: { team: Team}) => r.team);
             setNationalTeams(nationalTeamsData);
 
         } catch (error) {
@@ -280,7 +217,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         } finally {
             setLoadingNationalTeams(false);
         }
-    }, [toast]);
+    }, [toast, nationalTeams]);
     
     const groupedNationalTeams = useMemo(() => {
         if (!nationalTeams || !customNames) return null;
@@ -424,18 +361,18 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
     const handleAdminRefresh = async () => {
         if (!isAdmin) return;
-        localStorage.removeItem(COMPETITIONS_CACHE_KEY);
-        localStorage.removeItem(TEAMS_CACHE_KEY);
-        localStorage.removeItem(COUNTRIES_CACHE_KEY);
+        sessionStorage.removeItem('goalstack_all_competitions_cache');
+        sessionStorage.removeItem('goalstack_national_teams_cache');
         toast({ title: 'بدء التحديث...', description: 'جاري تحديث بيانات البطولات والمنتخبات.' });
-        await fetchAllCompetitions();
-        await fetchNationalTeams();
+        fetchAllCompetitions();
+        fetchNationalTeams();
         toast({ title: 'نجاح', description: 'تم تحديث البيانات بنجاح.' });
     };
 
     const renderNationalTeams = () => {
         if (loadingNationalTeams) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
-        if (!groupedNationalTeams) return null;
+        if (!groupedNationalTeams) return <p className="p-4 text-center text-muted-foreground">اضغط على زر الفتح لعرض المنتخبات.</p>;
+
 
         return continentOrder.filter(c => groupedNationalTeams[c]).map(continent => (
             <AccordionItem value={`national-${continent}`} key={`national-${continent}`} className="rounded-lg border bg-card/50">
@@ -486,7 +423,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const renderClubCompetitions = () => {
         if (loadingClubData) return <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin"/></div>;
-        if (allLeagues.length === 0) return <p className="p-4 text-center text-muted-foreground">اضغط على زر الفتح لعرض البطولات.</p>;
+        if (!allLeagues) return <p className="p-4 text-center text-muted-foreground">اضغط على زر الفتح لعرض البطولات.</p>;
         
         return continentOrder.filter(c => sortedGroupedCompetitions[c]).map(continent => (
              <AccordionItem value={`club-${continent}`} key={`club-${continent}`} className="rounded-lg border bg-card/50">
@@ -586,7 +523,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                  <Accordion type="multiple" className="w-full space-y-2">
                     <AccordionItem value="national-teams-section" className="rounded-lg border bg-card/50">
-                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (!nationalTeams && !loadingNationalTeams) fetchNationalTeams() }}>
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => fetchNationalTeams()}>
                             <div className="flex items-center gap-3">
                                 <Users className="h-6 w-6 text-primary"/>
                                 <h3 className="text-lg font-bold">المنتخبات</h3>
@@ -602,7 +539,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                  
                  <Accordion type="multiple" className="w-full space-y-2">
                     <AccordionItem value="club-competitions-section" className="rounded-lg border bg-card/50">
-                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => { if (allLeagues.length === 0 && !loadingClubData) fetchAllCompetitions() }}>
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline" onClick={() => fetchAllCompetitions()}>
                             <div className="flex items-center gap-3">
                                 <Trophy className="h-6 w-6 text-primary"/>
                                 <h3 className="text-lg font-bold">البطولات</h3>
