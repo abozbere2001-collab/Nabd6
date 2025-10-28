@@ -101,8 +101,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   
   const [itemType, setItemType] = useState<ItemType>(initialItemType || 'teams');
   
-  const [searchIndex, setSearchIndex] = useState<SearchableItem[]>([]);
-
   const { isAdmin } = useAdmin();
   const { user } = useAuth();
   const { db } = useFirestore();
@@ -115,45 +113,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     const customMap = type === 'team' ? customNames.teams : customNames.leagues;
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
-  
-    const buildLocalIndex = useCallback(() => {
-        if (!customNames) return;
-        setLoading(true);
-
-        const index: Map<string, SearchableItem> = new Map();
-
-        const processItem = (item: any, type: ItemType) => {
-            const name = getDisplayName(type.slice(0, -1) as 'team' | 'league', item.id, item.name);
-            const key = `${type}-${item.id}`;
-            if (!index.has(key)) {
-                index.set(key, {
-                    id: item.id,
-                    type: type,
-                    name: name,
-                    originalName: item.name,
-                    logo: item.logo,
-                    originalItem: item
-                });
-            }
-        };
-
-        POPULAR_TEAMS.forEach(team => processItem(team, 'teams'));
-        POPULAR_LEAGUES.forEach(league => processItem(league, 'leagues'));
-        
-        Object.values(favorites?.teams || {}).forEach(team => processItem({id: team.teamId, name: team.name, logo: team.logo}, 'teams'));
-        Object.values(favorites?.leagues || {}).forEach(league => processItem({id: league.leagueId, name: league.name, logo: league.logo}, 'leagues'));
-
-        setSearchIndex(Array.from(index.values()));
-        setLoading(false);
-    }, [customNames, getDisplayName, favorites]);
-
-  
-  useEffect(() => {
-    if (isOpen) {
-        buildLocalIndex();
-    }
-  }, [isOpen, buildLocalIndex]);
-
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
@@ -166,20 +125,60 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   };
 
-    const handleSearch = useCallback((query: string) => {
-        setLoading(true);
-        const normalizedQuery = normalizeArabic(query);
-        const isArabic = /[\u0600-\u06FF]/.test(normalizedQuery);
-        
-        const localMatches = searchIndex.filter(item => {
-             const nameToSearch = isArabic ? normalizeArabic(item.name) : item.originalName.toLowerCase();
-             const queryToUse = isArabic ? normalizedQuery : query.toLowerCase();
-             return nameToSearch.includes(queryToUse);
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    setLoading(true);
+
+    const apiSearchPromises = [
+      fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] }),
+      fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] })
+    ];
+    
+    try {
+        const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
+        const results: SearchableItem[] = [];
+        const seen = new Set<string>();
+
+        teamsData.response?.forEach((r: TeamResult) => {
+            const key = `team-${r.team.id}`;
+            if (!seen.has(key)) {
+                results.push({
+                    id: r.team.id,
+                    type: 'teams',
+                    name: getDisplayName('team', r.team.id, r.team.name),
+                    originalName: r.team.name,
+                    logo: r.team.logo,
+                    originalItem: r.team,
+                });
+                seen.add(key);
+            }
         });
-        
-        setSearchResults(localMatches);
+        leaguesData.response?.forEach((r: LeagueResult) => {
+             const key = `league-${r.league.id}`;
+             if (!seen.has(key)) {
+                results.push({
+                    id: r.league.id,
+                    type: 'leagues',
+                    name: getDisplayName('league', r.league.id, r.league.name),
+                    originalName: r.league.name,
+                    logo: r.league.logo,
+                    originalItem: r.league,
+                });
+                seen.add(key);
+            }
+        });
+        setSearchResults(results);
+    } catch(e) {
+        console.error("API search failed.", e);
+        toast({ variant: 'destructive', title: "خطأ في البحث", description: "فشلت عملية البحث عبر الشبكة." });
+    } finally {
         setLoading(false);
-    }, [searchIndex]);
+    }
+  }, [getDisplayName, toast]);
+
 
   useEffect(() => {
     if (debouncedSearchTerm && isOpen) {
@@ -235,7 +234,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
             return newFavorites;
         });
-    }, [user, db, setFavorites, toast]);
+    }, [user, db, setFavorites, toast, favorites]);
 
 
   const handleOpenCrownDialog = (team: Item) => {
@@ -323,14 +322,18 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading || !customNames || !favorites) {
+    if (loading) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
-    const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
+    const itemsToRender = debouncedSearchTerm ? searchResults : popularItems.filter(i => i.type === itemType);
 
     if (itemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
+    }
+    
+    if (itemsToRender.length === 0 && !debouncedSearchTerm) {
+        return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>
     }
 
     return (
@@ -395,5 +398,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
 
 

@@ -467,6 +467,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                   groupedNationalTeams[continent].map(team => {
                      const isStarred = !!favorites?.teams?.[team.id];
                      const isCrowned = !!favorites?.crownedTeams?.[team.id];
+                     const countryName = team.country || team.name;
                      return (
                          <li key={team.id} className="flex w-full items-center justify-between p-3 h-12 hover:bg-accent/80 transition-colors rounded-md">
                            <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => navigate('TeamDetails', { teamId: team.id })}>
@@ -475,7 +476,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                            </div>
                            <div className="flex items-center gap-1">
                              {isAdmin && (
-                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('team', team.id, team.name, nationalTeams?.find(t => t.id === team.id)?.name) }}>
+                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleOpenRename('country', countryName, getName('country', countryName, countryName)) }}>
                                  <Pencil className="h-4 w-4 text-muted-foreground/80" />
                                </Button>
                              )}
