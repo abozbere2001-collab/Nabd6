@@ -411,15 +411,17 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
              <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                  {selectedDateKey && (
                      <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md">
-                        <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
+                        <div className="pr-10">
+                            <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
+                        </div>
                         <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                            variant="outline" 
+                            size="sm"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
                             onClick={() => handleDateChange(formatDateKey(new Date()))}
                             disabled={isToday(new Date(selectedDateKey))}
                          >
-                            <CalendarClock className="h-4 w-4"/>
+                            عودة
                          </Button>
                     </div>
                  )}
@@ -429,7 +431,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                 <FixturesList 
                     fixtures={currentFixtures}
                     loading={loading}
-                    activeTab="my-results"
                     favoritedLeagueIds={favoritedLeagueIds}
                     favoritedTeamIds={favoritedTeamIds}
                     hasAnyFavorites={hasAnyFavorites}

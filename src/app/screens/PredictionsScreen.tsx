@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
@@ -159,7 +160,7 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
 
     return (
         <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
-             <div ref={scrollerRef} className="flex flex-row-reverse overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div ref={scrollerRef} className="flex flex-row-reverse overflow-x-auto pb-1 pr-10" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {dates.map(date => {
                     const dateKey = formatDateKey(date);
                     const isSelected = dateKey === selectedDateKey;
@@ -182,13 +183,13 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
                 })}
             </div>
              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                variant="outline" 
+                size="sm"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7"
                 onClick={() => onDateSelect(formatDateKey(new Date()))}
                 disabled={isToday(new Date(selectedDateKey))}
              >
-                <CalendarDays className="h-4 w-4"/>
+                عودة
              </Button>
         </div>
     );

@@ -51,27 +51,6 @@ interface SearchableItem {
     originalItem: Item;
 }
 
-
-// --- Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
-const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
-interface Cache<T> {
-    data: T;
-    lastFetched: number;
-}
-const getCachedData = <T>(key: string): T | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-        const cachedData = localStorage.getItem(key);
-        if (!cachedData) return null;
-        const parsed = JSON.parse(cachedData) as Cache<T>;
-        return parsed.data;
-    } catch (error) {
-        return null;
-    }
-};
-
-
 const normalizeArabic = (text: string) => {
   if (!text) return '';
   return text
@@ -149,28 +128,23 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
 
   const handleSearch = useCallback(async (query: string) => {
-    setLoading(true);
-    const lowerCaseQuery = query.toLowerCase();
-
     if (!query.trim()) {
         setSearchResults([]);
-        setLoading(false);
         return;
     }
+    setLoading(true);
     
     const allResults: SearchableItem[] = [];
     const existingIds = new Set<string>();
 
-    const apiSearchPromises = [
-      fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] }),
-      fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.ok ? res.json() : { response: [] })
-    ];
-    
     try {
-        const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
-        
+        const [teamsData, leaguesData] = await Promise.all([
+            fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.json()),
+            fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.json())
+        ]);
+
         teamsData.response?.forEach((r: TeamResult) => {
-            if(!existingIds.has(`teams-${r.team.id}`)) {
+            if (!existingIds.has(`teams-${r.team.id}`)) {
                 const name = getDisplayName('team', r.team.id, r.team.name);
                 allResults.push({
                     id: r.team.id,
@@ -184,8 +158,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 existingIds.add(`teams-${r.team.id}`);
             }
         });
+
         leaguesData.response?.forEach((r: LeagueResult) => {
-             if(!existingIds.has(`leagues-${r.league.id}`)) {
+            if (!existingIds.has(`leagues-${r.league.id}`)) {
                 const name = getDisplayName('league', r.league.id, r.league.name);
                 allResults.push({
                     id: r.league.id,
@@ -199,13 +174,18 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 existingIds.add(`leagues-${r.league.id}`);
             }
         });
-    } catch(e) {
-        console.error("API search failed, showing local results only.", e);
+    } catch (e) {
+        console.error("API search failed.", e);
+        toast({
+            variant: "destructive",
+            title: "فشل البحث",
+            description: "حدث خطأ أثناء جلب نتائج البحث. يرجى المحاولة مرة أخرى.",
+        });
     }
     
     setSearchResults(allResults);
     setLoading(false);
-  }, [getDisplayName]);
+  }, [getDisplayName, toast]);
 
 
   useEffect(() => {
@@ -351,9 +331,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading || !customNames || !favorites) {
+    if (loading) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
+     if (!customNames || !favorites) {
+         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+     }
 
     const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
 
@@ -423,7 +406,3 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
-
-    
-
-    
