@@ -241,10 +241,9 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     );
 }
 
-type TabName = 'my-results' | 'all-matches';
+type TabName = 'my-results';
 
 const tabs: {id: TabName, label: string}[] = [
-    // { id: 'all-matches', label: 'مباشر' },
     { id: 'my-results', label: 'نتائجي' },
 ];
 
@@ -324,13 +323,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             const favTeamIds = Object.keys(currentFavorites?.teams || {}).map(Number);
             const favLeagueIds = Object.keys(currentFavorites?.leagues || {}).map(Number);
             
-            if (activeTab === 'all-matches') {
-                const liveRes = await fetch('/api/football/fixtures?live=all', { signal: abortSignal });
-                if (liveRes.ok) {
-                    const liveData = await liveRes.json();
-                    fixtures = liveData.response || [];
-                }
-            } else if(dateKey) { // Fetch by date for 'my-results'
+            if(dateKey) { // Fetch by date
                 // Optimized fetch: get all fixtures for the day and filter client-side
                 const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
                 if(res.ok) {
@@ -380,19 +373,19 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                 setLoading(false);
             }
         }
-    }, [activeTab, getDisplayName]);
+    }, [getDisplayName]);
   
   
   useEffect(() => {
       const currentFavorites = favorites;
       
       if (isVisible && selectedDateKey && customNames && currentFavorites) {
-          const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey;
+          const cacheKey = selectedDateKey;
           const controller = new AbortController();
           fetchAndProcessData(cacheKey, currentFavorites, controller.signal);
           return () => controller.abort();
       }
-  }, [selectedDateKey, activeTab, isVisible, fetchAndProcessData, favorites, customNames]);
+  }, [selectedDateKey, isVisible, fetchAndProcessData, favorites, customNames]);
 
 
   const handleDateChange = (dateKey: string) => {
@@ -408,7 +401,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
   const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
   
-  const cacheKey = activeTab === 'all-matches' ? 'live' : selectedDateKey || '';
+  const cacheKey = selectedDateKey || '';
   const currentFixtures = matchesCache.get(cacheKey) || [];
     
   return (
@@ -444,7 +437,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                         ))}
                     </TabsList>
                 </div>
-                 {selectedDateKey && activeTab === 'my-results' && (
+                 {selectedDateKey && (
                      <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
                         <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
                         <Button 
@@ -475,24 +468,10 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                     showOdds={showOdds}
                 />
             </TabsContent>
-            
-            <TabsContent value="all-matches" className="flex-1 overflow-y-auto p-1 space-y-4 mt-0" hidden={activeTab !== 'all-matches'}>
-                 <FixturesList 
-                    fixtures={currentFixtures}
-                    loading={loading}
-                    activeTab={activeTab}
-                    favoritedLeagueIds={favoritedLeagueIds}
-                    favoritedTeamIds={favoritedTeamIds}
-                    hasAnyFavorites={hasAnyFavorites}
-                    navigate={navigate}
-                    pinnedPredictionMatches={pinnedPredictionMatches}
-                    onPinToggle={handlePinToggle}
-                    isAdmin={isAdmin}
-                    showOdds={showOdds}
-                />
-            </TabsContent>
 
         </Tabs>
     </div>
   );
 }
+
+    

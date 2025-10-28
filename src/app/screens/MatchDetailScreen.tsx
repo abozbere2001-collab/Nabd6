@@ -90,7 +90,7 @@ const MatchHeaderCard = ({ fixture, navigate, customStatus }: { fixture: Fixture
         <Card className="mb-4 bg-card/80 backdrop-blur-sm">
             <CardContent className="p-4">
                 <div className="flex justify-between items-center text-xs text-muted-foreground mb-3">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('CompetitionDetails', { leagueId: fixture.league.id })}>
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('CompetitionDetails', { leagueId: fixture.league.id, title: fixture.league.name, logo: fixture.league.logo })}>
                         <Avatar className="h-5 w-5"><AvatarImage src={fixture.league.logo} /></Avatar>
                         <span className="text-[10px]">{fixture.league.name}</span>
                     </div>
@@ -933,3 +933,6 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
     
 
 
+
+
+    
