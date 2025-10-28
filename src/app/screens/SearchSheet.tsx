@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -16,10 +17,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { ScreenProps } from '@/app/page';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
-import { doc, setDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Favorites, Team } from '@/lib/types';
+import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { useToast } from '@/hooks/use-toast';
@@ -37,6 +38,7 @@ interface LeagueResult {
 
 type Item = TeamResult['team'] | LeagueResult['league'];
 type ItemType = 'teams' | 'leagues';
+type SearchResult = (TeamResult & { type: 'team' }) | (LeagueResult & { type: 'league' });
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status' | 'crown';
 
 interface SearchableItem {
@@ -81,7 +83,7 @@ const normalizeArabic = (text: string) => {
 };
 
 
-const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onCrownToggle, onResultClick, onRename, isAdmin }: { item: Item, itemType: ItemType, isFavorited: boolean, isCrowned: boolean, onFavoriteToggle: () => void, onCrownToggle: () => void, onResultClick: () => void, onRename: () => void, isAdmin: boolean }) => {
+const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onCrownToggle, onResultClick, onRename, isAdmin }: { item: Item, itemType: ItemType, isFavorited: boolean, isCrowned: boolean, onFavoriteToggle: (item: Item, itemType: ItemType) => void, onCrownToggle: (item: Item) => void, onResultClick: () => void, onRename: () => void, isAdmin: boolean }) => {
   return (
     <div className="flex items-center gap-2 p-1.5 border-b last:border-b-0 hover:bg-accent/50 rounded-md">
        <div className="flex-1 flex items-center gap-2 cursor-pointer" onClick={onResultClick}>
@@ -98,11 +100,11 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
                 </Button>
             )}
             {itemType === 'teams' && (
-                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onCrownToggle(); }}>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onCrownToggle(item); }}>
                     <Crown className={cn("h-5 w-5 text-muted-foreground/60", isCrowned && "fill-current text-yellow-400")} />
                 </Button>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onFavoriteToggle(); }}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onFavoriteToggle(item, itemType); }}>
                 <Star className={cn("h-5 w-5 text-muted-foreground/60", isFavorited && "fill-current text-yellow-400")} />
             </Button>
         </div>
@@ -111,7 +113,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 }
 
 
-export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites, onCustomNameChange }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange?: () => Promise<void> }) {
+export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
@@ -137,7 +139,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
   const buildLocalIndex = useCallback(async () => {
     if (!customNames) return;
-
     setLoading(true);
     const index: SearchableItem[] = [];
     const competitionsCache = getCachedData<any[]>(COMPETITIONS_CACHE_KEY);
@@ -178,10 +179,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
 
   useEffect(() => {
-    if (isOpen && localSearchIndex.length === 0) {
+    if (isOpen) {
         buildLocalIndex();
     }
-  }, [isOpen, buildLocalIndex, localSearchIndex.length]);
+  }, [isOpen, buildLocalIndex]);
 
 
   const handleOpenChange = (open: boolean) => {
@@ -263,37 +264,37 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   }, [debouncedSearchTerm, handleSearch, isOpen]);
 
-  const handleFavoriteToggle = useCallback((item: Item, itemType: ItemType) => {
-    const itemId = item.id;
-    
-    setFavorites(prev => {
-        const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-        if (!newFavorites[itemType]) newFavorites[itemType] = {};
-        const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+    const handleFavorite = useCallback((item: Item, itemType: ItemType) => {
+        const itemId = item.id;
 
-        if (isCurrentlyFavorited) {
-            delete newFavorites[itemType]![itemId];
-        } else {
-            if (itemType === 'leagues') {
-                newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!newFavorites[itemType]) newFavorites[itemType] = {};
+
+            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+
+            if (isCurrentlyFavorited) {
+                delete newFavorites[itemType]![itemId];
             } else {
-                newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                const favData = itemType === 'leagues'
+                    ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                newFavorites[itemType]![itemId] = favData as any;
             }
-        }
-        
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updatePayload = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-            updateDoc(favDocRef, updatePayload).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
-            });
-        } else {
-            setLocalFavorites(newFavorites);
-        }
 
-        return newFavorites;
-    });
-}, [user, db, setFavorites]);
+            if (user && db && !user.isAnonymous) {
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
+                updateDoc(favDocRef, updateData).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
+                });
+            } else {
+                setLocalFavorites(newFavorites);
+            }
+
+            return newFavorites;
+        });
+    }, [user, db, setFavorites]);
 
 
   const handleOpenCrownDialog = (team: Item) => {
@@ -333,20 +334,17 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     if (purpose === 'rename' && isAdmin) {
         const collectionName = `${type}Customizations`;
         const docRef = doc(db, collectionName, String(id));
-        const data = { customName: newName };
-
-        const op = (newName && newName.trim() && newName !== originalName) ? setDoc(docRef, data) : deleteDoc(docRef);
-
-        op.then(() => onCustomNameChange && onCustomNameChange())
-        .catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
-        });
-
+        if (newName && newName !== originalName) {
+            setDoc(docRef, { customName: newName });
+        } else {
+            deleteDoc(docRef); 
+        }
     } else if (purpose === 'crown' && user) {
         const teamId = Number(id);
         
         setFavorites(prev => {
-            const newFavorites = { ...prev };
+            if (!prev) return {};
+            const newFavorites = JSON.parse(JSON.stringify(prev));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
@@ -355,17 +353,16 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             } else {
                 newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
             }
-            
-            if (user && db && !user.isAnonymous) {
+
+            if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updatePayload = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                updateDoc(favDocRef, updatePayload).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                const updateData = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
+                updateDoc(favDocRef, updateData).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             } else {
                 setLocalFavorites(newFavorites);
             }
-            
             return newFavorites;
         });
     }
@@ -409,8 +406,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                             itemType={result.type} 
                             isFavorited={isFavorited} 
                             isCrowned={isCrowned}
-                            onFavoriteToggle={() => handleFavoriteToggle(result.originalItem, result.type)} 
-                            onCrownToggle={() => handleOpenCrownDialog(result.originalItem)}
+                            onFavoriteToggle={handleFavorite} 
+                            onCrownToggle={(item) => handleOpenCrownDialog(item)}
                             onResultClick={() => handleResultClick(result)} 
                             isAdmin={isAdmin} 
                             onRename={() => handleOpenRename(result.type as RenameType, result.id, result.originalItem)} 
@@ -451,7 +448,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             isOpen={!!renameItem}
             onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
             item={renameItem}
-            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note || '')}
+            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note as string)}
           />
         )}
       </SheetContent>

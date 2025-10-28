@@ -20,7 +20,7 @@ import { ProfileButton } from '../AppContentWrapper';
 import type { Fixture as FixtureType, Favorites, PredictionMatch } from '@/lib/types';
 import { FixtureItem } from '@/components/FixtureItem';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
-import { getLocalFavorites } from '@/lib/local-favorites';
+import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
 import { POPULAR_LEAGUES } from '@/lib/popular-data';
 import { useToast } from '@/hooks/use-toast';
 import { RenameDialog } from '@/components/RenameDialog';
@@ -50,7 +50,7 @@ const FixturesList = React.memo((props: {
     pinnedPredictionMatches: Set<number>,
     onPinToggle: (fixture: FixtureType) => void,
     isAdmin: boolean,
-    showOdds: boolean,
+    showOdds?: boolean,
 }) => {
     
     const { favoriteTeamMatches, otherFixtures } = useMemo(() => {
@@ -424,7 +424,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             onBack={() => {}} 
             actions={
                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowOdds(prev => !prev)}>
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setShowOdds(prev => !prev)}>
                     <span className="text-xs font-mono">1x2</span>
                   </Button>
                   <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
@@ -498,7 +498,3 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
     </div>
   );
 }
-
-    
-
-    
