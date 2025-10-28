@@ -67,7 +67,12 @@ const setCachedData = (key: string, value: any, ttl = CACHE_DURATION_MS) => {
         value: value,
         expiry: now.getTime() + ttl,
     };
-    localStorage.setItem(key, JSON.stringify(item));
+    try {
+        localStorage.setItem(key, JSON.stringify(item));
+    } catch (error) {
+        console.error("Failed to set cached data:", error);
+        // This can happen if localStorage is full.
+    }
 };
 // --------------------
 
@@ -153,24 +158,32 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
         }
 
         setLoading(true);
-
-        // Fetch API Data
         const cacheKey = `competition_data_${leagueId}_${season}`;
         const cachedData = getCachedData(cacheKey);
+
+        const fixturesRes = fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`);
 
         if (cachedData) {
             setStandings(cachedData.standings || []);
             setTopScorers(cachedData.topScorers || []);
             setTeams(cachedData.teams || []);
-            setFixtures(cachedData.fixtures || []);
-            setLoading(false);
+            
+            fixturesRes.then(res => res.json()).then(data => {
+                if (isMounted) {
+                    const sortedFixtures = [...(data.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
+                    setFixtures(sortedFixtures);
+                }
+            }).finally(() => {
+                if(isMounted) setLoading(false);
+            });
+
         } else {
              try {
-                const [standingsRes, scorersRes, teamsRes, fixturesRes] = await Promise.all([
+                const [standingsRes, scorersRes, teamsRes, fixturesData] = await Promise.all([
                     fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
                     fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
                     fetch(`/api/football/teams?league=${leagueId}&season=${season}`),
-                    fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`)
+                    fixturesRes.then(res => res.json())
                 ]);
 
                 if (!isMounted) return;
@@ -178,7 +191,6 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                 const standingsData = await standingsRes.json();
                 const scorersData = await scorersRes.json();
                 const teamsData = await teamsRes.json();
-                const fixturesData = await fixturesRes.json();
 
                 const newStandings = standingsData.response[0]?.league?.standings[0] || [];
                 const newTopScorers = scorersData.response || [];
@@ -190,11 +202,11 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
                 setTeams(newTeams);
                 setFixtures(sortedFixtures);
 
+                // Cache only non-fixture data to avoid quota issues
                 setCachedData(cacheKey, {
                     standings: newStandings,
                     topScorers: newTopScorers,
                     teams: newTeams,
-                    fixtures: sortedFixtures,
                 });
             } catch(e) {
                  console.error("Failed to fetch competition details:", e);
@@ -269,23 +281,24 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = useCallback((team: Team) => {
-        const isCurrentlyFavorited = !!favorites?.teams?.[team.id];
-
+        const teamId = team.id;
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.teams) newFavorites.teams = {};
+            const isCurrentlyFavorited = !!newFavorites.teams[teamId];
+
             if (isCurrentlyFavorited) {
-                delete newFavorites.teams[team.id];
+                delete newFavorites.teams[teamId];
             } else {
-                newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
             
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
-                    [`teams.${team.id}`]: isCurrentlyFavorited
+                    [`teams.${teamId}`]: isCurrentlyFavorited
                         ? deleteField()
-                        : { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
+                        : { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' }
                 };
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
@@ -296,15 +309,15 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
             return newFavorites;
         });
-    }, [user, db, setFavorites, favorites]);
+    }, [user, db, setFavorites]);
     
     const handleLeagueFavoriteToggle = useCallback(() => {
         if (!leagueId || !displayTitle || !logo) return;
-        const isCurrentlyFavorited = !!favorites?.leagues?.[leagueId];
         
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.leagues) newFavorites.leagues = {};
+            const isCurrentlyFavorited = !!newFavorites.leagues?.[leagueId];
 
             if (isCurrentlyFavorited) {
                 delete newFavorites.leagues[leagueId];
@@ -315,7 +328,9 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
-                    [`leagues.${leagueId}`]: isCurrentlyFavorited ? deleteField() : { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true }
+                    [`leagues.${leagueId}`]: isCurrentlyFavorited 
+                    ? deleteField() 
+                    : { name: initialTitle || displayTitle, leagueId, logo, notificationsEnabled: true }
                 };
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
@@ -326,7 +341,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
             return newFavorites;
         });
-    }, [leagueId, displayTitle, logo, initialTitle, user, db, setFavorites, favorites]);
+    }, [leagueId, displayTitle, logo, initialTitle, user, db, setFavorites]);
 
 
   const handleOpenCrownDialog = (team: Team) => {
@@ -376,10 +391,10 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
         });
 
     } else if (purpose === 'crown' && user) {
+        const teamId = Number(id);
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-            const teamId = Number(id);
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
             
             if (isCurrentlyCrowned) {
@@ -497,7 +512,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
           isOpen={!!renameItem}
           onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
           item={renameItem}
-          onSave={(type, id, name, note) => handleSaveRenameOrNote(type, Number(id), name, note || '')}
+          onSave={(type, id, name, note) => handleSaveRenameOrNote(type as 'team' | 'crown' | 'league', Number(id), name, note || '')}
         />}
        <div className="flex-1 overflow-y-auto p-1">
         <CompetitionHeaderCard league={{ name: displayTitle, logo }} teamsCount={teams.length} />
@@ -669,7 +684,3 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
-
-    
-
-    
