@@ -140,41 +140,43 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
         const results: SearchableItem[] = [];
         const seen = new Set<string>();
+        const normalizedQuery = normalizeArabic(query);
+        const isArabic = /[\u0600-\u06FF]/.test(query);
 
-        teamsData.response?.forEach((r: TeamResult) => {
-            const key = `team-${r.team.id}`;
-            if (!seen.has(key)) {
-                const displayName = getDisplayName('team', r.team.id, r.team.name);
-                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query)) || r.team.name.toLowerCase().includes(query.toLowerCase())) {
-                    results.push({
-                        id: r.team.id,
-                        type: 'teams',
-                        name: displayName,
-                        originalName: r.team.name,
-                        logo: r.team.logo,
-                        originalItem: r.team,
-                    });
-                    seen.add(key);
-                }
+        const processItem = (item: any, type: 'teams' | 'leagues') => {
+            const id = type === 'teams' ? item.team.id : item.league.id;
+            const originalName = type === 'teams' ? item.team.name : item.league.name;
+            const logo = type === 'teams' ? item.team.logo : item.league.logo;
+            const originalItem = type === 'teams' ? item.team : item.league;
+            
+            const key = `${type}-${id}`;
+            if (seen.has(key)) return;
+
+            const displayName = getDisplayName(type.slice(0, -1) as 'team' | 'league', id, originalName);
+            
+            // Match logic:
+            // If search term is Arabic, match against the translated Arabic name.
+            // If search term is English, match against the original English name.
+            const match = isArabic
+              ? normalizeArabic(displayName).includes(normalizedQuery)
+              : originalName.toLowerCase().includes(query.toLowerCase());
+
+            if (match) {
+                results.push({
+                    id: id,
+                    type: type,
+                    name: displayName,
+                    originalName: originalName,
+                    logo: logo,
+                    originalItem: originalItem,
+                });
+                seen.add(key);
             }
-        });
-        leaguesData.response?.forEach((r: LeagueResult) => {
-             const key = `league-${r.league.id}`;
-             if (!seen.has(key)) {
-                const displayName = getDisplayName('league', r.league.id, r.league.name);
-                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query)) || r.league.name.toLowerCase().includes(query.toLowerCase())) {
-                    results.push({
-                        id: r.league.id,
-                        type: 'leagues',
-                        name: displayName,
-                        originalName: r.league.name,
-                        logo: r.league.logo,
-                        originalItem: r.league,
-                    });
-                    seen.add(key);
-                }
-            }
-        });
+        };
+
+        teamsData.response?.forEach((r: TeamResult) => processItem(r, 'teams'));
+        leaguesData.response?.forEach((r: LeagueResult) => processItem(r, 'leagues'));
+        
         setSearchResults(results);
     } catch(e) {
         console.error("API search failed.", e);
@@ -316,7 +318,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
   
   const popularItems = useMemo(() => {
-    if (!customNames) return [];
+    if (!customNames) return { teams: [], leagues: [] };
     
     const seenTeams = new Set();
     const seenLeagues = new Set();
@@ -361,19 +363,16 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     const itemsToRender = debouncedSearchTerm 
         ? searchResults 
         : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
+        
+    const filteredItemsToRender = debouncedSearchTerm ? itemsToRender : itemsToRender.filter(item => item.type === itemType);
 
-    if (itemsToRender.length === 0 && debouncedSearchTerm) {
+    if (filteredItemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
     }
     
-    if (itemsToRender.length === 0 && !debouncedSearchTerm) {
+    if (filteredItemsToRender.length === 0 && !debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>
     }
-
-    const filteredItemsToRender = debouncedSearchTerm 
-        ? itemsToRender
-        : itemsToRender.filter(item => item.type === itemType);
-
 
     return (
         <div className="space-y-2">
