@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -146,7 +145,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             const key = `team-${r.team.id}`;
             if (!seen.has(key)) {
                 const displayName = getDisplayName('team', r.team.id, r.team.name);
-                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query))) {
+                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query)) || r.team.name.toLowerCase().includes(query.toLowerCase())) {
                     results.push({
                         id: r.team.id,
                         type: 'teams',
@@ -163,7 +162,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
              const key = `league-${r.league.id}`;
              if (!seen.has(key)) {
                 const displayName = getDisplayName('league', r.league.id, r.league.name);
-                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query))) {
+                if (displayName.toLowerCase().includes(query.toLowerCase()) || normalizeArabic(displayName).includes(normalizeArabic(query)) || r.league.name.toLowerCase().includes(query.toLowerCase())) {
                     results.push({
                         id: r.league.id,
                         type: 'leagues',
@@ -317,27 +316,51 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   };
   
   const popularItems = useMemo(() => {
-    const combined = [...POPULAR_TEAMS, ...POPULAR_LEAGUES];
-    return combined.map(item => {
-        const itemType = 'country' in item ? 'leagues' : 'teams';
-        const name = 'name' in item ? item.name : '';
+    if (!customNames) return [];
+    
+    const seenTeams = new Set();
+    const seenLeagues = new Set();
+
+    const teams = POPULAR_TEAMS.map(item => {
+        seenTeams.add(item.id);
         return {
             id: item.id,
-            type: itemType as ItemType,
-            name: getDisplayName(itemType.slice(0, -1) as 'team' | 'league', item.id, name),
-            originalName: name,
+            type: 'teams' as ItemType,
+            name: getDisplayName('team', item.id, item.name),
+            originalName: item.name,
             logo: item.logo,
             originalItem: item as Item,
         };
-    })
-  }, [getDisplayName]);
+    });
+
+    const leagues = POPULAR_LEAGUES.map(item => {
+        seenLeagues.add(item.id);
+        return {
+            id: item.id,
+            type: 'leagues' as ItemType,
+            name: getDisplayName('league', item.id, item.name),
+            originalName: item.name,
+            logo: item.logo,
+            originalItem: item as Item,
+        };
+    });
+
+    return { teams, leagues };
+
+  }, [getDisplayName, customNames]);
 
   const renderContent = () => {
-    if (loading || !customNames || !favorites) {
+    if (!customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
-    const itemsToRender = debouncedSearchTerm ? searchResults : popularItems.filter(i => i.type === itemType);
+    if (loading) {
+        return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    }
+
+    const itemsToRender = debouncedSearchTerm 
+        ? searchResults 
+        : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
 
     if (itemsToRender.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
@@ -346,21 +369,16 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     if (itemsToRender.length === 0 && !debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>
     }
-    
-    const combinedItems = debouncedSearchTerm ? searchResults : [];
-    if (!debouncedSearchTerm) {
-        if (itemType === 'teams') {
-            combinedItems.push(...popularItems.filter(i => i.type === 'teams'));
-        } else {
-            combinedItems.push(...popularItems.filter(i => i.type === 'leagues'));
-        }
-    }
+
+    const filteredItemsToRender = debouncedSearchTerm 
+        ? itemsToRender
+        : itemsToRender.filter(item => item.type === itemType);
 
 
     return (
         <div className="space-y-2">
             {!debouncedSearchTerm && <h3 className="font-bold text-md text-center text-muted-foreground">{itemType === 'teams' ? 'الفرق الأكثر شعبية' : 'البطولات الأكثر شعبية'}</h3>}
-             {itemsToRender.map(result => {
+             {filteredItemsToRender.map(result => {
                     const isFavorited = !!favorites[result.type]?.[result.id];
                     const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
                     return <ItemRow 
