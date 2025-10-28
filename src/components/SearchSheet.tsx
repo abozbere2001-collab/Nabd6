@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -201,17 +200,21 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
   const handleSearch = useCallback(async (query: string) => {
     setLoading(true);
+
+    const isArabic = /[\u0600-\u06FF]/.test(query);
     const normalizedQuery = normalizeArabic(query);
     const lowerCaseQuery = query.toLowerCase();
 
-    if (!normalizedQuery) {
+    if (!query.trim()) {
         setSearchResults([]);
         setLoading(false);
         return;
     }
     
     const localResults = localSearchIndex.filter(item => 
-        item.originalName.toLowerCase().includes(lowerCaseQuery) || item.normalizedName.includes(normalizedQuery)
+        isArabic
+            ? item.normalizedName.includes(normalizedQuery)
+            : item.originalName.toLowerCase().includes(lowerCaseQuery)
     );
     const existingIds = new Set(localResults.map(r => `${r.type}-${r.id}`));
 
@@ -477,3 +480,5 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
+    
