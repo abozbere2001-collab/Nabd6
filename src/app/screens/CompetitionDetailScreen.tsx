@@ -44,39 +44,6 @@ import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
 import { format, isToday } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
-// --- Caching Logic ---
-const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-const getCachedData = (key: string) => {
-    if (typeof window === 'undefined') return null;
-    const itemStr = localStorage.getItem(key);
-    if (!itemStr) return null;
-    const item = JSON.parse(itemStr);
-    const now = new Date();
-    if (now.getTime() > item.expiry) {
-        localStorage.removeItem(key);
-        return null;
-    }
-    return item.value;
-};
-
-const setCachedData = (key: string, value: any, ttl = CACHE_DURATION_MS) => {
-    if (typeof window === 'undefined') return;
-    const now = new Date();
-    const item = {
-        value: value,
-        expiry: now.getTime() + ttl,
-    };
-    try {
-        localStorage.setItem(key, JSON.stringify(item));
-    } catch (error) {
-        console.error("Failed to set cached data:", error);
-        // This can happen if localStorage is full.
-    }
-};
-// --------------------
-
-
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status' | 'crown';
 interface RenameState {
   id: string | number;
@@ -158,65 +125,37 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
         }
 
         setLoading(true);
-        const cacheKey = `competition_data_${leagueId}_${season}`;
-        const cachedData = getCachedData(cacheKey);
+        
+        try {
+            const [standingsRes, scorersRes, fixturesRes, teamsRes] = await Promise.all([
+                fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
+                fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
+                fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`),
+                fetch(`/api/football/teams?league=${leagueId}&season=${season}`)
+            ]);
 
-        const fixturesRes = fetch(`/api/football/fixtures?league=${leagueId}&season=${season}`);
-        const teamsRes = fetch(`/api/football/teams?league=${leagueId}&season=${season}`);
+            if (!isMounted) return;
 
+            const standingsData = await standingsRes.json();
+            const scorersData = await scorersRes.json();
+            const fixturesData = await fixturesRes.json();
+            const teamsData = await teamsRes.json();
 
-        if (cachedData) {
-            setStandings(cachedData.standings || []);
-            setTopScorers(cachedData.topScorers || []);
-            
-            // Fetch dynamic data even if cache exists
-            const parallelFetches = [fixturesRes.then(res => res.json()), teamsRes.then(res => res.json())];
-            
-            Promise.all(parallelFetches).then(([fixturesData, teamsData]) => {
-                 if (isMounted) {
-                    const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
-                    setFixtures(sortedFixtures);
-                    setTeams(teamsData.response || []);
-                }
-            }).finally(() => {
-                if(isMounted) setLoading(false);
-            });
+            const newStandings = standingsData.response[0]?.league?.standings[0] || [];
+            const newTopScorers = scorersData.response || [];
+            const newTeams = teamsData.response || [];
+            const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
 
-        } else {
-             try {
-                const [standingsRes, scorersRes, fixturesData, teamsData] = await Promise.all([
-                    fetch(`/api/football/standings?league=${leagueId}&season=${season}`),
-                    fetch(`/api/football/players/topscorers?league=${leagueId}&season=${season}`),
-                    fixturesRes.then(res => res.json()),
-                    teamsRes.then(res => res.json())
-                ]);
+            setStandings(newStandings);
+            setTopScorers(newTopScorers);
+            setTeams(newTeams);
+            setFixtures(sortedFixtures);
 
-                if (!isMounted) return;
-
-                const standingsData = await standingsRes.json();
-                const scorersData = await scorersRes.json();
-
-                const newStandings = standingsData.response[0]?.league?.standings[0] || [];
-                const newTopScorers = scorersData.response || [];
-                const newTeams = teamsData.response || [];
-                const sortedFixtures = [...(fixturesData.response || [])].sort((a:Fixture,b:Fixture) => a.fixture.timestamp - b.fixture.timestamp);
-
-                setStandings(newStandings);
-                setTopScorers(newTopScorers);
-                setTeams(newTeams);
-                setFixtures(sortedFixtures);
-
-                // Cache only small, non-volatile data
-                setCachedData(cacheKey, {
-                    standings: newStandings,
-                    topScorers: newTopScorers,
-                });
-            } catch(e) {
-                 console.error("Failed to fetch competition details:", e);
-                if(isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
-            } finally {
-                if (isMounted) setLoading(false);
-            }
+        } catch(e) {
+             console.error("Failed to fetch competition details:", e);
+            if(isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات البطولة.' });
+        } finally {
+            if (isMounted) setLoading(false);
         }
     };
 
@@ -225,7 +164,7 @@ export function CompetitionDetailScreen({ navigate, goBack, canGoBack, title: in
     return () => {
         isMounted = false;
     };
-}, [leagueId, season, db, user, toast]);
+}, [leagueId, season, toast]);
 
 const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: number, defaultName: string) => {
     if (!customNames || !id) return defaultName;
