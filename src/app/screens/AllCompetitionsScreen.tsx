@@ -24,6 +24,7 @@ import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { LeagueHeaderItem } from '@/components/LeagueHeaderItem';
 import { cn } from '@/lib/utils';
 import { collection } from 'firebase/firestore';
+import { POPULAR_LEAGUES, POPULAR_TEAMS } from '@/lib/popular-data';
 
 // --- Persistent Cache Logic ---
 const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
@@ -308,40 +309,56 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        
-        const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-        if (!newFavorites[itemType]) {
-            newFavorites[itemType] = {};
-        }
-
-        const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
-
-        if (isCurrentlyFavorited) {
-            delete newFavorites[itemType]![itemId];
-        } else {
-             if (itemType === 'leagues') {
-                 newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
-            } else {
-                 newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+    
+        if (!user) { // Guest mode logic
+            const isPopular = itemType === 'teams'
+                ? POPULAR_TEAMS.some(t => t.id === itemId)
+                : POPULAR_LEAGUES.some(l => l.id === itemId);
+    
+            if (!isPopular) {
+                toast({
+                    title: 'ميزة للمستخدمين المسجلين',
+                    description: 'تفضيل هذا العنصر متاح فقط للمستخدمين المسجلين. يمكنك تفضيل الفرق والبطولات الشائعة كزائر.',
+                });
+                return;
             }
         }
-        
-        setFavorites(newFavorites);
-
-        if (!user) { // Guest mode
-            setLocalFavorites(newFavorites);
-        } else if (db) { // Logged-in user
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updatePayload = {
-                [`${itemType}.${itemId}`]: isCurrentlyFavorited
-                    ? deleteField()
-                    : newFavorites[itemType]![itemId]
-            };
-            updateDoc(favDocRef, updatePayload).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
-            });
-        }
-    }, [user, db, setFavorites, favorites]);
+    
+        setFavorites(prev => {
+            const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+            if (!newFavorites[itemType]) {
+                newFavorites[itemType] = {};
+            }
+    
+            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+    
+            if (isCurrentlyFavorited) {
+                delete newFavorites[itemType]![itemId];
+            } else {
+                if (itemType === 'leagues') {
+                    newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
+                } else {
+                    newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                }
+            }
+    
+            if (!user) { // Guest mode: save to local storage
+                setLocalFavorites(newFavorites);
+            } else if (db) { // Logged-in user: update Firestore
+                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                const updatePayload = {
+                    [`${itemType}.${itemId}`]: isCurrentlyFavorited
+                        ? deleteField()
+                        : newFavorites[itemType]![itemId]
+                };
+                updateDoc(favDocRef, updatePayload).catch(err => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
+                });
+            }
+            return newFavorites;
+        });
+    
+    }, [user, db, setFavorites, toast]);
     
 
     const handleOpenCrownDialog = (team: Team) => {
@@ -633,3 +650,6 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
 
 
+
+
+    
