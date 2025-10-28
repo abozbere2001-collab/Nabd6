@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -140,8 +141,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         const [teamsData, leaguesData] = await Promise.all(apiSearchPromises);
         const results: SearchableItem[] = [];
         const seen = new Set<string>();
-        const normalizedQuery = normalizeArabic(query);
-        const isArabic = /[\u0600-\u06FF]/.test(query);
 
         const processItem = (item: any, type: 'teams' | 'leagues') => {
             const id = type === 'teams' ? item.team.id : item.league.id;
@@ -154,14 +153,11 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
             const displayName = getDisplayName(type.slice(0, -1) as 'team' | 'league', id, originalName);
             
-            // Match logic:
-            // If search term is Arabic, match against the translated Arabic name.
-            // If search term is English, match against the original English name.
-            const match = isArabic
-              ? normalizeArabic(displayName).includes(normalizedQuery)
-              : originalName.toLowerCase().includes(query.toLowerCase());
+            // Centralized matching logic
+            const normalizedQuery = normalizeArabic(query);
+            const matches = normalizeArabic(displayName).includes(normalizedQuery) || originalName.toLowerCase().includes(query.toLowerCase());
 
-            if (match) {
+            if (matches) {
                 results.push({
                     id: id,
                     type: type,
