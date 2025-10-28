@@ -203,42 +203,54 @@ export function AppContentWrapper() {
   }, [db]);
   
   useEffect(() => {
-    let isMounted = true;
     let unsubscribers: (() => void)[] = [];
+    let isMounted = true;
 
-    const loadInitialData = async () => {
-        if (!db) {
-            setFavorites(getLocalFavorites());
+    const cleanup = () => {
+        unsubscribers.forEach(unsub => unsub());
+        unsubscribers = [];
+        window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+    };
+
+    const handleLocalFavoritesChange = () => {
+        if (isMounted) setFavorites(getLocalFavorites());
+    };
+
+    const loadData = async () => {
+        if (!isMounted) return;
+
+        // If user logs out, clean up listeners immediately
+        if (!user) {
+            cleanup();
+            if (isMounted) setFavorites(getLocalFavorites());
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
+            return;
         }
 
         await fetchCustomNames();
 
-        const handleLocalFavoritesChange = () => {
+        if (user.isAnonymous || !db) {
             if (isMounted) setFavorites(getLocalFavorites());
-        };
-
-        if (user && !user.isAnonymous && db) {
+            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
+            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
+        } else {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const favsUnsub = onSnapshot(favDocRef, (doc) => {
                 if (isMounted) setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
             }, (error) => {
-                 console.error("Error listening to remote favorites:", error);
+                console.error("Error listening to remote favorites:", error);
                 if (isMounted) setFavorites(getLocalFavorites());
             });
             unsubscribers.push(favsUnsub);
-            window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-        } else {
-            if (isMounted) setFavorites(getLocalFavorites());
-            window.addEventListener('localFavoritesChanged', handleLocalFavoritesChange);
-            unsubscribers.push(() => window.removeEventListener('localFavoritesChanged', handleLocalFavoritesChange));
         }
     };
-
-    loadInitialData();
+    
+    loadData();
 
     return () => {
         isMounted = false;
-        unsubscribers.forEach(unsub => unsub());
+        cleanup();
     };
 }, [user, db, fetchCustomNames]);
 
@@ -359,5 +371,7 @@ export function AppContentWrapper() {
 
 
 
+
+    
 
     
