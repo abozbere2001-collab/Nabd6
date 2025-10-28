@@ -55,8 +55,9 @@ export const setLocalFavorites = (favorites: Partial<Favorites>) => {
     } catch (error) {
         console.error("Error saving local favorites:", error);
          if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-            console.error("LocalStorage quota exceeded. Cannot save new favorites.");
-            // Optionally, implement a more robust cleanup or notification strategy here.
+            // This specific error is now expected to be handled by the logic preventing large writes.
+            // If it still occurs, it's a critical bug.
+            console.error("LocalStorage quota exceeded. This should not happen. Cannot save new favorites.");
         }
     }
 };

@@ -93,29 +93,14 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
     useEffect(() => {
         const fetchPlayers = async () => {
             setLoading(true);
-            // Use a more specific session key to avoid collisions
             const sessionCacheKey = `team_players_${teamId}_${CURRENT_SEASON}`;
-            const cachedPlayersStr = sessionStorage.getItem(sessionCacheKey);
-
-            if (cachedPlayersStr) {
-                try {
-                    const cachedPlayers = JSON.parse(cachedPlayersStr);
-                    setPlayers(cachedPlayers);
-                    setLoading(false);
-                    return;
-                } catch(e) {
-                    sessionStorage.removeItem(sessionCacheKey); // Clear corrupted cache
-                }
-            }
-
+            
             try {
                 const res = await fetch(`/api/football/players?team=${teamId}&season=${CURRENT_SEASON}`);
                 const data = await res.json();
                 if (data.response) {
                     const fetchedPlayers = data.response.map((p: any) => p.player);
                     setPlayers(fetchedPlayers);
-                    // Cache the fetched data
-                    sessionStorage.setItem(sessionCacheKey, JSON.stringify(fetchedPlayers));
                 }
             } catch (error) {
                 toast({ variant: 'destructive', title: "خطأ", description: "فشل في جلب قائمة اللاعبين." });
@@ -188,12 +173,15 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
     );
 };
 
-const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs, customNames }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}>, customNames: any }) => {
+const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, customNames }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, customNames: any }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
     const [loading, setLoading] = useState(true);
     
+    const listRef = useRef<HTMLDivElement>(null);
+    const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
     const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
         if (!customNames) return defaultName;
         const key = `${type}s` as 'teams' | 'leagues';
@@ -313,7 +301,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
                 }
             }, 100);
         }
-    }, [loading, groupedFixtures, listRef, dateRefs]);
+    }, [loading, groupedFixtures]);
     
     const processedStandings = useMemo(() => {
         if (!standings) return [];
@@ -439,7 +427,8 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 
 
 export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & { teamId: number, leagueId?: number, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
-    const { user, db } = useAuth();
+    const { user } = useAuth();
+    const { db } = useFirestore();
     const { isAdmin } = useAdmin();
     const { toast } = useToast();
     const [teamData, setTeamData] = useState<TeamData | null>(null);
@@ -448,9 +437,17 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     const [pinnedPredictionMatches, setPinnedPredictionMatches] = useState(new Set<number>());
 
     const [activeTab, setActiveTab] = useState('details');
+
+    // This state will hold the latest version of favorites after an update.
+    const [updatedFavorites, setUpdatedFavorites] = useState<Partial<Favorites> | null>(null);
     
-    const listRef = useRef<HTMLDivElement>(null);
-    const dateRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+    // Sync local storage only when updatedFavorites changes.
+    useEffect(() => {
+        if (updatedFavorites && !user) {
+            setLocalFavorites(updatedFavorites);
+        }
+    }, [updatedFavorites, user]);
+
 
     useEffect(() => {
         if (!teamId) return;
@@ -536,9 +533,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             } else {
                 newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-    
-            if (user && db && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+
+            // For logged-in users, update Firestore directly.
+            if (user && db) {
+                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`teams.${teamId}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[teamId]
                 };
@@ -546,7 +544,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             } else {
-                setLocalFavorites(newFavorites);
+                // For guest users, trigger the useEffect to save to local storage
+                setUpdatedFavorites(newFavorites);
             }
     
             return newFavorites;
@@ -626,7 +625,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             } else {
-                setLocalFavorites(newFavorites);
+                setUpdatedFavorites(newFavorites);
             }
 
             return newFavorites;
@@ -700,10 +699,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     <TabsTrigger value="details">التفاصيل</TabsTrigger>
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} />
+                  <TabsContent value="details" className="mt-4">
+                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} customNames={customNames} />
                   </TabsContent>
-                  <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
+                  <TabsContent value="players" className="mt-4">
                     <TeamPlayersTab teamId={teamId} navigate={navigate} customNames={customNames} onCustomNameChange={onCustomNameChange}/>
                   </TabsContent>
                 </Tabs>
