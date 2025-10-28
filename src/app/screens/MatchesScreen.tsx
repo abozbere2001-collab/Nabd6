@@ -192,19 +192,19 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     }, []);
     
     const scrollerRef = useRef<HTMLDivElement>(null);
-    const todayButtonRef = useRef<HTMLButtonElement>(null);
+    const selectedButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
-        if (todayButtonRef.current && scrollerRef.current) {
-            const scroller = scrollerRef.current;
-            const button = todayButtonRef.current;
+        const scroller = scrollerRef.current;
+        const selectedButton = selectedButtonRef.current;
+        if (scroller && selectedButton) {
             const scrollerRect = scroller.getBoundingClientRect();
-            const buttonRect = button.getBoundingClientRect();
+            const buttonRect = selectedButton.getBoundingClientRect();
             
             const scrollOffset = buttonRect.left - scrollerRect.left - (scrollerRect.width / 2) + (buttonRect.width / 2);
             scroller.scrollTo({ left: scroller.scrollLeft + scrollOffset, behavior: 'smooth' });
         }
-    }, []);
+    }, [selectedDateKey]);
 
     return (
          <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
@@ -221,12 +221,11 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
                     {dates.map(date => {
                         const dateKey = formatDateKey(date);
                         const isSelected = dateKey === selectedDateKey;
-                        const isTodayDate = isToday(date);
 
                         return (
                             <button
                                 key={dateKey}
-                                ref={isTodayDate ? todayButtonRef : null}
+                                ref={isSelected ? selectedButtonRef : null}
                                 className={cn(
                                     "relative flex flex-col items-center justify-center h-auto py-1 px-2 min-w-[40px] rounded-lg transition-colors ml-2",
                                     "text-foreground/80 hover:text-primary",
