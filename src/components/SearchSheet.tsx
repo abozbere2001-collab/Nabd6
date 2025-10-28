@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -158,7 +157,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             const normalizedDisplayName = normalizeArabic(displayName);
             const normalizedOriginalName = normalizeArabic(originalName);
 
-            if (normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery)) {
+            if (normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery) || originalName.toLowerCase().includes(query.toLowerCase())) {
                 results.push({
                     id: id,
                     type: type,
@@ -238,7 +237,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
             return newFavorites;
         });
-    }, [user, db, setFavorites, toast, favorites]);
+    }, [user, db, setFavorites, toast]);
 
 
   const handleOpenCrownDialog = (team: Item) => {
@@ -419,4 +418,3 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
-

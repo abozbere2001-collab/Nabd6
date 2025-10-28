@@ -106,18 +106,18 @@ export function PredictionOdds({ fixtureId }: { fixtureId: number }) {
         <TooltipProvider>
             <div className="space-y-1">
                 <div className="flex justify-between text-xs font-medium text-muted-foreground px-1">
-                    <span>فوز الضيف</span>
-                    <span>تعادل</span>
                     <span>فوز المضيف</span>
+                    <span>تعادل</span>
+                    <span>فوز الضيف</span>
                 </div>
-                <div className="flex w-full h-2 rounded-full overflow-hidden" dir="ltr">
+                <div className="flex w-full h-2 rounded-full overflow-hidden">
                      <Tooltip>
                         <TooltipTrigger asChild>
-                            <div style={{ width: `${percentAway}%` }} className="bg-accent h-full transition-all duration-500 flex items-center justify-center text-xs font-bold text-accent-foreground">
-                                <span className="opacity-0">{percentAway.toFixed(0)}%</span>
+                            <div style={{ width: `${percentHome}%` }} className="bg-primary h-full transition-all duration-500 flex items-center justify-center text-xs font-bold text-primary-foreground">
+                                 <span className="opacity-0">{percentHome.toFixed(0)}%</span>
                             </div>
                         </TooltipTrigger>
-                        <TooltipContent><p>فوز الضيف: {percentAway.toFixed(0)}%</p></TooltipContent>
+                        <TooltipContent><p>فوز المضيف: {percentHome.toFixed(0)}%</p></TooltipContent>
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -129,21 +129,19 @@ export function PredictionOdds({ fixtureId }: { fixtureId: number }) {
                     </Tooltip>
                      <Tooltip>
                         <TooltipTrigger asChild>
-                            <div style={{ width: `${percentHome}%` }} className="bg-primary h-full transition-all duration-500 flex items-center justify-center text-xs font-bold text-primary-foreground">
-                                 <span className="opacity-0">{percentHome.toFixed(0)}%</span>
+                            <div style={{ width: `${percentAway}%` }} className="bg-accent h-full transition-all duration-500 flex items-center justify-center text-xs font-bold text-accent-foreground">
+                                <span className="opacity-0">{percentAway.toFixed(0)}%</span>
                             </div>
                         </TooltipTrigger>
-                        <TooltipContent><p>فوز المضيف: {percentHome.toFixed(0)}%</p></TooltipContent>
+                        <TooltipContent><p>فوز الضيف: {percentAway.toFixed(0)}%</p></TooltipContent>
                     </Tooltip>
                 </div>
                  <div className="flex justify-between text-xs font-bold px-1">
-                    <span style={{ width: `${percentAway}%`, textAlign: 'center' }}>{percentAway.toFixed(0)}%</span>
-                    <span style={{ width: `${percentDraw}%`, textAlign: 'center' }}>{percentDraw.toFixed(0)}%</span>
                     <span style={{ width: `${percentHome}%`, textAlign: 'center' }}>{percentHome.toFixed(0)}%</span>
+                    <span style={{ width: `${percentDraw}%`, textAlign: 'center' }}>{percentDraw.toFixed(0)}%</span>
+                    <span style={{ width: `${percentAway}%`, textAlign: 'center' }}>{percentAway.toFixed(0)}%</span>
                 </div>
             </div>
         </TooltipProvider>
     );
 }
-
-    
