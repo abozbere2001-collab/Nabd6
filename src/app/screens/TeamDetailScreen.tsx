@@ -505,20 +505,25 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     const handleFavoriteToggle = useCallback(() => {
         if (!teamData?.team) return;
-
+    
         const { team } = teamData;
         const teamId = team.id;
         
-        const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-        if (!newFavorites.teams) newFavorites.teams = {};
+        // Create a deep copy to avoid mutation issues
+        const newFavorites: Partial<Favorites> = JSON.parse(JSON.stringify(favorites || {}));
+        if (!newFavorites.teams) {
+            newFavorites.teams = {};
+        }
+        
         const isCurrentlyFavorited = !!newFavorites.teams[teamId];
-
+    
         if (isCurrentlyFavorited) {
             delete newFavorites.teams[teamId];
         } else {
             newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
         }
-
+    
+        // Update Firestore for logged-in users
         if (user && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updatePayload = {
@@ -529,9 +534,10 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             });
         }
         
-        setLocalFavorites(newFavorites);
-        
-    }, [teamData, user, db, favorites]);
+        // Always update the central state via the passed-in setter for UI consistency
+        setFavorites(newFavorites);
+
+    }, [teamData, user, db, favorites, setFavorites]);
 
 
     const handleOpenCrownDialog = () => {
@@ -603,9 +609,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
             });
-        } else {
-             setLocalFavorites(newFavorites);
         }
+        setFavorites(newFavorites);
     }
     setRenameItem(null);
 };
@@ -686,3 +691,4 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
+
