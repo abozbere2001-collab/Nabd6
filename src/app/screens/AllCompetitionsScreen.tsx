@@ -374,25 +374,23 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
                 
-                const updatePayload: { [key: string]: any } = {};
-
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
-                    updatePayload[`crownedTeams.${teamId}`] = deleteField();
                 } else {
                     const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                     newFavorites.crownedTeams[teamId] = crownedData;
-                    updatePayload[`crownedTeams.${teamId}`] = crownedData;
                 }
-
-                if (db && user && !user.isAnonymous) {
+                
+                if (user && db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updatePayload = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                     setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                     });
                 } else {
                     setLocalFavorites(newFavorites);
                 }
+                
                 return newFavorites;
             });
         }
@@ -620,5 +618,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+
+    
 
     

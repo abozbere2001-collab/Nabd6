@@ -269,30 +269,28 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 }, [loading, groupedFixtures]);
   
     const handleFavoriteToggle = useCallback((team: Team) => {
-        if (!setFavorites) return;
-        const itemId = team.id;
-        const itemType = 'teams';
-
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
-            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
-            if (!newFavorites[itemType]) newFavorites[itemType] = {};
+            const isCurrentlyFavorited = !!newFavorites.teams?.[team.id];
+            
+            if (!newFavorites.teams) newFavorites.teams = {};
 
             if (isCurrentlyFavorited) {
-                delete newFavorites[itemType][itemId];
+                delete newFavorites.teams[team.id];
             } else {
-                newFavorites[itemType][itemId] = { teamId: itemId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
+                newFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
             }
-
+            
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType][itemId] };
+                const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
                 setDoc(favDocRef, updateData, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             } else {
                 setLocalFavorites(newFavorites);
             }
+
             return newFavorites;
         });
     }, [user, db, setFavorites]);
@@ -345,31 +343,28 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-
             setFavorites(prev => {
                 const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-                const updatePayload: { [key: string]: any } = {};
-
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
-                    updatePayload[`crownedTeams.${teamId}`] = deleteField();
                 } else {
-                    const crownedData = { teamId, name: originalData.name, logo: originalData.logo, note: newNote };
+                    const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                     newFavorites.crownedTeams[teamId] = crownedData;
-                    updatePayload[`crownedTeams.${teamId}`] = crownedData;
                 }
-
-                if (db && user && !user.isAnonymous) {
+                
+                if (user && db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updatePayload = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
                     setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                     });
                 } else {
                     setLocalFavorites(newFavorites);
                 }
+                
                 return newFavorites;
             });
         }
@@ -636,5 +631,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
+
+    
 
     
