@@ -104,11 +104,11 @@ export function GeneralSettingsScreen({ navigate, goBack, canGoBack, headerActio
                     الترقية إلى النسخة الإحترافية
                 </Button>
             )}
-             {!isAdmin && (
+             {/*!isAdmin && (
                 <Button onClick={handleMakeAdmin} variant="secondary" className="w-full">
                     الترقية إلى مدير
                 </Button>
-            )}
+            )*/}
             {isAdmin && <p className="text-sm text-center text-muted-foreground">أنت مدير بالفعل.</p>}
           </CardContent>
         </Card>

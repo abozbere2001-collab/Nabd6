@@ -14,7 +14,6 @@ import { Loader2, Search, Star, CalendarClock, Crown, Pencil, TrendingUp } from 
 import { cn } from '@/lib/utils';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { SearchSheet } from '@/components/SearchSheet';
 import { ProfileButton } from '../AppContentWrapper';
@@ -43,7 +42,6 @@ const popularLeagueIds = new Set(POPULAR_LEAGUES.slice(0, 15).map(l => l.id));
 const FixturesList = React.memo((props: { 
     fixtures: FixtureType[], 
     loading: boolean,
-    activeTab: string, 
     hasAnyFavorites: boolean,
     favoritedLeagueIds: number[],
     favoritedTeamIds: number[],
@@ -58,7 +56,7 @@ const FixturesList = React.memo((props: {
         let favoriteTeamMatches: FixtureType[] = [];
         let otherFixturesList: FixtureType[] = [];
 
-         if (props.activeTab === 'my-results' && props.hasAnyFavorites) {
+         if (props.hasAnyFavorites) {
              props.fixtures.forEach(f => {
                 if (props.favoritedTeamIds.includes(f.teams.home.id) || props.favoritedTeamIds.includes(f.teams.away.id)) {
                     favoriteTeamMatches.push(f);
@@ -67,13 +65,12 @@ const FixturesList = React.memo((props: {
                 }
             });
         } else {
-            // For 'all-matches' tab or when no favorites exist
             otherFixturesList = props.fixtures;
         }
 
         return { favoriteTeamMatches, otherFixtures: otherFixturesList };
 
-    }, [props.fixtures, props.activeTab, props.favoritedTeamIds, props.favoritedLeagueIds, props.hasAnyFavorites]);
+    }, [props.fixtures, props.favoritedTeamIds, props.favoritedLeagueIds, props.hasAnyFavorites]);
 
 
     const groupedOtherFixtures = useMemo(() => {
@@ -96,7 +93,7 @@ const FixturesList = React.memo((props: {
         );
     }
     
-    if (props.activeTab === 'my-results' && !props.hasAnyFavorites) {
+    if (!props.hasAnyFavorites) {
         return (
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 p-4">
                 <p className="font-bold text-lg">لم تقم بإضافة أي مفضلات</p>
@@ -109,9 +106,7 @@ const FixturesList = React.memo((props: {
     const noMatches = props.fixtures.length === 0;
 
     if (noMatches) {
-        const message = props.activeTab === 'my-results'
-            ? "لا توجد مباريات لمفضلاتك هذا اليوم."
-            : "لا توجد مباريات مباشرة حاليًا.";
+        const message = "لا توجد مباريات لمفضلاتك هذا اليوم.";
         return (
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-64 p-4">
                 <p>{message}</p>
@@ -241,21 +236,11 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     );
 }
 
-type TabName = 'my-results';
-
-const tabs: {id: TabName, label: string}[] = [
-    { id: 'my-results', label: 'نتائجي' },
-];
-
-type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status';
-
 // Main Screen Component
 export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & { isVisible: boolean, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
   const { user } = useAuth();
   const { db, isAdmin } = useAdmin();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabName>('my-results');
-  const [renameItem, setRenameItem] = useState<{ type: RenameType, id: number, name: string, originalName?: string } | null>(null);
   const [showOdds, setShowOdds] = useState(false);
 
   
@@ -324,7 +309,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             const favLeagueIds = Object.keys(currentFavorites?.leagues || {}).map(Number);
             
             if(dateKey) { // Fetch by date
-                // Optimized fetch: get all fixtures for the day and filter client-side
                 const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
                 if(res.ok) {
                     const data = await res.json();
@@ -392,11 +376,6 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
       setSelectedDateKey(dateKey);
   };
   
-  const handleTabChange = (value: string) => {
-    const tabValue = value as TabName;
-    setActiveTab(tabValue);
-  };
-  
   const favoritedTeamIds = useMemo(() => favorites?.teams ? Object.keys(favorites.teams).map(Number) : [], [favorites]);
   const favoritedLeagueIds = useMemo(() => favorites?.leagues ? Object.keys(favorites.leagues).map(Number) : [], [favorites]);
   const hasAnyFavorites = favoritedLeagueIds.length > 0 || favoritedTeamIds.length > 0;
@@ -428,17 +407,10 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             }
         />
         
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-1 flex-col min-h-0">
-            <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
-                <div className="bg-card text-card-foreground rounded-b-lg border-x border-b shadow-md">
-                    <TabsList className={cn("grid w-full bg-transparent p-0 h-11", `grid-cols-1`)}>
-                        {tabs.map(tab => (
-                            <TabsTrigger key={tab.id} value={tab.id} className="data-[state=active]:shadow-none">{tab.label}</TabsTrigger>
-                        ))}
-                    </TabsList>
-                </div>
+        <div className="flex flex-1 flex-col min-h-0">
+             <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                  {selectedDateKey && (
-                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md -mt-1">
+                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md">
                         <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
                         <Button 
                             variant="ghost" 
@@ -453,11 +425,11 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                  )}
             </div>
             
-            <TabsContent value="my-results" className="flex-1 overflow-y-auto p-1 space-y-4 mt-0" hidden={activeTab !== 'my-results'}>
+            <div className="flex-1 overflow-y-auto p-1 space-y-4 mt-2">
                 <FixturesList 
                     fixtures={currentFixtures}
                     loading={loading}
-                    activeTab={activeTab}
+                    activeTab="my-results"
                     favoritedLeagueIds={favoritedLeagueIds}
                     favoritedTeamIds={favoritedTeamIds}
                     hasAnyFavorites={hasAnyFavorites}
@@ -467,11 +439,9 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                     isAdmin={isAdmin}
                     showOdds={showOdds}
                 />
-            </TabsContent>
+            </div>
 
-        </Tabs>
+        </div>
     </div>
   );
 }
-
-    

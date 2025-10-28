@@ -90,49 +90,66 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     const [loading, setLoading] = useState(true);
     const { toast } = useToast();
     const listRef = useRef<HTMLDivElement>(null);
-    const firstUpcomingMatchRef = useRef<HTMLDivElement>(null);
-
+    const firstUpcomingMatchIndex = useRef<number>(-1);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchFixtures = async () => {
-            if (!teamId) return;
+            if (!teamId) {
+                setLoading(false);
+                return;
+            };
             setLoading(true);
             try {
                 const url = `/api/football/fixtures?team=${teamId}&season=${CURRENT_SEASON}`;
                 const res = await fetch(url);
+                if (!isMounted) return;
                 if (!res.ok) throw new Error(`API fetch failed with status: ${res.status}`);
                 
                 const data = await res.json();
-                const allFixtures: Fixture[] = data.response || [];
+                const fixtures: Fixture[] = data.response || [];
+                fixtures.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
                 
-                allFixtures.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
-                setAllFixtures(allFixtures);
+                const now = new Date();
+                const upcomingIndex = fixtures.findIndex(f => {
+                    const fixtureDate = new Date(f.fixture.timestamp * 1000);
+                    return isMatchLive(f.fixture.status) || fixtureDate >= now;
+                });
+
+                if(isMounted) {
+                    setAllFixtures(fixtures);
+                    firstUpcomingMatchIndex.current = upcomingIndex > -1 ? upcomingIndex : (fixtures.length > 0 ? fixtures.length - 1 : -1);
+                }
 
             } catch (error) {
                 console.error("Error fetching fixtures:", error);
-                toast({
-                    variant: "destructive",
-                    title: "خطأ في الشبكة",
-                    description: "فشل في جلب المباريات. يرجى التحقق من اتصالك بالإنترنت.",
-                });
+                if(isMounted) {
+                    toast({
+                        variant: "destructive",
+                        title: "خطأ في الشبكة",
+                        description: "فشل في جلب المباريات. يرجى التحقق من اتصالك بالإنترنت.",
+                    });
+                }
             } finally {
-                setLoading(false);
+                if(isMounted) setLoading(false);
             }
         };
         fetchFixtures();
+
+        return () => { isMounted = false; }
     }, [teamId, toast]);
 
     useEffect(() => {
-        if (!loading && allFixtures.length > 0 && listRef.current && firstUpcomingMatchRef.current) {
-            // Use a small timeout to ensure the DOM is ready for scrolling
+        if (!loading && firstUpcomingMatchIndex.current > -1 && listRef.current) {
             setTimeout(() => {
-                if (firstUpcomingMatchRef.current && listRef.current) {
-                    const listTop = listRef.current.offsetTop;
-                    const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                    // Scroll the list so that the upcoming match is near the top
-                    listRef.current.scrollTop = itemTop - listTop - 10;
+                const itemElement = listRef.current?.children[firstUpcomingMatchIndex.current] as HTMLDivElement;
+                if (itemElement) {
+                    listRef.current?.scrollTo({
+                        top: itemElement.offsetTop - 10,
+                        behavior: 'smooth'
+                    });
                 }
-            }, 100);
+            }, 200);
         }
     }, [loading, allFixtures]);
 
@@ -156,17 +173,11 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
 
     return (
         <div ref={listRef} className="h-full overflow-y-auto space-y-2">
-            {allFixtures.map((fixture, index) => {
-                 const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
-                 // Find the very first upcoming/live match in the sorted list
-                 const isFirstUpcoming = isUpcomingOrLive && !allFixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
-                
-                return (
-                    <div key={fixture.fixture.id} ref={isFirstUpcoming ? firstUpcomingMatchRef : null}>
-                        <FixtureItem fixture={fixture} navigate={navigate} />
-                    </div>
-                );
-            })}
+            {allFixtures.map((fixture, index) => (
+                <div key={fixture.fixture.id}>
+                    <FixtureItem fixture={fixture} navigate={navigate} />
+                </div>
+            ))}
         </div>
     );
 };
@@ -274,10 +285,3 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
     </div>
   );
 }
-
-
-
-    
-
-    
-
