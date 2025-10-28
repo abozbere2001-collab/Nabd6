@@ -11,7 +11,7 @@ export const hardcodedTranslations: { [key: string]: { [key: string | number]: s
     "Other": "أخرى"
   },
   countries: {
-    // All country translations have been removed as per user request to fix incorrect data.
+    // Empty as per user request. Admin can add custom names via the UI.
   },
   leagues: {
     2: "دوري أبطال أوروبا",
@@ -148,3 +148,5 @@ export const hardcodedTranslations: { [key: string]: { [key: string | number]: s
     // Empty as requested by the user
   }
 };
+
+    

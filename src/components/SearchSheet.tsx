@@ -43,9 +43,9 @@ type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coac
 interface SearchableItem {
     id: number;
     type: ItemType;
-    name: string; // Translated name
-    originalName: string; // Original English name
-    normalizedName: string;
+    name: string; // Translated/Custom name
+    originalName: string; // Original English name from API
+    normalizedName: string; // Normalized version of the 'name' field
     logo: string;
     originalItem: Item;
 }
@@ -200,8 +200,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
   const handleSearch = useCallback(async (query: string) => {
     setLoading(true);
-
-    const isArabic = /[\u0600-\u06FF]/.test(query);
     const normalizedQuery = normalizeArabic(query);
     const lowerCaseQuery = query.toLowerCase();
 
@@ -211,6 +209,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         return;
     }
     
+    // Filter local index based on query language
+    const isArabic = /[\u0600-\u06FF]/.test(query);
     const localResults = localSearchIndex.filter(item => 
         isArabic
             ? item.normalizedName.includes(normalizedQuery)
@@ -232,7 +232,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 localResults.push({
                     id: r.team.id,
                     type: 'teams',
-                    name: name,
+                    name,
                     originalName: r.team.name,
                     normalizedName: normalizeArabic(name),
                     logo: r.team.logo,
@@ -247,7 +247,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 localResults.push({
                     id: r.league.id,
                     type: 'leagues',
-                    name: name,
+                    name,
                     originalName: r.league.name,
                     normalizedName: normalizeArabic(name),
                     logo: r.league.logo,
@@ -347,9 +347,9 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     handleOpenChange(false);
   }
 
-  const handleOpenRename = (type: RenameType, id: number, originalData: any) => {
-    const currentName = getDisplayName(type as 'team' | 'league', id, originalData.name);
-    setRenameItem({ id, name: currentName, type, originalData, purpose: 'rename', originalName: originalData.name });
+  const handleOpenRename = (type: RenameType, id: number, originalItem: Item) => {
+    const currentName = getDisplayName(type as 'team' | 'league', id, originalItem.name);
+    setRenameItem({ id, name: currentName, type, originalData: originalItem, purpose: 'rename', originalName: originalItem.name });
   };
   
   const handleSaveRenameOrNote = (type: RenameType, id: string | number, newName: string, newNote: string = '') => {
