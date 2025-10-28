@@ -27,27 +27,27 @@ import { collection } from 'firebase/firestore';
 import { POPULAR_LEAGUES, POPULAR_TEAMS } from '@/lib/popular-data';
 
 // --- Persistent Cache Logic ---
-const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
-const COUNTRIES_CACHE_KEY = 'goalstack_countries_cache';
-const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
+const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache_v2';
+const COUNTRIES_CACHE_KEY = 'goalstack_countries_cache_v2';
+const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache_v2';
 const CACHE_EXPIRATION_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 
-interface Cache<T> {
+interface CacheItem<T> {
     data: T;
     lastFetched: number;
 }
 
-const getCachedData = <T>(key: string): Cache<T> | null => {
+const getCachedData = <T>(key: string): T | null => {
     if (typeof window === 'undefined') return null;
     try {
-        const cachedData = localStorage.getItem(key);
+        const cachedData = sessionStorage.getItem(key); // Use sessionStorage
         if (!cachedData) return null;
-        const parsed = JSON.parse(cachedData);
+        const parsed: CacheItem<T> = JSON.parse(cachedData);
         if (!parsed || !parsed.lastFetched || Date.now() - parsed.lastFetched > CACHE_EXPIRATION_MS) {
-            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
             return null;
         }
-        return parsed as Cache<T>;
+        return parsed.data;
     } catch (error) {
         return null;
     }
@@ -55,8 +55,12 @@ const getCachedData = <T>(key: string): Cache<T> | null => {
 
 const setCachedData = <T>(key: string, data: T) => {
     if (typeof window === 'undefined') return;
-    const cacheData = { data, lastFetched: Date.now() };
-    localStorage.setItem(key, JSON.stringify(cacheData));
+    try {
+        const cacheData: CacheItem<T> = { data, lastFetched: Date.now() };
+        sessionStorage.setItem(key, JSON.stringify(cacheData)); // Use sessionStorage
+    } catch (error) {
+        console.warn(`Could not set sessionStorage for key "${key}"`, error);
+    }
 };
 
 
@@ -161,8 +165,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const fetchAllCompetitions = useCallback(async () => {
         const cached = getCachedData<FullLeague[]>(COMPETITIONS_CACHE_KEY);
-        if (cached?.data && cached.data.length > 0) {
-            setAllLeagues(cached.data);
+        if (cached && cached.length > 0) {
+            setAllLeagues(cached);
             return;
         }
 
@@ -237,8 +241,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
     const fetchNationalTeams = useCallback(async () => {
         const cached = getCachedData<Team[]>(TEAMS_CACHE_KEY);
-        if (cached?.data && cached.data.length > 0) {
-            setNationalTeams(cached.data);
+        if (cached && cached.length > 0) {
+            setNationalTeams(cached);
             return;
         }
 
@@ -248,8 +252,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         try {
             let countries: { name: string }[] = [];
             const cachedCountries = getCachedData<{ name: string }[]>(COUNTRIES_CACHE_KEY);
-            if (cachedCountries?.data) {
-                countries = cachedCountries.data;
+            if (cachedCountries) {
+                countries = cachedCountries;
             } else {
                 const countriesRes = await fetch('/api/football/countries');
                 if (!countriesRes.ok) throw new Error('Failed to fetch countries');
@@ -343,9 +347,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 }
             }
     
-            if (!user || user.isAnonymous) { // Guest mode: save to local storage
-                setLocalFavorites(newFavorites);
-            } else if (db) { // Logged-in user: update Firestore
+            if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updatePayload = {
                     [`${itemType}.${itemId}`]: isCurrentlyFavorited
@@ -355,6 +357,8 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
                 updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
                 });
+            } else { // Guest mode: save to local storage
+                setLocalFavorites(newFavorites);
             }
             return newFavorites;
         });
@@ -395,31 +399,33 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-            const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
             
-            let updatePayload: any;
+            setFavorites(prev => {
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
+                
+                let updatePayload: any;
 
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-                updatePayload = { [`crownedTeams.${teamId}`]: deleteField() };
-            } else {
-                const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-                newFavorites.crownedTeams[teamId] = crownedData;
-                updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
-            }
-            
-            setFavorites(newFavorites);
-
-            if (user && db && !user.isAnonymous) {
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                updateDoc(favDocRef, updatePayload).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-                });
-            } else {
-                setLocalFavorites(newFavorites);
-            }
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                    updatePayload = { [`crownedTeams.${teamId}`]: deleteField() };
+                } else {
+                    const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                    newFavorites.crownedTeams[teamId] = crownedData;
+                    updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
+                }
+                
+                if (user && db && !user.isAnonymous) {
+                    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    updateDoc(favDocRef, updatePayload).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                    });
+                } else {
+                    setLocalFavorites(newFavorites);
+                }
+                return newFavorites;
+            });
         }
     
         setRenameItem(null);
@@ -438,9 +444,9 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
     const handleAdminRefresh = async () => {
         if (!isAdmin) return;
-        localStorage.removeItem(COMPETITIONS_CACHE_KEY);
-        localStorage.removeItem(TEAMS_CACHE_KEY);
-        localStorage.removeItem(COUNTRIES_CACHE_KEY);
+        sessionStorage.removeItem(COMPETITIONS_CACHE_KEY);
+        sessionStorage.removeItem(TEAMS_CACHE_KEY);
+        sessionStorage.removeItem(COUNTRIES_CACHE_KEY);
         toast({ title: 'بدء التحديث...', description: 'جاري تحديث بيانات البطولات والمنتخبات.' });
         await fetchAllCompetitions();
         await fetchNationalTeams();
@@ -646,4 +652,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
-

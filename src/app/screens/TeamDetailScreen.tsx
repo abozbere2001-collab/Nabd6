@@ -36,23 +36,33 @@ const getCachedData = (key: string) => {
     if (typeof window === 'undefined') return null;
     const itemStr = localStorage.getItem(key);
     if (!itemStr) return null;
-    const item = JSON.parse(itemStr);
-    const now = new Date();
-    if (now.getTime() > item.expiry) {
+    try {
+        const item = JSON.parse(itemStr);
+        const now = new Date();
+        if (now.getTime() > item.expiry) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        return item.value;
+    } catch (e) {
+        // If parsing fails, remove the invalid item
         localStorage.removeItem(key);
         return null;
     }
-    return item.value;
 };
 
 const setCachedData = (key: string, value: any, ttl = CACHE_DURATION_MS) => {
     if (typeof window === 'undefined') return;
-    const now = new Date();
-    const item = {
-        value: value,
-        expiry: now.getTime() + ttl,
-    };
-    localStorage.setItem(key, JSON.stringify(item));
+    try {
+        const now = new Date();
+        const item = {
+            value: value,
+            expiry: now.getTime() + ttl,
+        };
+        localStorage.setItem(key, JSON.stringify(item));
+    } catch (error) {
+        console.warn(`Could not set cache for key "${key}":`, error);
+    }
 };
 // --------------------
 
@@ -122,12 +132,23 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
         const fetchPlayers = async () => {
             setLoading(true);
             const cacheKey = `team_players_${teamId}_${CURRENT_SEASON}`;
-            const cachedPlayers = getCachedData(cacheKey);
+            
+            // Caching is now purely for performance, not for offline persistence.
+            // Avoids using localStorage for large objects.
+            // A more robust solution might use IndexedDB for larger data.
+            // For now, this is a safe in-memory cache for the session.
+            const sessionCacheKey = `session_${cacheKey}`;
+            const cachedPlayersStr = sessionStorage.getItem(sessionCacheKey);
 
-            if (cachedPlayers) {
-                setPlayers(cachedPlayers);
-                setLoading(false);
-                return;
+            if (cachedPlayersStr) {
+                try {
+                    const cachedPlayers = JSON.parse(cachedPlayersStr);
+                    setPlayers(cachedPlayers);
+                    setLoading(false);
+                    return;
+                } catch(e) {
+                    sessionStorage.removeItem(sessionCacheKey);
+                }
             }
 
             try {
@@ -136,7 +157,8 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
                 if (data.response) {
                     const fetchedPlayers = data.response.map((p: any) => p.player);
                     setPlayers(fetchedPlayers);
-                    setCachedData(cacheKey, fetchedPlayers);
+                    // Use sessionStorage for lighter, temporary caching
+                    sessionStorage.setItem(sessionCacheKey, JSON.stringify(fetchedPlayers));
                 }
             } catch (error) {
                 toast({ variant: 'destructive', title: "خطأ", description: "فشل في جلب قائمة اللاعبين." });
@@ -480,13 +502,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
         const getTeamInfo = async () => {
             setLoading(true);
-            const cacheKey = `team_data_${teamId}`;
-            const cached = getCachedData(cacheKey);
-
-            if(cached) {
-                if (isMounted) setTeamData(cached);
-            }
-
             try {
                 const teamRes = await fetch(`/api/football/teams?id=${teamId}`);
                 if (!teamRes.ok) throw new Error("Team API fetch failed");
@@ -496,14 +511,13 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     if (data.response?.[0]) {
                         const teamInfo = data.response[0];
                         setTeamData(teamInfo);
-                        setCachedData(cacheKey, teamInfo);
                     } else {
                          throw new Error("Team not found in API response");
                     }
                 }
             } catch (error) {
                 console.error("Error fetching team info:", error);
-                if (!cached && isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
+                if (isMounted) toast({ variant: 'destructive', title: 'خطأ', description: 'فشل في تحميل بيانات الفريق.' });
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -649,7 +663,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                 updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
             }
 
-            if (!user.isAnonymous) {
+            if (user && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
