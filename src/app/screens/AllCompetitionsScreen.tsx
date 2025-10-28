@@ -307,12 +307,13 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        const isCurrentlyFavorited = !!favorites?.[itemType]?.[itemId];
-
+        
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
 
+            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
+    
             if (isCurrentlyFavorited) {
                 delete newFavorites[itemType]![itemId];
             } else {
@@ -341,7 +342,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
             return newFavorites;
         });
-    }, [user, db, setFavorites, favorites]);
+    }, [user, db, setFavorites]);
     
 
     const handleOpenCrownDialog = (team: Team) => {
