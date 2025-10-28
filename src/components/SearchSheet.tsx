@@ -19,7 +19,7 @@ import { useAdmin, useAuth, useFirestore } from '@/firebase';
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, deleteField, onSnapshot, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
-import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam } from '@/lib/types';
+import type { Favorites, AdminFavorite, ManagedCompetition, Team, CrownedTeam, FavoriteTeam, FavoriteLeague } from '@/lib/types';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { useToast } from '@/hooks/use-toast';
@@ -43,10 +43,22 @@ type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coac
 interface SearchableItem {
     id: number;
     type: ItemType;
-    name: string;
+    name: string; // The translated name
+    originalName: string;
     logo: string;
     originalItem: Item;
 }
+
+const normalizeArabic = (text: string) => {
+  if (!text) return '';
+  return text
+    .replace(/[\u064B-\u0652]/g, "") // Remove harakat
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+};
 
 
 const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onCrownToggle, onResultClick, onRename, isAdmin }: { item: Item, itemType: ItemType, isFavorited: boolean, isCrowned: boolean, onFavoriteToggle: (item: Item, itemType: ItemType) => void, onCrownToggle: (item: Item) => void, onResultClick: () => void, onRename: () => void, isAdmin: boolean }) => {
@@ -87,6 +99,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const [isOpen, setIsOpen] = useState(false);
   
   const [itemType, setItemType] = useState<ItemType>(initialItemType || 'teams');
+  
+  const [searchIndex, setSearchIndex] = useState<SearchableItem[]>([]);
 
   const { isAdmin } = useAdmin();
   const { user } = useAuth();
@@ -100,6 +114,45 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     const customMap = type === 'team' ? customNames.teams : customNames.leagues;
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
+  
+  const buildLocalIndex = useCallback(() => {
+    if (!customNames) return;
+    setLoading(true);
+
+    const index: Map<string, SearchableItem> = new Map();
+
+    const processItem = (item: any, type: ItemType) => {
+        const name = getDisplayName(type.slice(0,-1) as 'team'|'league', item.id, item.name);
+        const key = `${type}-${item.id}`;
+        if (!index.has(key)) {
+            index.set(key, {
+                id: item.id,
+                type: type,
+                name: name,
+                originalName: item.name,
+                logo: item.logo,
+                originalItem: item
+            });
+        }
+    };
+    
+    POPULAR_TEAMS.forEach(team => processItem(team, 'teams'));
+    POPULAR_LEAGUES.forEach(league => processItem(league, 'leagues'));
+    
+    Object.values(favorites?.teams || {}).forEach(team => processItem({id: team.teamId, name: team.name, logo: team.logo}, 'teams'));
+    Object.values(favorites?.leagues || {}).forEach(league => processItem({id: league.leagueId, name: league.name, logo: league.logo}, 'leagues'));
+
+    setSearchIndex(Array.from(index.values()));
+    setLoading(false);
+  }, [customNames, getDisplayName, favorites]);
+
+  
+  useEffect(() => {
+    if (isOpen) {
+        buildLocalIndex();
+    }
+  }, [isOpen, buildLocalIndex]);
+
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
@@ -112,59 +165,28 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
   };
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
+  const handleSearch = useCallback((query: string) => {
+    setLoading(true);
+    const normalizedQuery = normalizeArabic(query);
+    const isArabicQuery = /[\u0600-\u06FF]/.test(query);
+
+    if (!normalizedQuery) {
         setSearchResults([]);
+        setLoading(false);
         return;
     }
-    setLoading(true);
 
-    try {
-        const [teamsData, leaguesData] = await Promise.all([
-            fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.json()),
-            fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.json())
-        ]);
-
-        const combinedResults: SearchableItem[] = [];
-
-        if (teamsData?.response) {
-            teamsData.response.forEach((item: TeamResult) => {
-                combinedResults.push({
-                    id: item.team.id,
-                    type: 'teams',
-                    name: getDisplayName('team', item.team.id, item.team.name),
-                    logo: item.team.logo,
-                    originalItem: item.team
-                });
-            });
+    const filteredResults = searchIndex.filter(item => {
+        if (isArabicQuery) {
+            return normalizeArabic(item.name).includes(normalizedQuery);
+        } else {
+            return item.originalName.toLowerCase().includes(query.toLowerCase());
         }
-        
-        if (leaguesData?.response) {
-            leaguesData.response.forEach((item: LeagueResult) => {
-                combinedResults.push({
-                    id: item.league.id,
-                    type: 'leagues',
-                    name: getDisplayName('league', item.league.id, item.league.name),
-                    logo: item.league.logo,
-                    originalItem: item.league
-                });
-            });
-        }
+    });
 
-        setSearchResults(combinedResults);
-
-    } catch (e) {
-        console.error("Search API failed:", e);
-        toast({
-            variant: "destructive",
-            title: "خطأ في البحث",
-            description: "فشل الاتصال بخادم البحث. يرجى المحاولة مرة أخرى."
-        });
-        setSearchResults([]);
-    } finally {
-        setLoading(false);
-    }
-  }, [getDisplayName, toast]);
+    setSearchResults(filteredResults);
+    setLoading(false);
+  }, [searchIndex]);
 
 
   useEffect(() => {
@@ -308,11 +330,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading) {
-      return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-    }
-    
-    if (!customNames || !favorites) {
+    if (loading || !customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
@@ -377,12 +395,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             isOpen={!!renameItem}
             onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
             item={renameItem}
-            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note)}
+            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note || '')}
           />
         )}
       </SheetContent>
     </Sheet>
   );
 }
-
-    
