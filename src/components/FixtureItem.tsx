@@ -55,7 +55,7 @@ export const FixtureItem = React.memo(({ fixture, navigate, customStatus, isPinn
             </div>
              {showOdds && (
                 <div className="px-2 pb-2">
-                    <PredictionOdds fixtureId={fixture.fixture.id} />
+                    <PredictionOdds fixtureId={fixture.fixture.id} reversed={true} />
                 </div>
             )}
         </div>

@@ -194,17 +194,24 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     const selectedButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
+        if (!scrollerRef.current || !selectedButtonRef.current) return;
+    
         const scroller = scrollerRef.current;
         const selectedButton = selectedButtonRef.current;
-
-        if (scroller && selectedButton) {
-            const scrollerRect = scroller.getBoundingClientRect();
-            const selectedRect = selectedButton.getBoundingClientRect();
-            
-            const scrollOffset = selectedRect.left - scrollerRect.left - (scrollerRect.width / 2) + (selectedRect.width / 2);
-            
-            scroller.scrollTo({ left: scroller.scrollLeft + scrollOffset, behavior: 'smooth' });
-        }
+    
+        const scrollerRect = scroller.getBoundingClientRect();
+        const buttonRect = selectedButton.getBoundingClientRect();
+    
+        // Calculate the center of the button relative to the scroller
+        const buttonCenter = buttonRect.left - scrollerRect.left + buttonRect.width / 2;
+        // Calculate the center of the scroller
+        const scrollerCenter = scrollerRect.width / 2;
+    
+        // Scroll to bring the button to the center
+        scroller.scrollTo({
+            left: scroller.scrollLeft + buttonCenter - scrollerCenter,
+            behavior: 'smooth'
+        });
     }, [selectedDateKey]);
 
     return (
@@ -322,6 +329,8 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                             favLeagueIds.includes(f.league.id)
                         );
                     }
+                } else {
+                     throw new Error('Failed to fetch fixtures');
                 }
             }
 
@@ -350,6 +359,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         } catch (error) {
             if ((error as Error).name !== 'AbortError') {
                 console.error("Failed to fetch and process data:", error);
+                 toast({ variant: 'destructive', title: 'خطأ في الشبكة', description: 'فشل في جلب المباريات. تحقق من اتصالك بالإنترنت.' });
                 setMatchesCache(prev => new Map(prev).set(dateKey, []));
             }
         } finally {
@@ -357,7 +367,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                 setLoading(false);
             }
         }
-    }, [getDisplayName]);
+    }, [getDisplayName, toast]);
   
   
   useEffect(() => {
