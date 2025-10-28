@@ -358,16 +358,18 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     if (loading) {
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
-
-    const itemsToDisplay = debouncedSearchTerm 
-        ? searchResults 
-        : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
-        
+    
+    const itemsToDisplay = debouncedSearchTerm ? searchResults : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
     const finalItems = debouncedSearchTerm ? itemsToDisplay : itemsToDisplay.filter(item => item.type === itemType);
 
-    if (finalItems.length === 0) {
-        return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج.</p>;
+    if (finalItems.length === 0 && debouncedSearchTerm) {
+        return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
     }
+
+    if(finalItems.length === 0 && !debouncedSearchTerm) {
+        return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>;
+    }
+
 
     return (
         <div className="space-y-2">
