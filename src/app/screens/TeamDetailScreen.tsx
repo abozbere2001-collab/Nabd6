@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { isMatchLive } from '@/lib/matchStatus';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
-import { format, isToday } from 'date-fns';
+import { format, isToday, startOfToday } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { POPULAR_TEAMS } from '@/lib/popular-data';
 
@@ -301,19 +301,20 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
         if (loading || Object.keys(groupedFixtures).length === 0 || !listRef.current) return;
 
         const sortedDates = Object.keys(groupedFixtures).sort();
-        const today = new Date();
+        const today = startOfToday();
         
         let targetDateKey: string | undefined;
 
-        // Find the first upcoming or live match date
         targetDateKey = sortedDates.find(date => {
             const fixtureDate = new Date(date);
-            return fixtureDate >= today || groupedFixtures[date].some(f => isMatchLive(f.fixture.status));
+            return fixtureDate >= today;
         });
 
-        // If no upcoming/live matches, scroll to the last match
         if (!targetDateKey && sortedDates.length > 0) {
-            targetDateKey = sortedDates[sortedDates.length - 1];
+            const lastMatchDate = sortedDates[sortedDates.length - 1];
+            if (new Date(lastMatchDate) < today) {
+                targetDateKey = lastMatchDate;
+            }
         }
 
         if (targetDateKey && dateRefs.current[targetDateKey]) {
@@ -586,7 +587,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     
             return newFavorites;
         });
-    }, [teamData, user, db, setFavorites, toast, favorites]);
+    }, [teamData, user, db, setFavorites, toast]);
 
 
     const handleOpenCrownDialog = () => {
@@ -637,31 +638,35 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
         } else if (purpose === 'crown' && user) {
             const teamId = Number(id);
-            const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-            if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-            const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
             
-            if (isCurrentlyCrowned) {
-                delete newFavorites.crownedTeams[teamId];
-            } else {
-                newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-            }
-            
-            setFavorites(newFavorites);
+            setFavorites(prev => {
+                if (!prev) return {};
+                const newFavorites = JSON.parse(JSON.stringify(prev));
+                if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
+                const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-            if (!user) { // Guest mode
-                setLocalFavorites(newFavorites);
-            } else if (db) { // Logged-in user
-                const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updatePayload = {
-                    [`crownedTeams.${teamId}`]: isCurrentlyCrowned
-                        ? deleteField()
-                        : { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
-                };
-                updateDoc(favDocRef, updatePayload).catch(err => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-                });
-            }
+                if (isCurrentlyCrowned) {
+                    delete newFavorites.crownedTeams[teamId];
+                } else {
+                    newFavorites.crownedTeams[teamId] = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
+                }
+
+                if (!user.isAnonymous) {
+                    const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+                    const updatePayload = {
+                        [`crownedTeams.${teamId}`]: isCurrentlyCrowned
+                            ? deleteField()
+                            : { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote }
+                    };
+                    updateDoc(favDocRef, updatePayload).catch(err => {
+                        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
+                    });
+                } else {
+                     setLocalFavorites(newFavorites);
+                }
+                
+                return newFavorites;
+            });
         }
         setRenameItem(null);
     };
@@ -752,5 +757,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
 
     
 
+
+    
 
     

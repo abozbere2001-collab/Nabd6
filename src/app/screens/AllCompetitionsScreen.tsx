@@ -655,3 +655,5 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     
 
     
+
+    

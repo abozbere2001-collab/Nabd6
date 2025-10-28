@@ -1,4 +1,5 @@
 
+
 export const hardcodedTranslations: { [key: string]: { [key: string | number]: string } } = {
   continents: {
     "World": "العالم",
@@ -148,5 +149,7 @@ export const hardcodedTranslations: { [key: string]: { [key: string | number]: s
     // Empty as requested by the user
   }
 };
+
+    
 
     
