@@ -242,6 +242,12 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
                     fetch(`/api/football/teams/statistics?team=${teamId}&season=${CURRENT_SEASON}${leagueId ? `&league=${leagueId}` : ''}`)
                 ]);
 
+                if (!isMounted) return;
+                
+                if (!fixturesRes.ok || !statsRes.ok) {
+                    throw new Error("API call failed");
+                }
+
                 const fixturesData = await fixturesRes.json();
                 const statsData = await statsRes.json();
 
@@ -258,6 +264,7 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
 
                 if (effectiveLeagueId) {
                     const standingsRes = await fetch(`/api/football/standings?league=${effectiveLeagueId}&season=${CURRENT_SEASON}`);
+                    if (!standingsRes.ok) throw new Error("Standings API call failed");
                     const standingsData = await standingsRes.json();
                     if (isMounted) {
                         setStandings(standingsData.response?.[0]?.league?.standings?.[0] || []);

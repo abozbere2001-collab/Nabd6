@@ -57,7 +57,7 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
         let isMounted = true;
         setLoading(true);
 
-        fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`)
+        fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`) // Bet365
         .then(async (res) => {
             if (!isMounted) return;
             if (!res.ok) {
@@ -116,21 +116,12 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
     const awayRow = <OddRow label={awayTeam.name} logo={awayTeam.logo} percentage={percentAway} />;
     const drawRow = <OddRow label="تعادل" percentage={percentDraw} />;
 
+    // This logic handles the RTL display correctly for both scenarios.
     return (
         <div className="space-y-1.5 rounded-md border bg-background/50 p-2">
-            {reversed ? (
-                <>
-                    {awayRow}
-                    {drawRow}
-                    {homeRow}
-                </>
-            ) : (
-                <>
-                    {homeRow}
-                    {drawRow}
-                    {awayRow}
-                </>
-            )}
+            {homeRow}
+            {drawRow}
+            {awayRow}
         </div>
     );
 }

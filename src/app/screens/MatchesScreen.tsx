@@ -194,28 +194,23 @@ const DateScroller = ({ selectedDateKey, onDateSelect }: {selectedDateKey: strin
     const selectedButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
-        if (!scrollerRef.current || !selectedButtonRef.current) return;
-    
         const scroller = scrollerRef.current;
         const selectedButton = selectedButtonRef.current;
-    
-        const scrollerRect = scroller.getBoundingClientRect();
-        const buttonRect = selectedButton.getBoundingClientRect();
-    
-        // Calculate the center of the button relative to the scroller
-        const buttonCenter = buttonRect.left - scrollerRect.left + buttonRect.width / 2;
-        // Calculate the center of the scroller
-        const scrollerCenter = scrollerRect.width / 2;
-    
-        // Scroll to bring the button to the center
-        scroller.scrollTo({
-            left: scroller.scrollLeft + buttonCenter - scrollerCenter,
-            behavior: 'smooth'
-        });
+
+        if (scroller && selectedButton) {
+            const scrollerRect = scroller.getBoundingClientRect();
+            const selectedRect = selectedButton.getBoundingClientRect();
+            // Calculate the center of the selected button relative to the scroller viewport
+            const scrollOffset = selectedRect.left - scrollerRect.left - (scrollerRect.width / 2) + (selectedRect.width / 2);
+            scroller.scrollTo({
+                left: scroller.scrollLeft + scrollOffset,
+                behavior: 'smooth'
+            });
+        }
     }, [selectedDateKey]);
 
     return (
-        <div ref={scrollerRef} className="flex flex-row-reverse overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div ref={scrollerRef} className="flex flex-row-reverse justify-end overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {dates.map(date => {
                 const dateKey = formatDateKey(date);
                 const isSelected = dateKey === selectedDateKey;
@@ -317,20 +312,19 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             
             if(dateKey) { // Fetch by date
                 const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
-                if(res.ok) {
-                    const data = await res.json();
-                    const allFixturesToday: FixtureType[] = data.response || [];
-                    if (favTeamIds.length === 0 && favLeagueIds.length === 0) {
-                        fixtures = allFixturesToday.filter(f => popularLeagueIds.has(f.league.id));
-                    } else {
-                        fixtures = allFixturesToday.filter(f => 
-                            favTeamIds.includes(f.teams.home.id) || 
-                            favTeamIds.includes(f.teams.away.id) ||
-                            favLeagueIds.includes(f.league.id)
-                        );
-                    }
+                if (!res.ok) {
+                     throw new Error(`API fetch failed with status ${res.status}`);
+                }
+                const data = await res.json();
+                const allFixturesToday: FixtureType[] = data.response || [];
+                if (favTeamIds.length === 0 && favLeagueIds.length === 0) {
+                    fixtures = allFixturesToday.filter(f => popularLeagueIds.has(f.league.id));
                 } else {
-                     throw new Error('Failed to fetch fixtures');
+                    fixtures = allFixturesToday.filter(f => 
+                        favTeamIds.includes(f.teams.home.id) || 
+                        favTeamIds.includes(f.teams.away.id) ||
+                        favLeagueIds.includes(f.league.id)
+                    );
                 }
             }
 
@@ -425,7 +419,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                             variant="ghost" 
                             size="icon"
                             className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                            onClick={() => handleDateChange(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
+                            onClick={() => handleDateChange(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
                          >
                             <ChevronLeft className="h-5 w-5" />
                          </Button>
@@ -436,7 +430,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                             variant="ghost" 
                             size="icon"
                             className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                            onClick={() => handleDateChange(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
+                            onClick={() => handleDateChange(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
                          >
                             <ChevronRight className="h-5 w-5" />
                          </Button>

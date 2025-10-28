@@ -131,7 +131,8 @@ const getLeagueImportance = (leagueName: string): number => {
 // --- MAIN SCREEN COMPONENT ---
 export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & {setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void>}) {
     const { isAdmin } = useAdmin();
-    const { user, db } = useAuth();
+    const { user } = useAuth();
+    const { db } = useFirestore();
     const { toast } = useToast();
     
     const [renameItem, setRenameItem] = useState<RenameState | null>(null);
@@ -645,4 +646,3 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
-
