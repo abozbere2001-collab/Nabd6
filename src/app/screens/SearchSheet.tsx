@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { ScreenProps } from '@/app/page';
 import { useAdmin, useAuth, useFirestore } from '@/firebase';
-import { doc, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, deleteField, updateDoc } from 'firebase/firestore';
 import { RenameDialog } from '@/components/RenameDialog';
 import { cn } from '@/lib/utils';
 import type { Favorites, Team } from '@/lib/types';
@@ -111,7 +111,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 }
 
 
-export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites, onCustomNameChange }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
+export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites, onCustomNameChange }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange?: () => Promise<void> }) {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
@@ -153,7 +153,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 name,
                 normalizedName: normalizeArabic(name),
                 logo: league.logo,
-                originalItem: { ...league, type: 'leagues' }
+                originalItem: { id: league.id, name: league.name, logo: league.logo }
             });
         });
     }
@@ -167,7 +167,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                 name,
                 normalizedName: normalizeArabic(name),
                 logo: team.logo,
-                originalItem: { ...team, type: 'teams' }
+                originalItem: { ...team }
             });
         });
     }
@@ -276,14 +276,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             } else {
                 const favData = itemType === 'leagues'
                     ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
-                    : { name: item.name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
                 newFavorites[itemType]![itemId] = favData as any;
             }
 
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                updateDoc(favDocRef, updateData).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updateData}));
                 });
             } else {
@@ -336,7 +336,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
         const op = (newName && newName.trim() && newName !== originalName) ? setDoc(docRef, data) : deleteDoc(docRef);
 
-        op.then(() => onCustomNameChange())
+        op.then(() => onCustomNameChange && onCustomNameChange())
         .catch(serverError => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: data }));
         });
@@ -349,20 +349,19 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
             const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
-            const updatePayload: { [key: string]: any } = {};
-
+            let updatePayload: any;
             if (isCurrentlyCrowned) {
                 delete newFavorites.crownedTeams[teamId];
-                updatePayload[`crownedTeams.${teamId}`] = deleteField();
+                updatePayload = { [`crownedTeams.${teamId}`]: deleteField() };
             } else {
                 const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                 newFavorites.crownedTeams[teamId] = crownedData;
-                updatePayload[`crownedTeams.${teamId}`] = crownedData;
+                updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
             }
 
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                 });
             } else {
@@ -377,17 +376,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const popularItems = useMemo(() => {
     if (!customNames) return [];
     const source = itemType === 'teams' ? POPULAR_TEAMS : POPULAR_LEAGUES;
-    return source.map(item => {
-        const name = getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name);
-        return {
-            id: item.id,
-            type: itemType,
-            name: name,
-            logo: item.logo,
-            originalItem: { ...item, type: itemType.slice(0,-1) as 'team' | 'league' },
-            normalizedName: normalizeArabic(name),
-        }
-    })
+    return source.map(item => ({
+        id: item.id,
+        type: itemType,
+        name: getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name),
+        logo: item.logo,
+        originalItem: item,
+        normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
+    }))
   }, [itemType, getDisplayName, customNames]);
 
   const renderContent = () => {
@@ -456,12 +452,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             isOpen={!!renameItem}
             onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
             item={renameItem}
-            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note || '')}
+            onSave={(type, id, name, note) => handleSaveRenameOrNote(type as RenameType, id, name, note)}
           />
         )}
       </SheetContent>
     </Sheet>
   );
 }
-
-    

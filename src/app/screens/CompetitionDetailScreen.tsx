@@ -284,7 +284,7 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
                 const updateData = { [`teams.${team.id}`]: isCurrentlyFavorited ? deleteField() : newFavorites.teams[team.id] };
-                setDoc(favDocRef, updateData, { merge: true }).catch(err => {
+                updateDoc(favDocRef, updateData).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updateData }));
                 });
             } else {
@@ -348,17 +348,19 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
 
+                let updatePayload: any;
                 if (isCurrentlyCrowned) {
                     delete newFavorites.crownedTeams[teamId];
+                    updatePayload = { [`crownedTeams.${teamId}`]: deleteField() };
                 } else {
                     const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
                     newFavorites.crownedTeams[teamId] = crownedData;
+                    updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
                 }
                 
                 if (user && db && !user.isAnonymous) {
                     const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                    const updatePayload = { [`crownedTeams.${teamId}`]: newFavorites.crownedTeams[teamId] || deleteField() };
-                    setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                    updateDoc(favDocRef, updatePayload).catch(err => {
                         errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
                     });
                 } else {
@@ -631,7 +633,3 @@ const getDisplayName = useCallback((type: 'team' | 'player' | 'league', id: numb
     </div>
   );
 }
-
-    
-
-    
