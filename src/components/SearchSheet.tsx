@@ -177,14 +177,22 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             existingIds.add(`leagues-${league.id}`);
         }
 
-        const competitionsCache = getCachedData<LeagueResult[]>(COMPETITIONS_CACHE_KEY);
-        if (competitionsCache) {
-            competitionsCache.forEach(comp => processLeague(comp.league));
-        }
+        // Process all popular teams (clubs and nationals)
+        POPULAR_TEAMS.forEach(team => processTeam(team as Team));
 
+        // Process popular leagues
+        POPULAR_LEAGUES.forEach(league => processLeague(league));
+        
+        // Add national teams from cache if available
         const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
         if (nationalTeamsCache) {
             nationalTeamsCache.forEach(team => processTeam(team));
+        }
+
+        // Add all competitions from cache if available
+        const competitionsCache = getCachedData<LeagueResult[]>(COMPETITIONS_CACHE_KEY);
+        if (competitionsCache) {
+            competitionsCache.forEach(comp => processLeague(comp.league));
         }
         
         setLocalSearchIndex(index);
@@ -219,6 +227,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     
     const normalizedQuery = normalizeArabic(query);
     
+    // Prioritize local index search
     const localResults = localSearchIndex.filter(item => 
         item.normalizedName.includes(normalizedQuery) || 
         item.normalizedOriginalName.includes(normalizedQuery) ||
@@ -227,9 +236,42 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     );
 
     setSearchResults(localResults);
-    setLoading(false);
+    
+    // Perform API search in the background to find items not in local index
+    Promise.all([
+        fetch(`/api/football/teams?search=${query}`).then(res => res.ok ? res.json() : { response: [] }),
+        fetch(`/api/football/leagues?search=${query}`).then(res => res.ok ? res.json() : { response: [] })
+    ]).then(([teamsData, leaguesData]) => {
+        const currentResults = new Map(localResults.map(r => [`${r.type}-${r.id}`, r]));
 
-  }, [localSearchIndex]);
+        const processApiResult = (item: TeamResult | LeagueResult, type: 'teams' | 'leagues') => {
+            const entity = 'team' in item ? item.team : item.league;
+            if (!currentResults.has(`${type}-${entity.id}`)) {
+                const name = getDisplayName(type.slice(0, -1) as 'team' | 'league', entity.id, entity.name);
+                currentResults.set(`${type}-${entity.id}`, {
+                    id: entity.id,
+                    type: type,
+                    name,
+                    originalName: entity.name,
+                    logo: entity.logo,
+                    normalizedName: normalizeArabic(name),
+                    normalizedOriginalName: normalizeArabic(entity.name),
+                    originalItem: entity,
+                });
+            }
+        };
+
+        teamsData.response?.forEach((r: TeamResult) => processApiResult(r, 'teams'));
+        leaguesData.response?.forEach((r: LeagueResult) => processApiResult(r, 'leagues'));
+        
+        setSearchResults(Array.from(currentResults.values()));
+    }).catch(error => {
+        console.error("API search failed, showing local results only.", error);
+    }).finally(() => {
+        setLoading(false);
+    });
+
+  }, [localSearchIndex, getDisplayName]);
 
 
   useEffect(() => {
@@ -448,4 +490,6 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
+
 
