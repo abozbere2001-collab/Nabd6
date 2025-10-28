@@ -410,7 +410,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         <div className="flex flex-1 flex-col min-h-0">
              <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                  {selectedDateKey && (
-                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
+                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center" dir="rtl">
                         <Button 
                             variant="ghost" 
                             size="icon"

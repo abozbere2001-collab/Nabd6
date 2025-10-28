@@ -153,11 +153,12 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
 
             const displayName = getDisplayName(type.slice(0, -1) as 'team' | 'league', id, originalName);
             
-            // Centralized matching logic
+            // Centralized matching logic for both Arabic and English
             const normalizedQuery = normalizeArabic(query);
-            const matches = normalizeArabic(displayName).includes(normalizedQuery) || originalName.toLowerCase().includes(query.toLowerCase());
+            const normalizedDisplayName = normalizeArabic(displayName);
+            const normalizedOriginalName = normalizeArabic(originalName);
 
-            if (matches) {
+            if (normalizedDisplayName.includes(normalizedQuery) || normalizedOriginalName.includes(normalizedQuery)) {
                 results.push({
                     id: id,
                     type: type,
@@ -316,10 +317,11 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   const popularItems = useMemo(() => {
     if (!customNames) return { teams: [], leagues: [] };
     
-    const seenTeams = new Set();
-    const seenLeagues = new Set();
+    const seenTeams = new Set<number>();
+    const seenLeagues = new Set<number>();
 
     const teams = POPULAR_TEAMS.map(item => {
+        if (seenTeams.has(item.id)) return null;
         seenTeams.add(item.id);
         return {
             id: item.id,
@@ -329,9 +331,10 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             logo: item.logo,
             originalItem: item as Item,
         };
-    });
+    }).filter(Boolean) as SearchableItem[];
 
     const leagues = POPULAR_LEAGUES.map(item => {
+        if (seenLeagues.has(item.id)) return null;
         seenLeagues.add(item.id);
         return {
             id: item.id,
@@ -341,7 +344,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
             logo: item.logo,
             originalItem: item as Item,
         };
-    });
+    }).filter(Boolean) as SearchableItem[];
 
     return { teams, leagues };
 
