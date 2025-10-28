@@ -41,18 +41,12 @@ interface TeamData {
     };
 }
 
-const TeamHeader = ({ team, venue, onStar, isStarred, onCrown, isCrowned, isAdmin, onRename }: { team: Team, venue: TeamData['venue'], onStar: () => void, isStarred: boolean, onCrown: () => void, isCrowned: boolean, isAdmin: boolean, onRename: () => void }) => {
+const TeamHeader = ({ team, venue, isAdmin, onRename }: { team: Team, venue: TeamData['venue'], isAdmin: boolean, onRename: () => void }) => {
     return (
         <Card className="mb-4 overflow-hidden">
             <div className="relative h-24 bg-gradient-to-r from-primary/20 to-accent/20" style={{backgroundImage: `url(${venue?.image})`, backgroundSize: 'cover', backgroundPosition: 'center'}}>
                 <div className="absolute inset-0 bg-black/50" />
                  <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/20 hover:bg-black/40" onClick={onStar}>
-                        <Star className={cn("h-5 w-5", isStarred ? "text-yellow-400 fill-current" : "text-white/80")} />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/20 hover:bg-black/40" onClick={onCrown}>
-                        <Crown className={cn("h-5 w-5", isCrowned ? "text-yellow-400 fill-current" : "text-white/80")} />
-                    </Button>
                      {isAdmin && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/20 hover:bg-black/40" onClick={onRename}>
                             <Pencil className="h-4 w-4 text-white/80" />
@@ -502,65 +496,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         }
     }, [db, pinnedPredictionMatches, toast]);
 
-    const handleFavoriteToggle = useCallback(() => {
-        if (!teamData?.team) return;
-    
-        const { team } = teamData;
-    
-        // Directly interact with localStorage for guests
-        if (!user) {
-            const currentFavorites = getLocalFavorites();
-            if (!currentFavorites.teams) currentFavorites.teams = {};
-            const isCurrentlyFavorited = !!currentFavorites.teams[team.id];
-    
-            if (isCurrentlyFavorited) {
-                delete currentFavorites.teams[team.id];
-            } else {
-                 currentFavorites.teams[team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-            }
-            setLocalFavorites(currentFavorites);
-            // Manually trigger a re-render by updating the parent state if needed.
-            // This depends on how `favorites` is passed down and used.
-            // A simple way is to make `setFavorites` also update local state.
-            setFavorites(currentFavorites);
-            return;
-        }
-
-        // For logged-in users, continue using the setFavorites prop which updates firestore
-        const currentFavorites = favorites || { teams: {} };
-        const isCurrentlyFavorited = !!currentFavorites.teams?.[team.id];
-        const newFavorites: Partial<Favorites> = { 
-            ...currentFavorites,
-            teams: { ...currentFavorites.teams }
-        };
-
-         if (isCurrentlyFavorited) {
-             delete newFavorites.teams![team.id];
-         } else {
-             newFavorites.teams![team.id] = { teamId: team.id, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
-         }
-         setFavorites(newFavorites);
-
-    }, [teamData, user, db, favorites, setFavorites]);
-
-
-    const handleOpenCrownDialog = () => {
-        if (!teamData) return;
-        if (!user) {
-            toast({ title: 'مستخدم زائر', description: 'يرجى تسجيل الدخول لاستخدام هذه الميزة.' });
-            return;
-        }
-        const { team } = teamData;
-        setRenameItem({
-            id: team.id,
-            name: getDisplayName('team', team.id, team.name),
-            type: 'crown',
-            purpose: 'crown',
-            originalData: team,
-            note: favorites?.crownedTeams?.[team.id]?.note || '',
-        });
-    };
-
     const handleRename = () => {
         if (!teamData) return;
         const { team } = teamData;
@@ -573,51 +508,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             originalName: team.name,
         });
     };
-
-   const handleSaveRenameOrNote = (type: 'team' | 'crown', id: number, newName: string, newNote: string = '') => {
-    if (!teamData || !db || !renameItem) return;
-    const { purpose, originalData, originalName } = renameItem;
-
-    if (purpose === 'rename' && isAdmin) {
-        const docRef = doc(db, 'teamCustomizations', String(id));
-        const op = (newName && newName.trim() && newName.trim() !== originalName) 
-            ? setDoc(docRef, { customName: newName }) 
-            : deleteDoc(docRef);
-
-        op.then(() => {
-            toast({ title: 'نجاح', description: 'تم تحديث الاسم المخصص للفريق.' });
-            onCustomNameChange();
-        }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: docRef.path, operation: 'write', requestResourceData: { customName: newName } }));
-        });
-
-    } else if (purpose === 'crown' && user) {
-        const teamId = Number(id);
-        const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-        if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
-        const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
-        
-        let updatePayload;
-
-        if (isCurrentlyCrowned) {
-            delete newFavorites.crownedTeams[teamId];
-            updatePayload = { [`crownedTeams.${teamId}`]: deleteField() };
-        } else {
-            const crownedData = { teamId, name: (originalData as Team).name, logo: (originalData as Team).logo, note: newNote };
-            newFavorites.crownedTeams[teamId] = crownedData;
-            updatePayload = { [`crownedTeams.${teamId}`]: crownedData };
-        }
-
-        if (user && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({ path: favDocRef.path, operation: 'update', requestResourceData: updatePayload }));
-            });
-        }
-        setFavorites(newFavorites);
-    }
-    setRenameItem(null);
-};
     
     const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
         if (!customNames) return defaultName;
@@ -649,8 +539,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         );
     }
 
-    const isStarred = !!favorites.teams?.[teamId];
-    const isCrowned = !!favorites.crownedTeams?.[teamId];
     const displayTitle = getDisplayName('team', teamId, teamData.team.name);
 
     return (
@@ -665,17 +553,13 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     isOpen={!!renameItem}
                     onOpenChange={(isOpen) => !isOpen && setRenameItem(null)}
                     item={renameItem}
-                    onSave={(type, id, name, note) => handleSaveRenameOrNote(type as 'team' | 'crown', Number(id), name, note || '')}
+                    onSave={() => {}}
                 />
             )}
             <div className="flex-1 overflow-y-auto p-1 min-h-0">
                 <TeamHeader 
                     team={{...teamData.team, name: displayTitle }}
-                    venue={teamData.venue} 
-                    onStar={handleFavoriteToggle}
-                    isStarred={isStarred}
-                    onCrown={handleOpenCrownDialog}
-                    isCrowned={isCrowned}
+                    venue={teamData.venue}
                     isAdmin={isAdmin}
                     onRename={handleRename}
                 />
@@ -695,5 +579,3 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
         </div>
     );
 }
-
-    
