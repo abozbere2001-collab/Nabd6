@@ -36,16 +36,16 @@ interface ProcessedOdds {
     away: number;
 }
 
-const OddRow = ({ label, logo, percentage }: { label: string; logo?: string; percentage: number }) => (
-    <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 w-28 flex-shrink-0">
-            {logo && <Avatar className="h-5 w-5"><AvatarImage src={logo} alt={label} /><AvatarFallback>{label.charAt(0)}</AvatarFallback></Avatar>}
-            <span className="font-medium text-xs truncate">{label}</span>
+const OddRow = ({ label, logo, percentage, barColor }: { label: string; logo?: string; percentage: number, barColor: string }) => (
+    <div className="space-y-1">
+        <div className="flex justify-between items-center text-xs">
+            <div className="flex items-center gap-2">
+                {logo && <Avatar className="h-4 w-4"><AvatarImage src={logo} alt={label} /><AvatarFallback>{label.charAt(0)}</AvatarFallback></Avatar>}
+                <span className="font-medium truncate">{label}</span>
+            </div>
+            <span className="font-mono font-bold">{percentage.toFixed(0)}%</span>
         </div>
-        <div className="flex-1">
-            <Progress value={percentage} className="h-2" />
-        </div>
-        <span className="w-10 text-right font-mono text-xs font-bold">{percentage.toFixed(0)}%</span>
+        <Progress value={percentage} className="h-1.5" indicatorClassName={barColor} />
     </div>
 );
 
@@ -97,7 +97,13 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
     }, [fixtureId]);
 
     if (loading) {
-        return <Skeleton className="h-16 w-full" />;
+        return (
+            <div className="space-y-2 p-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+            </div>
+        );
     }
 
     if (!odds) {
@@ -113,12 +119,12 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
     const percentDraw = (probDraw / totalProb) * 100;
     const percentAway = (probAway / totalProb) * 100;
 
-    const homeRow = <OddRow label={homeTeam.name} logo={homeTeam.logo} percentage={percentHome} />;
-    const awayRow = <OddRow label={awayTeam.name} logo={awayTeam.logo} percentage={percentAway} />;
-    const drawRow = <OddRow label="تعادل" percentage={percentDraw} />;
+    const homeRow = <OddRow label={homeTeam.name} logo={homeTeam.logo} percentage={percentHome} barColor="bg-primary" />;
+    const awayRow = <OddRow label={awayTeam.name} logo={awayTeam.logo} percentage={percentAway} barColor="bg-accent" />;
+    const drawRow = <OddRow label="تعادل" percentage={percentDraw} barColor="bg-muted-foreground" />;
 
     return (
-        <div className="space-y-1.5 rounded-md border bg-background/50 p-2">
+        <div className="space-y-2 rounded-md border bg-background/50 p-2">
             {reversed ? (
                 <>
                     {awayRow}
@@ -135,4 +141,3 @@ export function PredictionOdds({ fixtureId, homeTeam, awayTeam, reversed = false
         </div>
     );
 }
-

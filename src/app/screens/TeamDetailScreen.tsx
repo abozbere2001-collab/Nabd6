@@ -27,7 +27,6 @@ import { isMatchLive } from '@/lib/matchStatus';
 import { getLocalFavorites, setLocalFavorites } from '@/lib/local-favorites';
 import { format, isToday, startOfToday } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { POPULAR_TEAMS } from '@/lib/popular-data';
 
 
 interface TeamData {
@@ -94,7 +93,8 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
     useEffect(() => {
         const fetchPlayers = async () => {
             setLoading(true);
-            const sessionCacheKey = `session_team_players_${teamId}_${CURRENT_SEASON}`;
+            // Use a more specific session key to avoid collisions
+            const sessionCacheKey = `team_players_${teamId}_${CURRENT_SEASON}`;
             const cachedPlayersStr = sessionStorage.getItem(sessionCacheKey);
 
             if (cachedPlayersStr) {
@@ -104,7 +104,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
                     setLoading(false);
                     return;
                 } catch(e) {
-                    sessionStorage.removeItem(sessionCacheKey);
+                    sessionStorage.removeItem(sessionCacheKey); // Clear corrupted cache
                 }
             }
 
@@ -114,6 +114,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
                 if (data.response) {
                     const fetchedPlayers = data.response.map((p: any) => p.player);
                     setPlayers(fetchedPlayers);
+                    // Cache the fetched data
                     sessionStorage.setItem(sessionCacheKey, JSON.stringify(fetchedPlayers));
                 }
             } catch (error) {
@@ -187,7 +188,7 @@ const TeamPlayersTab = ({ teamId, navigate, customNames, onCustomNameChange }: {
     );
 };
 
-const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs, customNames, favorites, setFavorites }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}>, customNames: any, favorites: Partial<Favorites>, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) => {
+const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredictionMatches, isAdmin, listRef, dateRefs, customNames }: { teamId: number, leagueId?: number, navigate: ScreenProps['navigate'], onPinToggle: (fixture: Fixture) => void, pinnedPredictionMatches: Set<number>, isAdmin: boolean, listRef: React.RefObject<HTMLDivElement>, dateRefs: React.MutableRefObject<{[key: string]: HTMLDivElement | null}>, customNames: any }) => {
     const [fixtures, setFixtures] = useState<Fixture[]>([]);
     const [standings, setStandings] = useState<Standing[]>([]);
     const [stats, setStats] = useState<TeamStatistics | null>(null);
@@ -700,7 +701,7 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
                     <TabsTrigger value="players">اللاعبون</TabsTrigger>
                   </TabsList>
                   <TabsContent value="details" className="mt-4" forceMount={activeTab === 'details'}>
-                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} favorites={favorites} setFavorites={setFavorites}/>
+                    <TeamDetailsTabs teamId={teamId} leagueId={leagueId} navigate={navigate} onPinToggle={handlePinToggle} pinnedPredictionMatches={pinnedPredictionMatches} isAdmin={isAdmin} listRef={listRef} dateRefs={dateRefs} customNames={customNames} />
                   </TabsContent>
                   <TabsContent value="players" className="mt-4" forceMount={activeTab === 'players'}>
                     <TeamPlayersTab teamId={teamId} navigate={navigate} customNames={customNames} onCustomNameChange={onCustomNameChange}/>

@@ -1,4 +1,5 @@
 
+
 import type { Favorites } from './types';
 
 export const LOCAL_FAVORITES_KEY = 'goalstack_local_favorites_v2'; // Incremented version
@@ -40,7 +41,7 @@ export const setLocalFavorites = (favorites: Partial<Favorites>) => {
     try {
         // IMPORTANT: Only store the 'favorites' part, not the whole state object
         // which might include large data like 'customNames'.
-        const dataToStore = {
+        const dataToStore: Partial<Favorites> = {
             teams: favorites.teams,
             leagues: favorites.leagues,
             players: favorites.players,
