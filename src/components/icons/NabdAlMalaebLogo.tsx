@@ -38,7 +38,7 @@ export function NabdAlMalaebLogo(props: SVGProps<SVGSVGElement>) {
       <rect x="5" y="45" width="15" height="40" fill="transparent" stroke="currentColor" strokeWidth="2" />
 
       {/* Corrected Left Penalty Arc (facing outwards) */}
-      <path d="M 35 48.75 A 11.25 11.25 0 0 0 35 81.25" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M 35 48.75 A 11.25 11.25 0 0 1 35 81.25" fill="none" stroke="currentColor" strokeWidth="2" />
 
 
       {/* Right Penalty Area */}
@@ -48,7 +48,7 @@ export function NabdAlMalaebLogo(props: SVGProps<SVGSVGElement>) {
       <rect x="180" y="45" width="15" height="40" fill="transparent" stroke="currentColor" strokeWidth="2" />
 
       {/* Corrected Right Penalty Arc (facing outwards) */}
-      <path d="M 165 48.75 A 11.25 11.25 0 0 1 165 81.25" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M 165 48.75 A 11.25 11.25 0 0 0 165 81.25" fill="none" stroke="currentColor" strokeWidth="2" />
 
 
       {/* Pulse Line */}

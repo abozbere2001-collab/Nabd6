@@ -410,14 +410,14 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         <div className="flex flex-1 flex-col min-h-0">
              <div className="sticky top-0 z-10 px-1 pt-1 bg-background">
                  {selectedDateKey && (
-                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center">
+                     <div className="relative bg-card py-2 border-x border-b rounded-b-lg shadow-md flex items-center justify-center flex-row-reverse">
                         <Button 
                             variant="ghost" 
                             size="icon"
-                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
                             onClick={() => handleDateChange(formatDateKey(addDays(new Date(selectedDateKey), 1)))}
                          >
-                            <ChevronRight className="h-5 w-5" />
+                            <ChevronLeft className="h-5 w-5" />
                          </Button>
                         <div className="flex-1 overflow-hidden px-10">
                             <DateScroller selectedDateKey={selectedDateKey} onDateSelect={handleDateChange} />
@@ -425,10 +425,10 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
                         <Button 
                             variant="ghost" 
                             size="icon"
-                            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
                             onClick={() => handleDateChange(formatDateKey(subDays(new Date(selectedDateKey), 1)))}
                          >
-                            <ChevronLeft className="h-5 w-5" />
+                            <ChevronRight className="h-5 w-5" />
                          </Button>
                     </div>
                  )}

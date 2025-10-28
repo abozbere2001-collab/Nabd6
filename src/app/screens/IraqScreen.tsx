@@ -30,6 +30,7 @@ import { FootballIcon } from '@/components/icons/FootballIcon';
 import { cn } from '@/lib/utils';
 import {Skeleton} from "@/components/ui/skeleton";
 import { setLocalFavorites } from '@/lib/local-favorites';
+import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 
 
 const CrownedTeamScroller = ({
@@ -187,10 +188,27 @@ export function IraqScreen({ navigate, goBack, canGoBack, favorites, setFavorite
   const { db } = useFirestore();
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   
+  const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
+    if (!customNames) return defaultName;
+    const key = `${type}s` as 'teams' | 'leagues';
+    const firestoreMap = customNames[key];
+    const customName = firestoreMap?.get(id);
+    if (customName) return customName;
+
+    const hardcodedMap = hardcodedTranslations[key];
+    const hardcodedName = hardcodedMap[id as any];
+    if (hardcodedName) return hardcodedName;
+
+    return defaultName;
+  }, [customNames]);
+  
   const crownedTeams = useMemo(() => {
     if (!favorites?.crownedTeams) return [];
-    return Object.values(favorites.crownedTeams);
-  }, [favorites?.crownedTeams]);
+    return Object.values(favorites.crownedTeams).map(team => ({
+        ...team,
+        name: getDisplayName('team', team.teamId, team.name)
+    }));
+  }, [favorites?.crownedTeams, getDisplayName]);
   
   useEffect(() => {
     if(crownedTeams.length > 0 && !selectedTeamId) {
