@@ -322,7 +322,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || !customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
 
@@ -335,15 +335,43 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     if (itemsToRender.length === 0 && !debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>
     }
+    
+    const combinedItems = debouncedSearchTerm ? searchResults : [];
+    if (!debouncedSearchTerm) {
+        if (itemType === 'teams') {
+            combinedItems.push(...popularItems.filter(i => i.type === 'teams'));
+        } else {
+            combinedItems.push(...popularItems.filter(i => i.type === 'leagues'));
+        }
+    }
+
 
     return (
         <div className="space-y-2">
             {!debouncedSearchTerm && <h3 className="font-bold text-md text-center text-muted-foreground">{itemType === 'teams' ? 'الفرق الأكثر شعبية' : 'البطولات الأكثر شعبية'}</h3>}
-            {itemsToRender.map(result => {
-                const isFavorited = !!favorites[result.type]?.[result.id];
-                const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
-                
-                return <ItemRow 
+            {debouncedSearchTerm ? 
+                searchResults.map(result => {
+                    const isFavorited = !!favorites[result.type]?.[result.id];
+                    const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
+                    return <ItemRow 
+                                key={`${result.type}-${result.id}`} 
+                                item={{...result.originalItem, name: result.name}}
+                                itemType={result.type} 
+                                isFavorited={isFavorited} 
+                                isCrowned={isCrowned}
+                                onFavoriteToggle={handleFavorite} 
+                                onCrownToggle={(item) => handleOpenCrownDialog(item)}
+                                onResultClick={() => handleResultClick(result)} 
+                                isAdmin={isAdmin} 
+                                onRename={() => handleOpenRename(result.type as RenameType, result.id, result.originalItem)} 
+                            />;
+                })
+            :
+            popularItems.map(result => {
+                 if (result.type !== itemType) return null;
+                 const isFavorited = !!favorites[result.type]?.[result.id];
+                 const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
+                 return <ItemRow 
                             key={`${result.type}-${result.id}`} 
                             item={{...result.originalItem, name: result.name}}
                             itemType={result.type} 
@@ -355,7 +383,8 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
                             isAdmin={isAdmin} 
                             onRename={() => handleOpenRename(result.type as RenameType, result.id, result.originalItem)} 
                         />;
-            })}
+            })
+            }
         </div>
     )
   }
@@ -398,6 +427,3 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
-
-
-
