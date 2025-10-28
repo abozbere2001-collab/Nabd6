@@ -508,9 +508,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
     
         const { team } = teamData;
         const teamId = team.id;
-        
-        // Create a deep copy to avoid mutation issues
-        const newFavorites: Partial<Favorites> = JSON.parse(JSON.stringify(favorites || {}));
+    
+        const newFavorites: Partial<Favorites> = getLocalFavorites();
         if (!newFavorites.teams) {
             newFavorites.teams = {};
         }
@@ -523,7 +522,6 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             newFavorites.teams[teamId] = { teamId, name: team.name, logo: team.logo, type: team.national ? 'National' : 'Club' };
         }
     
-        // Update Firestore for logged-in users
         if (user && db) {
             const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
             const updatePayload = {
@@ -534,10 +532,8 @@ export function TeamDetailScreen({ navigate, goBack, canGoBack, teamId, leagueId
             });
         }
         
-        // Always update the central state via the passed-in setter for UI consistency
-        setFavorites(newFavorites);
-
-    }, [teamData, user, db, favorites, setFavorites]);
+        setLocalFavorites(newFavorites);
+    }, [teamData, user, db]);
 
 
     const handleOpenCrownDialog = () => {

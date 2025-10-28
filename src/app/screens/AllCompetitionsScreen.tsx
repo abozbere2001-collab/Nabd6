@@ -301,51 +301,39 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         const itemId = item.id;
     
         if (!user) { // Guest mode logic
-            const isPopular = itemType === 'teams'
-                ? POPULAR_TEAMS.some(t => t.id === itemId)
-                : POPULAR_LEAGUES.some(l => l.id === itemId);
+            const currentFavorites = getLocalFavorites();
+            if (!currentFavorites[itemType]) currentFavorites[itemType] = {};
+            
+            const isCurrentlyFavorited = !!currentFavorites[itemType]?.[itemId];
     
-            if (!isPopular) {
-                toast({
-                    title: 'ميزة للمستخدمين المسجلين',
-                    description: 'تفضيل هذا العنصر متاح فقط للمستخدمين المسجلين. يمكنك تفضيل الفرق والبطولات الشائعة كزائر.',
-                });
-                return;
-            }
-        }
-    
-        const newFavorites = JSON.parse(JSON.stringify(favorites || {}));
-        if (!newFavorites[itemType]) {
-            newFavorites[itemType] = {};
-        }
-
-        const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
-
-        if (isCurrentlyFavorited) {
-            delete newFavorites[itemType]![itemId];
-        } else {
-            if (itemType === 'leagues') {
-                newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
+            if (isCurrentlyFavorited) {
+                delete currentFavorites[itemType]![itemId];
             } else {
-                newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                 if (itemType === 'leagues') {
+                    currentFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
+                } else {
+                    currentFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                }
             }
+            setLocalFavorites(currentFavorites);
+            return;
         }
-
-        if (user && db && !user.isAnonymous) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            const updatePayload = {
-                [`${itemType}.${itemId}`]: isCurrentlyFavorited
-                    ? deleteField()
-                    : newFavorites[itemType]![itemId]
-            };
-            updateDoc(favDocRef, updatePayload).catch(err => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
-            });
-        }
-        
-        setFavorites(newFavorites);
     
-    }, [user, db, setFavorites, toast, favorites]);
+        // Logged-in user logic
+        const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+        const isCurrentlyFavorited = !!favorites?.[itemType]?.[itemId];
+        const updatePayload = {
+            [`${itemType}.${itemId}`]: isCurrentlyFavorited
+                ? deleteField()
+                : itemType === 'leagues' 
+                    ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
+                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' }
+        };
+        updateDoc(favDocRef, updatePayload).catch(err => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
+        });
+        
+    }, [user, db, toast, favorites]);
     
 
     const handleOpenCrownDialog = (team: Team) => {
