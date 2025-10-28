@@ -4,12 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
 
 interface OddValue {
     value: string;
@@ -33,11 +29,36 @@ interface OddsApiResponse {
     bookmakers: Bookmaker[];
 }
 
+interface FixtureInfo {
+    teams: {
+        home: { name: string; logo: string };
+        away: { name: string; logo: string };
+    }
+}
+
 interface ProcessedOdds {
     home: number;
     draw: number;
     away: number;
+    homeTeamName: string;
+    awayTeamName: string;
+    homeTeamLogo: string;
+    awayTeamLogo: string;
 }
+
+const OddRow = ({ label, logo, percentage }: { label: string; logo?: string; percentage: number }) => (
+    <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 w-28 flex-shrink-0">
+            {logo && <Avatar className="h-5 w-5"><AvatarImage src={logo} alt={label} /><AvatarFallback>{label.charAt(0)}</AvatarFallback></Avatar>}
+            <span className="font-medium text-xs truncate">{label}</span>
+        </div>
+        <div className="flex-1">
+            <Progress value={percentage} className="h-2" />
+        </div>
+        <span className="w-10 text-right font-mono text-xs font-bold">{percentage.toFixed(0)}%</span>
+    </div>
+);
+
 
 export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: number, reversed?: boolean }) {
     const [odds, setOdds] = useState<ProcessedOdds | null>(null);
@@ -47,46 +68,56 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
         let isMounted = true;
         setLoading(true);
 
-        fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`)
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch odds');
-                return res.json();
-            })
-            .then(data => {
-                if (!isMounted) return;
+        Promise.all([
+            fetch(`/api/football/odds?fixture=${fixtureId}&bookmaker=8`),
+            fetch(`/api/football/fixtures?id=${fixtureId}`)
+        ])
+        .then(async ([oddsRes, fixtureRes]) => {
+            if (!isMounted) return;
+            if (!oddsRes.ok || !fixtureRes.ok) {
+                throw new Error('Failed to fetch match data');
+            }
+            const oddsData = await oddsRes.json();
+            const fixtureData = await fixtureRes.json();
+            
+            const oddsResponse: OddsApiResponse | undefined = oddsData.response?.[0];
+            const fixtureInfo: FixtureInfo | undefined = fixtureData.response?.[0];
 
-                const oddsResponse: OddsApiResponse | undefined = data.response?.[0];
-                const bookmaker = oddsResponse?.bookmakers?.find((b: Bookmaker) => b.id === 8);
-                const matchWinnerBet = bookmaker?.bets.find((b: Bet) => b.id === 1);
+            const bookmaker = oddsResponse?.bookmakers?.find((b: Bookmaker) => b.id === 8);
+            const matchWinnerBet = bookmaker?.bets.find((b: Bet) => b.id === 1);
 
-                if (matchWinnerBet) {
-                    const currentOdds: { [key: string]: number } = {};
-                    matchWinnerBet.values.forEach((v: OddValue) => {
-                        const key = v.value.toLowerCase().replace(' ', '');
-                        currentOdds[key] = parseFloat(v.odd);
-                    });
+            if (matchWinnerBet && fixtureInfo) {
+                const currentOdds: { [key: string]: number } = {};
+                matchWinnerBet.values.forEach((v: OddValue) => {
+                    const key = v.value.toLowerCase().replace(' ', '');
+                    currentOdds[key] = parseFloat(v.odd);
+                });
 
-                    setOdds({
-                        home: currentOdds.home,
-                        draw: currentOdds.draw,
-                        away: currentOdds.away,
-                    });
-                } else {
-                    setOdds(null);
-                }
-            })
-            .catch(err => {
-                if (isMounted) setOdds(null);
-            })
-            .finally(() => {
-                if (isMounted) setLoading(false);
-            });
+                setOdds({
+                    home: currentOdds.home,
+                    draw: currentOdds.draw,
+                    away: currentOdds.away,
+                    homeTeamName: fixtureInfo.teams.home.name,
+                    awayTeamName: fixtureInfo.teams.away.name,
+                    homeTeamLogo: fixtureInfo.teams.home.logo,
+                    awayTeamLogo: fixtureInfo.teams.away.logo,
+                });
+            } else {
+                setOdds(null);
+            }
+        })
+        .catch(err => {
+            if (isMounted) setOdds(null);
+        })
+        .finally(() => {
+            if (isMounted) setLoading(false);
+        });
 
         return () => { isMounted = false; };
     }, [fixtureId]);
 
     if (loading) {
-        return <Skeleton className="h-4 w-full" />;
+        return <Skeleton className="h-16 w-full" />;
     }
 
     if (!odds) {
@@ -102,38 +133,25 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
     const percentDraw = (probDraw / totalProb) * 100;
     const percentAway = (probAway / totalProb) * 100;
 
-    const barOrder = reversed ? [percentAway, percentDraw, percentHome] : [percentHome, percentDraw, percentAway];
-    const labelOrder = reversed ? ["فوز الضيف", "تعادل", "فوز المضيف"] : ["فوز المضيف", "تعادل", "فوز الضيف"];
+    const homeRow = <OddRow label={odds.homeTeamName} logo={odds.homeTeamLogo} percentage={percentHome} />;
+    const awayRow = <OddRow label={odds.awayTeamName} logo={odds.awayTeamLogo} percentage={percentAway} />;
+    const drawRow = <OddRow label="تعادل" percentage={percentDraw} />;
 
     return (
-        <TooltipProvider>
-            <div className="space-y-1">
-                <div className="flex w-full h-2 rounded-full overflow-hidden" dir="ltr">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div style={{ width: `${barOrder[0]}%` }} className="bg-primary h-full transition-all duration-500"></div>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{labelOrder[0]}: {barOrder[0].toFixed(0)}%</p></TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div style={{ width: `${barOrder[1]}%` }} className="bg-gray-400 h-full transition-all duration-500"></div>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{labelOrder[1]}: {barOrder[1].toFixed(0)}%</p></TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div style={{ width: `${barOrder[2]}%` }} className="bg-accent h-full transition-all duration-500"></div>
-                        </TooltipTrigger>
-                        <TooltipContent><p>{labelOrder[2]}: {barOrder[2].toFixed(0)}%</p></TooltipContent>
-                    </Tooltip>
-                </div>
-                 <div className="flex w-full text-xs font-medium text-muted-foreground" dir="ltr">
-                    <div style={{ width: `${barOrder[0]}%` }} className="text-center">{barOrder[0].toFixed(0)}%</div>
-                    <div style={{ width: `${barOrder[1]}%` }} className="text-center">{barOrder[1].toFixed(0)}%</div>
-                    <div style={{ width: `${barOrder[2]}%` }} className="text-center">{barOrder[2].toFixed(0)}%</div>
-                </div>
-            </div>
-        </TooltipProvider>
+        <div className="space-y-1.5 rounded-md border bg-background/50 p-2">
+            {reversed ? (
+                <>
+                    {awayRow}
+                    {drawRow}
+                    {homeRow}
+                </>
+            ) : (
+                <>
+                    {homeRow}
+                    {drawRow}
+                    {awayRow}
+                </>
+            )}
+        </div>
     );
 }
