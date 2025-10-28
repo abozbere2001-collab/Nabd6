@@ -269,7 +269,7 @@ const TimelineTabContent = ({ events, homeTeam, awayTeam, highlightsOnly }: { ev
     const sortedEvents = [...filteredEvents].sort((a, b) => b.time.elapsed - a.time.elapsed);
 
     const getEventIcon = (event: MatchEvent) => {
-        if (event.type === 'Goal') return <FootballIcon className="w-5 h-5 text-green-500" />;
+        if (event.type === 'Goal') return <FootballIcon className="w-5 h-5 text-white" />;
         if (event.type === 'Card' && event.detail.includes('Yellow')) return <Square className="w-5 h-5 text-yellow-400 fill-current" />;
         if (event.type === 'Card' && event.detail.includes('Red')) return <Square className="w-5 h-5 text-red-500 fill-current" />;
         if (event.type === 'subst') return <Users className="w-4 h-4 text-blue-500" />;
@@ -929,3 +929,4 @@ export default function MatchDetailScreen({ goBack, canGoBack, fixtureId, naviga
 }
 
     
+

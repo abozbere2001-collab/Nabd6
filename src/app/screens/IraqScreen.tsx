@@ -105,7 +105,6 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
                 const data = await res.json();
                 const allFixtures: Fixture[] = data.response || [];
                 
-                // Sort all fixtures chronologically from oldest to newest
                 allFixtures.sort((a, b) => a.fixture.timestamp - b.fixture.timestamp);
                 setAllFixtures(allFixtures);
 
@@ -124,14 +123,19 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     }, [teamId, toast]);
 
     useEffect(() => {
-        if (!loading && allFixtures.length > 0 && listRef.current && firstUpcomingMatchRef.current) {
-            // Use a small timeout to ensure the DOM is ready for scrolling
+        if (loading || allFixtures.length === 0 || !listRef.current) return;
+
+        const firstUpcomingIndex = allFixtures.findIndex(f => {
+            const matchDate = new Date(f.fixture.timestamp * 1000);
+            return matchDate >= new Date() || isMatchLive(f.fixture.status);
+        });
+
+        if (firstUpcomingIndex !== -1 && firstUpcomingMatchRef.current) {
             setTimeout(() => {
                 if (firstUpcomingMatchRef.current && listRef.current) {
                     const listTop = listRef.current.offsetTop;
                     const itemTop = firstUpcomingMatchRef.current.offsetTop;
-                    // Scroll the list so that the upcoming match is near the top
-                    listRef.current.scrollTop = itemTop - listTop - 10;
+                    listRef.current.scrollTop = itemTop - listTop;
                 }
             }, 100);
         }
@@ -158,8 +162,8 @@ const TeamFixturesDisplay = ({ teamId, navigate }: { teamId: number; navigate: S
     return (
         <div ref={listRef} className="h-full overflow-y-auto space-y-2">
             {allFixtures.map((fixture, index) => {
-                 const isUpcomingOrLive = isMatchLive(fixture.fixture.status) || new Date(fixture.fixture.timestamp * 1000) > new Date();
-                 const isFirstUpcoming = isUpcomingOrLive && !allFixtures.slice(0, index).some(f => isMatchLive(f.fixture.status) || new Date(f.fixture.timestamp * 1000) > new Date());
+                 const isUpcomingOrLive = new Date(fixture.fixture.timestamp * 1000) >= new Date() || isMatchLive(fixture.fixture.status);
+                 const isFirstUpcoming = isUpcomingOrLive && !allFixtures.slice(0, index).some(f => new Date(f.fixture.timestamp * 1000) >= new Date() || isMatchLive(f.fixture.status));
                 
                 return (
                     <div key={fixture.fixture.id} ref={isFirstUpcoming ? firstUpcomingMatchRef : null}>

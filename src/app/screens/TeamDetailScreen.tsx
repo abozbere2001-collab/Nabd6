@@ -298,26 +298,33 @@ const TeamDetailsTabs = ({ teamId, leagueId, navigate, onPinToggle, pinnedPredic
     }, [fixtures, getDisplayName]);
 
      useEffect(() => {
-        if (loading || Object.keys(groupedFixtures).length === 0) return;
+        if (loading || Object.keys(groupedFixtures).length === 0 || !listRef.current) return;
 
         const sortedDates = Object.keys(groupedFixtures).sort();
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const today = new Date();
         
-        let targetDate = sortedDates.find(date => date >= todayStr);
-        if (!targetDate && sortedDates.length > 0) {
-            targetDate = sortedDates[sortedDates.length - 1];
+        let targetDateKey: string | undefined;
+
+        // Find the first upcoming or live match date
+        targetDateKey = sortedDates.find(date => {
+            const fixtureDate = new Date(date);
+            return fixtureDate >= today || groupedFixtures[date].some(f => isMatchLive(f.fixture.status));
+        });
+
+        // If no upcoming/live matches, scroll to the last match
+        if (!targetDateKey && sortedDates.length > 0) {
+            targetDateKey = sortedDates[sortedDates.length - 1];
         }
 
-        if (targetDate && listRef.current && dateRefs.current[targetDate]) {
-            const list = listRef.current;
-            const element = dateRefs.current[targetDate];
-            if(element) {
-                setTimeout(() => {
-                  const listTop = list.offsetTop;
-                  const elementTop = element.offsetTop;
-                  list.scrollTop = elementTop - listTop;
-                }, 100);
-            }
+        if (targetDateKey && dateRefs.current[targetDateKey]) {
+            setTimeout(() => {
+                const element = dateRefs.current[targetDateKey!];
+                if (element && listRef.current) {
+                    const listTop = listRef.current.offsetTop;
+                    const elementTop = element.offsetTop;
+                    listRef.current.scrollTop = elementTop - listTop;
+                }
+            }, 100);
         }
     }, [loading, groupedFixtures, listRef, dateRefs]);
     
