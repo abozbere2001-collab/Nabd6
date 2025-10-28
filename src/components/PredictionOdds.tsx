@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -87,7 +86,7 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
     }, [fixtureId]);
 
     if (loading) {
-        return <Skeleton className="h-2 w-full" />;
+        return <Skeleton className="h-4 w-full" />;
     }
 
     if (!odds) {
@@ -103,21 +102,14 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
     const percentDraw = (probDraw / totalProb) * 100;
     const percentAway = (probAway / totalProb) * 100;
 
-    // RTL friendly ordering
     const barOrder = reversed ? [percentAway, percentDraw, percentHome] : [percentHome, percentDraw, percentAway];
     const labelOrder = reversed ? ["فوز الضيف", "تعادل", "فوز المضيف"] : ["فوز المضيف", "تعادل", "فوز الضيف"];
-    const percentOrder = reversed ? [percentAway, percentDraw, percentHome] : [percentHome, percentDraw, percentAway];
 
     return (
         <TooltipProvider>
             <div className="space-y-1">
-                <div className="flex justify-between text-xs font-medium text-muted-foreground px-1">
-                    <span>{labelOrder[0]}</span>
-                    <span>{labelOrder[1]}</span>
-                    <span>{labelOrder[2]}</span>
-                </div>
                 <div className="flex w-full h-2 rounded-full overflow-hidden" dir="ltr">
-                     <Tooltip>
+                    <Tooltip>
                         <TooltipTrigger asChild>
                             <div style={{ width: `${barOrder[0]}%` }} className="bg-primary h-full transition-all duration-500"></div>
                         </TooltipTrigger>
@@ -129,17 +121,17 @@ export function PredictionOdds({ fixtureId, reversed = false }: { fixtureId: num
                         </TooltipTrigger>
                         <TooltipContent><p>{labelOrder[1]}: {barOrder[1].toFixed(0)}%</p></TooltipContent>
                     </Tooltip>
-                     <Tooltip>
+                    <Tooltip>
                         <TooltipTrigger asChild>
-                             <div style={{ width: `${barOrder[2]}%` }} className="bg-accent h-full transition-all duration-500"></div>
+                            <div style={{ width: `${barOrder[2]}%` }} className="bg-accent h-full transition-all duration-500"></div>
                         </TooltipTrigger>
                         <TooltipContent><p>{labelOrder[2]}: {barOrder[2].toFixed(0)}%</p></TooltipContent>
                     </Tooltip>
                 </div>
-                 <div className="flex justify-between text-xs font-bold px-1">
-                    <span style={{ width: `${percentOrder[0]}%`, textAlign: 'center' }}>{percentOrder[0].toFixed(0)}%</span>
-                    <span style={{ width: `${percentOrder[1]}%`, textAlign: 'center' }}>{percentOrder[1].toFixed(0)}%</span>
-                    <span style={{ width: `${percentOrder[2]}%`, textAlign: 'center' }}>{percentOrder[2].toFixed(0)}%</span>
+                 <div className="flex w-full text-xs font-medium text-muted-foreground" dir="ltr">
+                    <div style={{ width: `${barOrder[0]}%` }} className="text-center">{barOrder[0].toFixed(0)}%</div>
+                    <div style={{ width: `${barOrder[1]}%` }} className="text-center">{barOrder[1].toFixed(0)}%</div>
+                    <div style={{ width: `${barOrder[2]}%` }} className="text-center">{barOrder[2].toFixed(0)}%</div>
                 </div>
             </div>
         </TooltipProvider>
