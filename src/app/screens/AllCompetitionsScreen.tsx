@@ -364,8 +364,10 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         sessionStorage.removeItem('goalstack_all_competitions_cache');
         sessionStorage.removeItem('goalstack_national_teams_cache');
         toast({ title: 'بدء التحديث...', description: 'جاري تحديث بيانات البطولات والمنتخبات.' });
-        fetchAllCompetitions();
-        fetchNationalTeams();
+        setAllLeagues(null);
+        setNationalTeams(null);
+        await fetchAllCompetitions();
+        await fetchNationalTeams();
         toast({ title: 'نجاح', description: 'تم تحديث البيانات بنجاح.' });
     };
 
@@ -563,6 +565,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             <AddCompetitionDialog isOpen={isAddOpen} onOpenChange={(isOpen) => {
                 setAddOpen(isOpen);
                 if(!isOpen) {
+                    setAllLeagues(null);
                     fetchAllCompetitions();
                 }
             }} />
