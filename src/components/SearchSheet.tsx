@@ -33,12 +33,12 @@ interface TeamResult {
   team: { id: number; name: string; logo: string; national?: boolean; };
 }
 interface LeagueResult {
-  league: { id: number; name: string; logo: string; };
+    league: { id: number; name: string; logo: string; };
+    country: { name: string; };
 }
 
 type Item = TeamResult['team'] | LeagueResult['league'];
 type ItemType = 'teams' | 'leagues';
-type SearchResult = (TeamResult & { type: 'team' }) | (LeagueResult & { type: 'league' });
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status' | 'crown';
 
 interface SearchableItem {
@@ -47,9 +47,31 @@ interface SearchableItem {
     name: string; // Translated/Custom name
     originalName: string; // Original English name from API
     normalizedName: string; // Normalized version of the 'name' field
+    normalizedOriginalName: string; // Normalized version of the 'originalName' field
     logo: string;
     originalItem: Item;
 }
+
+
+// --- Cache Logic ---
+const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
+const TEAMS_CACHE_KEY = 'goalstack_national_teams_cache';
+interface Cache<T> {
+    data: T;
+    lastFetched: number;
+}
+const getCachedData = <T>(key: string): T | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const cachedData = localStorage.getItem(key);
+        if (!cachedData) return null;
+        const parsed = JSON.parse(cachedData) as Cache<any>;
+        return parsed.data;
+    } catch (error) {
+        return null;
+    }
+};
+
 
 const normalizeArabic = (text: string) => {
   if (!text) return '';
@@ -95,7 +117,7 @@ const ItemRow = ({ item, itemType, isFavorited, isCrowned, onFavoriteToggle, onC
 
 export function SearchSheet({ children, navigate, initialItemType, favorites, customNames, setFavorites, onCustomNameChange }: { children: React.ReactNode, navigate: ScreenProps['navigate'], initialItemType?: ItemType, favorites: Partial<Favorites>, customNames: any, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange?: () => void }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedSearchTerm = useDebounce(searchTerm, 200);
   const [searchResults, setSearchResults] = useState<SearchableItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -109,11 +131,72 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   
   const [renameItem, setRenameItem] = useState<{ id: string | number; name: string; note?: string; type: RenameType; purpose: 'rename' | 'note' | 'crown'; originalData?: any; originalName?: string; } | null>(null);
 
+  const [localSearchIndex, setLocalSearchIndex] = useState<SearchableItem[]>([]);
+  
   const getDisplayName = useCallback((type: 'team' | 'league', id: number, defaultName: string) => {
     if (!customNames) return defaultName;
     const customMap = type === 'team' ? customNames.teams : customNames.leagues;
     return customMap?.get(id) || hardcodedTranslations[`${type}s`]?.[id] || defaultName;
   }, [customNames]);
+
+    const buildLocalIndex = useCallback(async () => {
+        if (!customNames || localSearchIndex.length > 0) return;
+        setLoading(true);
+        const index: SearchableItem[] = [];
+        const existingIds = new Set<string>();
+
+        const processTeam = (team: Team) => {
+            if (!team.id || existingIds.has(`teams-${team.id}`)) return;
+            const name = getDisplayName('team', team.id, team.name);
+            index.push({
+                id: team.id,
+                type: 'teams',
+                name,
+                originalName: team.name,
+                logo: team.logo,
+                normalizedName: normalizeArabic(name),
+                normalizedOriginalName: normalizeArabic(team.name),
+                originalItem: team,
+            });
+            existingIds.add(`teams-${team.id}`);
+        };
+        
+        const processLeague = (league: LeagueResult['league']) => {
+            if (!league.id || existingIds.has(`leagues-${league.id}`)) return;
+            const name = getDisplayName('league', league.id, league.name);
+            index.push({
+                id: league.id,
+                type: 'leagues',
+                name,
+                originalName: league.name,
+                logo: league.logo,
+                normalizedName: normalizeArabic(name),
+                normalizedOriginalName: normalizeArabic(league.name),
+                originalItem: league,
+            });
+            existingIds.add(`leagues-${league.id}`);
+        }
+
+        const competitionsCache = getCachedData<LeagueResult[]>(COMPETITIONS_CACHE_KEY);
+        if (competitionsCache) {
+            competitionsCache.forEach(comp => processLeague(comp.league));
+        }
+
+        const nationalTeamsCache = getCachedData<Team[]>(TEAMS_CACHE_KEY);
+        if (nationalTeamsCache) {
+            nationalTeamsCache.forEach(team => processTeam(team));
+        }
+        
+        setLocalSearchIndex(index);
+        setLoading(false);
+    }, [customNames, getDisplayName, localSearchIndex.length]);
+
+
+  useEffect(() => {
+    if (isOpen) {
+        buildLocalIndex();
+    }
+  }, [isOpen, buildLocalIndex]);
 
 
   const handleOpenChange = (open: boolean) => {
@@ -134,58 +217,19 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     }
     setLoading(true);
     
-    const allResults: SearchableItem[] = [];
-    const existingIds = new Set<string>();
-
-    try {
-        const [teamsData, leaguesData] = await Promise.all([
-            fetch(`/api/football/teams?search=${encodeURIComponent(query)}`).then(res => res.json()),
-            fetch(`/api/football/leagues?search=${encodeURIComponent(query)}`).then(res => res.json())
-        ]);
-
-        teamsData.response?.forEach((r: TeamResult) => {
-            if (r.team.id && !existingIds.has(`teams-${r.team.id}`)) {
-                const name = getDisplayName('team', r.team.id, r.team.name);
-                allResults.push({
-                    id: r.team.id,
-                    type: 'teams',
-                    name: name,
-                    originalName: r.team.name,
-                    normalizedName: normalizeArabic(name),
-                    logo: r.team.logo,
-                    originalItem: r.team,
-                });
-                existingIds.add(`teams-${r.team.id}`);
-            }
-        });
-
-        leaguesData.response?.forEach((r: LeagueResult) => {
-            if (r.league.id && !existingIds.has(`leagues-${r.league.id}`)) {
-                const name = getDisplayName('league', r.league.id, r.league.name);
-                allResults.push({
-                    id: r.league.id,
-                    type: 'leagues',
-                    name,
-                    originalName: r.league.name,
-                    normalizedName: normalizeArabic(name),
-                    logo: r.league.logo,
-                    originalItem: r.league,
-                });
-                existingIds.add(`leagues-${r.league.id}`);
-            }
-        });
-    } catch (e) {
-        console.error("API search failed.", e);
-        toast({
-            variant: "destructive",
-            title: "فشل البحث",
-            description: "حدث خطأ أثناء جلب نتائج البحث. يرجى المحاولة مرة أخرى.",
-        });
-    }
+    const normalizedQuery = normalizeArabic(query);
     
-    setSearchResults(allResults);
+    const localResults = localSearchIndex.filter(item => 
+        item.normalizedName.includes(normalizedQuery) || 
+        item.normalizedOriginalName.includes(normalizedQuery) ||
+        item.name.toLowerCase().includes(query.toLowerCase()) ||
+        item.originalName.toLowerCase().includes(query.toLowerCase())
+    );
+
+    setSearchResults(localResults);
     setLoading(false);
-  }, [getDisplayName, toast]);
+
+  }, [localSearchIndex]);
 
 
   useEffect(() => {
@@ -327,16 +371,14 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         logo: item.logo,
         originalItem: item,
         normalizedName: normalizeArabic(getDisplayName(itemType.slice(0,-1) as 'team' | 'league', item.id, item.name)),
+        normalizedOriginalName: normalizeArabic(item.name),
     }))
   }, [itemType, getDisplayName]);
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || !customNames || !favorites) {
       return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
-     if (!customNames || !favorites) {
-         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-     }
 
     const itemsToRender = debouncedSearchTerm ? searchResults.filter(i => i.type === itemType) : popularItems;
 
@@ -406,3 +448,4 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
