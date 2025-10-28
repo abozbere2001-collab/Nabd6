@@ -22,6 +22,7 @@ import { ProfileButton } from '../AppContentWrapper';
 import { hardcodedTranslations } from '@/lib/hardcoded-translations';
 import { LeagueHeaderItem } from '@/components/LeagueHeaderItem';
 import { cn } from '@/lib/utils';
+import { collection } from 'firebase/firestore';
 
 // --- Persistent Cache Logic ---
 const COMPETITIONS_CACHE_KEY = 'goalstack_all_competitions_cache';
@@ -306,25 +307,32 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
     const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
-        
+        const isCurrentlyFavorited = !!favorites?.[itemType]?.[itemId];
+
         setFavorites(prev => {
             const newFavorites = JSON.parse(JSON.stringify(prev || {}));
             if (!newFavorites[itemType]) newFavorites[itemType] = {};
-            const isCurrentlyFavorited = !!newFavorites[itemType]?.[itemId];
 
             if (isCurrentlyFavorited) {
                 delete newFavorites[itemType]![itemId];
             } else {
-                const favData = itemType === 'leagues'
-                    ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
-                    : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
-                newFavorites[itemType]![itemId] = favData as any;
+                if (itemType === 'leagues') {
+                     newFavorites.leagues![itemId] = { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true };
+                } else {
+                     newFavorites.teams![itemId] = { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' };
+                }
             }
-
+            
             if (user && db && !user.isAnonymous) {
                 const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-                const updatePayload = { [`${itemType}.${itemId}`]: isCurrentlyFavorited ? deleteField() : newFavorites[itemType]![itemId] };
-                setDoc(favDocRef, updatePayload, { merge: true }).catch(err => {
+                const updatePayload = {
+                    [`${itemType}.${itemId}`]: isCurrentlyFavorited
+                        ? deleteField()
+                        : (itemType === 'leagues'
+                            ? { name: item.name, leagueId: itemId, logo: item.logo, notificationsEnabled: true }
+                            : { name: (item as Team).name, teamId: itemId, logo: item.logo, type: (item as Team).national ? 'National' : 'Club' })
+                };
+                updateDoc(favDocRef, updatePayload).catch(err => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({path: favDocRef.path, operation: 'update', requestResourceData: updatePayload}));
                 });
             } else {
@@ -333,7 +341,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
 
             return newFavorites;
         });
-    }, [user, db, setFavorites]);
+    }, [user, db, setFavorites, favorites]);
     
 
     const handleOpenCrownDialog = (team: Team) => {
@@ -371,7 +379,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
             const teamId = Number(id);
 
             setFavorites(prev => {
-                const newFavorites = { ...prev };
+                const newFavorites = JSON.parse(JSON.stringify(prev || {}));
                 if (!newFavorites.crownedTeams) newFavorites.crownedTeams = {};
                 const isCurrentlyCrowned = !!newFavorites.crownedTeams?.[teamId];
                 

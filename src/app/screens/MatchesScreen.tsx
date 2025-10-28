@@ -250,7 +250,7 @@ const tabs: {id: TabName, label: string}[] = [
 type RenameType = 'league' | 'team' | 'player' | 'continent' | 'country' | 'coach' | 'status';
 
 // Main Screen Component
-export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames, setFavorites }: ScreenProps & { isVisible: boolean, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>> }) {
+export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorites, customNames, setFavorites, onCustomNameChange }: ScreenProps & { isVisible: boolean, setFavorites: React.Dispatch<React.SetStateAction<Partial<Favorites>>>, onCustomNameChange: () => Promise<void> }) {
   const { user } = useAuth();
   const { db, isAdmin } = useAdmin();
   const { toast } = useToast();
@@ -326,21 +326,24 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
         setLoading(true);
         try {
             let fixtures: FixtureType[] = [];
-
+            const favTeamIds = Object.keys(currentFavorites?.teams || {}).map(Number);
+            const favLeagueIds = Object.keys(currentFavorites?.leagues || {}).map(Number);
+            const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
+            
             if (activeTab === 'all-matches') {
                 const liveRes = await fetch('/api/football/fixtures?live=all', { signal: abortSignal });
                 if (liveRes.ok) {
                     const liveData = await liveRes.json();
                     fixtures = liveData.response || [];
                 }
-            } else {
-                const favTeamIds = currentFavorites?.teams ? Object.keys(currentFavorites.teams).map(Number) : [];
-                const favLeagueIds = currentFavorites?.leagues ? Object.keys(currentFavorites.leagues).map(Number) : [];
-                const hasFavs = favTeamIds.length > 0 || favLeagueIds.length > 0;
-                
-                if (hasFavs) {
-                    // Optimized fetch: Combine league IDs into one request if possible (some APIs support comma-separated lists)
-                    // For this API, we'll fetch all fixtures for the day and then filter. It's less efficient but avoids multiple fetches.
+            } else if(dateKey) { // Fetch by date for 'my-results'
+                const allTeamIds = Array.from(new Set([...favTeamIds]));
+                const allLeagueIds = Array.from(new Set([...favLeagueIds]));
+
+                if (allTeamIds.length === 0 && allLeagueIds.length === 0) {
+                    fixtures = [];
+                } else {
+                    // Optimized fetch: get all fixtures for the day and filter client-side
                     const res = await fetch(`/api/football/fixtures?date=${dateKey}`, { signal: abortSignal });
                     if(res.ok) {
                         const data = await res.json();
@@ -426,7 +429,7 @@ export function MatchesScreen({ navigate, goBack, canGoBack, isVisible, favorite
             actions={
                <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs font-mono px-2" onClick={() => setShowOdds(prev => !prev)}>1x2</Button>
-                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites}>
+                  <SearchSheet navigate={navigate} favorites={favorites} customNames={customNames} setFavorites={setFavorites} onCustomNameChange={onCustomNameChange}>
                       <Button variant="ghost" size="icon" className="h-7 w-7">
                           <Search className="h-5 w-5" />
                       </Button>
