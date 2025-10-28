@@ -232,8 +232,10 @@ export function AppContentWrapper({ showHints, onHintsDismissed }: { showHints: 
       return;
     }
 
+    // Cleanup previous listeners before setting up new ones
+    cleanup();
+
     if (user && db) {
-      cleanup(); // Clean up previous listener if any
       const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
       favsUnsub = onSnapshot(
         favDocRef,
@@ -242,11 +244,10 @@ export function AppContentWrapper({ showHints, onHintsDismissed }: { showHints: 
         },
         (error) => {
           console.error("Error listening to remote favorites:", error);
-          setFavorites(getLocalFavorites()); // Fallback to local on error
+          setFavorites({}); // Fallback to empty on error
         }
       );
     } else { // Guest mode or logged out
-      cleanup(); // Clean up previous listener if any
       setFavorites(getLocalFavorites());
       window.addEventListener('localFavoritesChanged', localFavsListener);
     }
