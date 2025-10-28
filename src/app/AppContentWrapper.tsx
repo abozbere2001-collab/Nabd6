@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -149,7 +148,7 @@ export const ProfileButton = () => {
 
 
 export function AppContentWrapper() {
-  const { user } = useAuth();
+  const { user, isUserLoading } = useAuth();
   const { db } = useFirestore();
   const [favorites, setFavorites] = useState<Partial<Favorites>>({});
   const [customNames, setCustomNames] = useState<{ [key: string]: Map<number | string, string> } | null>(null);
@@ -202,41 +201,49 @@ export function AppContentWrapper() {
   }, [db]);
   
   useEffect(() => {
+    // Always fetch custom names, regardless of user state.
+    fetchCustomNames();
+  }, [fetchCustomNames]);
+  
+  useEffect(() => {
     let favsUnsub: (() => void) | null = null;
     let localFavsListener: (() => void) | null = null;
-
+  
     const cleanup = () => {
-        if (favsUnsub) favsUnsub();
-        if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener as any);
-        favsUnsub = null;
-        localFavsListener = null;
+      if (favsUnsub) favsUnsub();
+      if (localFavsListener) window.removeEventListener('localFavoritesChanged', localFavsListener as any);
+      favsUnsub = null;
+      localFavsListener = null;
     };
-    
-    const loadData = async () => {
-        
-        await fetchCustomNames();
-        cleanup(); 
-
-        if (user && db) {
-            const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
-            favsUnsub = onSnapshot(favDocRef, (doc) => {
-                setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
-            }, (error) => {
-                console.error("Error listening to remote favorites:", error);
-                setFavorites(getLocalFavorites());
-            });
-        } else {
-            setFavorites(getLocalFavorites());
-            localFavsListener = () => setFavorites(getLocalFavorites());
-            window.addEventListener('localFavoritesChanged', localFavsListener as any);
+  
+    // If user state is still loading, do nothing.
+    if (isUserLoading) {
+      return;
+    }
+  
+    // When user logs in
+    if (user && db) {
+      const favDocRef = doc(db, 'users', user.uid, 'favorites', 'data');
+      favsUnsub = onSnapshot(
+        favDocRef,
+        (doc) => {
+          setFavorites(doc.exists() ? (doc.data() as Favorites) : {});
+        },
+        (error) => {
+          console.error("Error listening to remote favorites:", error);
+          setFavorites(getLocalFavorites()); // Fallback to local on error
         }
-    };
-    
-    loadData();
-
+      );
+    } else { // When user logs out or is a guest
+      setFavorites(getLocalFavorites());
+      localFavsListener = () => setFavorites(getLocalFavorites());
+      window.addEventListener('localFavoritesChanged', localFavsListener as any);
+    }
+  
+    // The cleanup function will be called when the user logs in/out,
+    // correctly unsubscribing from the old listener.
     return () => cleanup();
-
-}, [user, db, fetchCustomNames]);
+  }, [user, db, isUserLoading]);
 
 
   const goBack = useCallback(() => {
@@ -352,11 +359,3 @@ export function AppContentWrapper() {
         </main>
   );
 }
-
-
-
-
-    
-
-    
-
