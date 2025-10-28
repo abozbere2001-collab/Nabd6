@@ -307,7 +307,7 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
     }, [nationalTeams, getName, customNames]);
 
 
-    const handleFavoriteToggle = useCallback((item: FullLeague['league'] | Team, itemType: 'leagues' | 'teams') => {
+    const handleFavoriteToggle = useCallback((item: { id: number, name: string, logo: string, national?: boolean }, itemType: 'leagues' | 'teams') => {
         const itemId = item.id;
     
         if (!user) { // Guest mode logic
@@ -645,3 +645,4 @@ export function AllCompetitionsScreen({ navigate, goBack, canGoBack, favorites, 
         </div>
     );
 }
+

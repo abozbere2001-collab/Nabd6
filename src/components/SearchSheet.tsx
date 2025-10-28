@@ -316,37 +316,24 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
   
   const popularItems = useMemo(() => {
     if (!customNames) return { teams: [], leagues: [] };
+    const seen = new Set<string>();
+
+    const allPopular = [...POPULAR_TEAMS.map(t => ({...t, type: 'teams' as const})), ...POPULAR_LEAGUES.map(l => ({...l, type: 'leagues' as const}))];
     
-    const seenTeams = new Set<number>();
-    const seenLeagues = new Set<number>();
+    return allPopular.map(item => {
+        const key = `${item.type}-${item.id}`;
+        if (seen.has(key)) return null;
+        seen.add(key);
 
-    const teams = POPULAR_TEAMS.map(item => {
-        if (seenTeams.has(item.id)) return null;
-        seenTeams.add(item.id);
         return {
             id: item.id,
-            type: 'teams' as ItemType,
-            name: getDisplayName('team', item.id, item.name),
+            type: item.type,
+            name: getDisplayName(item.type.slice(0, -1) as 'team' | 'league', item.id, item.name),
             originalName: item.name,
             logo: item.logo,
             originalItem: item as Item,
         };
     }).filter(Boolean) as SearchableItem[];
-
-    const leagues = POPULAR_LEAGUES.map(item => {
-        if (seenLeagues.has(item.id)) return null;
-        seenLeagues.add(item.id);
-        return {
-            id: item.id,
-            type: 'leagues' as ItemType,
-            name: getDisplayName('league', item.id, item.name),
-            originalName: item.name,
-            logo: item.logo,
-            originalItem: item as Item,
-        };
-    }).filter(Boolean) as SearchableItem[];
-
-    return { teams, leagues };
 
   }, [getDisplayName, customNames]);
 
@@ -359,14 +346,13 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
         return <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>;
     }
     
-    const itemsToDisplay = debouncedSearchTerm ? searchResults : (itemType === 'teams' ? popularItems.teams : popularItems.leagues);
-    const finalItems = debouncedSearchTerm ? itemsToDisplay : itemsToDisplay.filter(item => item.type === itemType);
+    const itemsToDisplay = debouncedSearchTerm ? searchResults : popularItems.filter(item => item.type === itemType);
 
-    if (finalItems.length === 0 && debouncedSearchTerm) {
+    if (itemsToDisplay.length === 0 && debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد نتائج بحث.</p>;
     }
 
-    if(finalItems.length === 0 && !debouncedSearchTerm) {
+    if(itemsToDisplay.length === 0 && !debouncedSearchTerm) {
         return <p className="text-muted-foreground text-center pt-8">لا توجد عناصر شائعة لعرضها.</p>;
     }
 
@@ -374,7 +360,7 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     return (
         <div className="space-y-2">
             {!debouncedSearchTerm && <h3 className="font-bold text-md text-center text-muted-foreground">{itemType === 'teams' ? 'الفرق الأكثر شعبية' : 'البطولات الأكثر شعبية'}</h3>}
-             {finalItems.map(result => {
+             {itemsToDisplay.map(result => {
                     const isFavorited = !!favorites[result.type]?.[result.id];
                     const isCrowned = result.type === 'teams' && !!favorites.crownedTeams?.[result.id];
                     return <ItemRow 
@@ -433,3 +419,4 @@ export function SearchSheet({ children, navigate, initialItemType, favorites, cu
     </Sheet>
   );
 }
+
