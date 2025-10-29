@@ -1,8 +1,9 @@
 {
   "name": "نبض الملاعب",
   "short_name": "نبض",
-  "description": "عالم كرة القدم بين يديك. تابع المباريات والأخبار والنتائج.",
+  "description": "عالم كرة القدم بين يديك. تابع فريقك المفضل، شاهد النتائج المباشرة، وشارك في توقعات المباريات.",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#18181b",
@@ -11,27 +12,25 @@
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ],
   "screenshots": [
     {
-      "src": "https://picsum.photos/seed/1/1080/1920",
-      "sizes": "1080x1920",
-      "type": "image/jpeg",
+      "src": "/screenshots/screenshot-1.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
       "form_factor": "narrow"
     },
     {
-      "src": "https://picsum.photos/seed/2/1080/1920",
-      "sizes": "1080x1920",
-      "type": "image/jpeg",
+      "src": "/screenshots/screenshot-2.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
       "form_factor": "narrow"
     }
   ]
