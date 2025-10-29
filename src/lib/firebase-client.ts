@@ -83,6 +83,7 @@ export const signOut = (): Promise<void> => {
     // Also clear guest mode flag on sign out.
     if (typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY)) {
         localStorage.removeItem(GUEST_MODE_KEY);
+        // Force reload to ensure all state is cleared and user is shown the welcome screen.
         window.location.reload();
         return Promise.resolve();
     }

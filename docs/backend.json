@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -221,7 +222,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
@@ -323,6 +325,6 @@
         }
       }
     ],
-    "reasoning": "This Firestore structure prioritizes authorization independence and supports secure list operations (QAPs). User data is stored under `/users/{userId}`. Matches, Competitions, and Teams are stored in top-level collections, enabling easier querying and management. News articles are also stored in a top-level collection. Admin users are managed using a dedicated collection `/admins/{adminId}`.\n\n**Authorization Independence:** The `favoriteTeamIds`, `favoriteCompetitionIds` and `favoriteMatchIds` arrays within the `/users/{userId}` document denormalize the user's preferences. This eliminates the need for `get()` calls in security rules when accessing related data. The News articles are associated with the Admin's user ID, enabling easy rule creation.\n\n**QAPs Support:** Segregation of data into top-level collections for Matches, Competitions, Teams, and News allows for secure and efficient listing of these entities. The membership map (in this case, the admin collection), allows for simple existence checks for authorization, securing list operations."
+    "reasoning": "This Firestore structure prioritizes authorization independence and supports secure list operations (QAPs). User data is stored under `/users/{userId}`. Matches, Competitions, and Teams are stored in top-level collections, enabling easier querying and management. News articles are also stored in a top-level collection. Admin users are managed using a dedicated collection `/admins/{adminId}`.\\n\\n**Authorization Independence:** The `favoriteTeamIds`, `favoriteCompetitionIds` and `favoriteMatchIds` arrays within the `/users/{userId}` document denormalize the user's preferences. This eliminates the need for `get()` calls in security rules when accessing related data. The News articles are associated with the Admin's user ID, enabling easy rule creation.\\n\\n**QAPs Support:** Segregation of data into top-level collections for Matches, Competitions, Teams, and News allows for secure and efficient listing of these entities. The membership map (in this case, the admin collection), allows for simple existence checks for authorization, securing list operations."
   }
 }
