@@ -4,32 +4,34 @@
   "description": "عالم كرة القدم بين يديك. تابع المباريات والأخبار والنتائج.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#18181b",
+  "background_color": "#000000",
   "theme_color": "#18181b",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshots/screenshot-1.png",
+      "src": "https://picsum.photos/seed/1/1080/1920",
       "sizes": "1080x1920",
-      "type": "image/png",
+      "type": "image/jpeg",
       "form_factor": "narrow"
     },
     {
-      "src": "/screenshots/screenshot-2.png",
+      "src": "https://picsum.photos/seed/2/1080/1920",
       "sizes": "1080x1920",
-      "type": "image/png",
+      "type": "image/jpeg",
       "form_factor": "narrow"
     }
   ]
