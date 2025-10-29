@@ -54,12 +54,11 @@ const pwaConfig = {
   dest: 'public',
   register: true,
   skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
 };
 
-// Only wrap with PWA in production
-const config = process.env.NODE_ENV === 'production' 
-  ? withPWA(pwaConfig)(nextConfig) 
-  : nextConfig;
+// Wrap the entire config with withPWA
+const configWithPWA = withPWA(pwaConfig);
 
-
-export default config;
+// It's important that the exported object is the one wrapped by withPWA
+export default configWithPWA(nextConfig);

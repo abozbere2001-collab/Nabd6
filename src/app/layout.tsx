@@ -1,5 +1,5 @@
 
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   title: 'نبض الملاعب',
   description: 'عالم كرة القدم بين يديك',
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#18181b',
 };
 
 const cairo = Cairo({
