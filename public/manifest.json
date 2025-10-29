@@ -4,6 +4,7 @@
   "description": "عالم كرة القدم بين يديك. تابع المباريات والأخبار والنتائج.",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#18181b",
   "theme_color": "#18181b",
   "icons": [
@@ -20,25 +21,16 @@
   ],
   "screenshots": [
     {
-      "src": "https://picsum.photos/seed/1/400/800",
-      "sizes": "400x800",
-      "type": "image/jpeg",
-      "form_factor": "narrow",
-      "label": "شاشة المباريات"
+      "src": "/screenshots/screenshot-1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
     },
     {
-      "src": "https://picsum.photos/seed/2/400/800",
-      "sizes": "400x800",
-      "type": "image/jpeg",
-      "form_factor": "narrow",
-      "label": "شاشة تفاصيل المباراة"
-    },
-    {
-      "src": "https://picsum.photos/seed/3/1280/800",
-      "sizes": "1280x800",
-      "type": "image/jpeg",
-      "form_factor": "wide",
-      "label": "شاشة المباريات على جهاز لوحي"
+      "src": "/screenshots/screenshot-2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow"
     }
   ]
 }
