@@ -1,3 +1,4 @@
+
 {
   "name": "نبض الملاعب",
   "short_name": "نبض",
@@ -12,12 +13,14 @@
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [
@@ -25,13 +28,15 @@
       "src": "/screenshots/screenshot-1.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "شاشة المباريات الرئيسية"
     },
     {
       "src": "/screenshots/screenshot-2.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "شاشة تفاصيل المباراة"
     }
   ]
 }
