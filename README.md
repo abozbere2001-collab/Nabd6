@@ -19,6 +19,4 @@
 ## 🚀 طريقة التشغيل
 ```bash
 npm install
-npm run build
-npm run start
-# Yaallah
+npm run 
