@@ -1,23 +1,37 @@
 {
-  "name": "نبض الملاعب",
   "short_name": "نبض",
+  "name": "نبض الملاعب",
   "description": "عالم كرة القدم بين يديك. تابع فريقك المفضل، شاهد النتائج المباشرة، وشارك في توقعات المباريات.",
+  "id": "/?source=pwa",
   "start_url": "/",
-  "id": "/",
   "display": "standalone",
-  "background_color": "#000000",
   "theme_color": "#18181b",
+  "background_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
@@ -25,13 +39,15 @@
       "src": "/screenshots/screenshot-1.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "شاشة المباريات الرئيسية"
     },
     {
       "src": "/screenshots/screenshot-2.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow"
+      "form_factor": "narrow",
+      "label": "تفاصيل المباراة"
     }
   ]
 }
