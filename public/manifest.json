@@ -1,12 +1,7 @@
-
 {
   "name": "نبض الملاعب",
-  "short_name": "نبض الملاعب",
-  "description": "عالم كرة القدم بين يديك",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#18181b",
+  "short_name": "نبض",
+  "description": "عالم كرة القدم بين يديك. تابع المباريات والأخبار والنتائج.",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -18,5 +13,9 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#18181b",
+  "theme_color": "#18181b"
 }
