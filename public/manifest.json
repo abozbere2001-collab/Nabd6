@@ -1,9 +1,9 @@
 {
-  "short_name": "نبض الملاعب",
-  "name": "نبض الملاعب - Goal Stack",
+  "name": "نبض الملاعب",
+  "short_name": "نبض",
   "description": "عالم كرة القدم بين يديك. تابع فريقك المفضل، شاهد النتائج المباشرة، وشارك في توقعات المباريات.",
-  "id": "/",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#18181b",
@@ -12,26 +12,12 @@
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-maskable-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-maskable-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     }
   ],
   "screenshots": [
@@ -39,15 +25,13 @@
       "src": "/screenshots/screenshot-1.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow",
-      "label": "شاشة المباريات"
+      "form_factor": "narrow"
     },
     {
       "src": "/screenshots/screenshot-2.png",
       "sizes": "1080x2340",
       "type": "image/png",
-      "form_factor": "narrow",
-      "label": "شاشة اختياراتي"
+      "form_factor": "narrow"
     }
   ]
 }
