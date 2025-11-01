@@ -1,0 +1,14 @@
+<svg width="680" height="1050" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<defs>
+		<line id="line" stroke="rgba(255,255,255,0.2)" stroke-width="4" stroke-linecap="round"/>
+		<circle id="circle" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+	</defs>
+	<rect width="680" height="1050" fill="#4CAF50" fill-opacity="0.8"/>
+	<use xlink:href="#line" x1="340" y1="0" x2="340" y2="1050"/>
+	<use xlink:href="#circle" cx="340" cy="525" r="91.5"/>
+	<rect x="0" y="0" width="680" height="1050" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+	<rect x="0" y="360" width="165" height="330" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+	<rect x="0" y="450" width="55" height="150" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+	<rect x="680" y="360" width="-165" height="330" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+	<rect x="680" y="450" width="-55" height="150" stroke="rgba(255,255,255,0.2)" stroke-width="4" fill="none"/>
+</svg>
