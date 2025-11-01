@@ -1,4 +1,3 @@
-
 /** @type {import('next').NextConfig} */
 
 const withPWA = require('next-pwa')({
@@ -8,6 +7,7 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig = {
+  output: 'export',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -15,6 +15,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
